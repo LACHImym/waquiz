@@ -15,8 +15,11 @@ window.QUIZ_CONFIG = {
   // アプリ名（画面上部・シェア文に使われます）
   appName: 'オンラインコミュニティは クイズ',
 
-  // ログインに使う Misskey サーバーの初期値（ユーザーが変更可能）
-  defaultMisskeyHost: 'misskey.io',
+  // ログインに使う Misskey サーバー。
+  // lockMisskeyHost を true にすると、このサーバー専用になります
+  // （＝このサーバーにアカウントがある人だけがログイン可能・入力欄は非表示）。
+  defaultMisskeyHost: 'wa-community.xsns.jp',
+  lockMisskeyHost: true,
 
   // 3ランク。label は後から自由に変えられます（key は変えないでください）。
   ranks: [

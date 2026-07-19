@@ -35,9 +35,16 @@ const Misskey = (() => {
     return u ? `@${u.username}@${u.host}` : '';
   }
 
+  // 使用するサーバー名を返す（ロック時は必ず固定サーバー）
+  function serverHost() {
+    return CONFIG.defaultMisskeyHost.trim().replace(/^https?:\/\//, '').replace(/\/$/, '');
+  }
+
   // ログイン開始 → Misskey の認可画面へリダイレクト
   function login(host) {
-    host = (host || CONFIG.defaultMisskeyHost).trim().replace(/^https?:\/\//, '').replace(/\/$/, '');
+    // サーバー固定モードなら入力に関わらず専用サーバーを使う
+    host = CONFIG.lockMisskeyHost ? serverHost()
+      : (host || CONFIG.defaultMisskeyHost).trim().replace(/^https?:\/\//, '').replace(/\/$/, '');
     const session = uuid();
     // コールバック先＝このページ（クエリを綺麗にした状態）
     const callback = location.origin + location.pathname;
@@ -98,5 +105,5 @@ const Misskey = (() => {
     window.open(url.toString(), '_blank', 'noopener');
   }
 
-  return { getUser, isLoggedIn, logout, handleOf, login, handleCallback, share };
+  return { getUser, isLoggedIn, logout, handleOf, login, handleCallback, share, serverHost };
 })();

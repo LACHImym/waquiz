@@ -102,6 +102,9 @@ textarea.input { resize: vertical; }
 
 /* ---- ログイン ---- */
 .login-card { max-width: 440px; margin: 32px auto; }
+.server-tag { display: flex; align-items: center; gap: 10px; border: 3px solid var(--ink); background: var(--paper-2); padding: 11px 14px; margin: 16px 0 14px; }
+.server-tag-label { font-family: var(--disp); font-weight: 900; font-size: 9px; letter-spacing: 0.16em; text-transform: uppercase; background: var(--ink); color: var(--paper); padding: 3px 8px; flex: none; }
+.server-tag-host { font-family: var(--disp); font-weight: 900; font-size: 15px; letter-spacing: -0.01em; word-break: break-all; }
 
 /* ---- ランクチップ（フィルタ） ---- */
 .rank-chips { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 18px; }

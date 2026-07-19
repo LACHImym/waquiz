@@ -127,10 +127,28 @@ function renderSetupNotice() {
 function renderLogin() {
   const app = $('#app');
   app.innerHTML = '';
-  const hostInput = h('input', {
-    class: 'input', type: 'text', value: CONFIG.defaultMisskeyHost,
-    placeholder: 'misskey.io',
-  });
+  const host = Misskey.serverHost();
+
+  if (CONFIG.lockMisskeyHost) {
+    // サーバー固定モード：入力欄なし・ワンタップでログインへ
+    app.appendChild(h('section', { class: 'card login-card' }, [
+      h('h1', {}, 'ようこそ'),
+      h('p', { class: 'muted' }, 'みんなで四択クイズを作って、みんなで解こう。'),
+      h('div', { class: 'server-tag' }, [
+        h('span', { class: 'server-tag-label' }, 'コミュニティ'),
+        h('span', { class: 'server-tag-host' }, host),
+      ]),
+      h('button', {
+        class: 'btn btn-primary btn-block',
+        onclick: () => Misskey.login(),
+      }, `${host} でログイン`),
+      h('p', { class: 'hint' }, `※ ${host} のアカウントが必要です。ブラウザで既にログイン済みなら、開く画面で「許可」を押すだけです。`),
+    ]));
+    return;
+  }
+
+  // 通常モード：サーバーを自由入力
+  const hostInput = h('input', { class: 'input', type: 'text', value: host, placeholder: 'misskey.io' });
   app.appendChild(h('section', { class: 'card login-card' }, [
     h('h1', {}, 'ようこそ'),
     h('p', { class: 'muted' }, 'みんなで四択クイズを作って、みんなで解こう。まずは Misskey でログインしてください。'),
