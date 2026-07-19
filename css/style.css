@@ -56,6 +56,10 @@ h2 { font-size: 21px; }
 }
 .nav-btn:hover { border-color: var(--ink); }
 .nav-btn.active { background: var(--ink); color: var(--paper); }
+.nav-btn.locked { opacity: .35; }
+.nav-btn.locked:hover { border-color: transparent; }
+.nav-btn .lock { margin-left: 4px; font-size: 10px; }
+.guest-tag { font-family: var(--disp); font-weight: 900; font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase; border: 2px solid var(--ink); padding: 3px 8px; }
 .user-box { display: flex; align-items: center; gap: 8px; }
 .avatar { width: 26px; height: 26px; object-fit: cover; border: 2px solid var(--ink); }
 .user-name { font-family: var(--disp); font-weight: 700; font-size: 12px; letter-spacing: 0.02em; max-width: 120px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -113,6 +117,9 @@ textarea.input { resize: vertical; }
   background: var(--paper); border: 3px solid var(--ink); color: var(--ink); padding: 8px 14px; cursor: pointer;
 }
 .chip.active { background: var(--ink); color: var(--paper); }
+.chip.locked { opacity: .35; }
+.chip .lock { margin-left: 5px; font-size: 10px; }
+.guest-note { font-family: var(--body); font-size: 12px; letter-spacing: .02em; background: var(--paper-2); border-left: 4px solid var(--yellow); padding: 8px 12px; margin-bottom: 14px; }
 
 /* ---- ランクバッジ（色ブロック＋幾何マーク） ---- */
 .rank-badge {

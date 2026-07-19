@@ -23,9 +23,9 @@ window.QUIZ_CONFIG = {
 
   // 3ランク。label は後から自由に変えられます（key は変えないでください）。
   ranks: [
-    { key: 'beginner',     label: 'ビギナー' },
-    { key: 'intermediate', label: '中級'     },
-    { key: 'mania',        label: 'マニア'   },
+    { key: 'beginner',     label: '入門編' },
+    { key: 'intermediate', label: '中級'   },
+    { key: 'mania',        label: '上級'   },
   ],
 
   // シェア文につけるハッシュタグ（# は不要）

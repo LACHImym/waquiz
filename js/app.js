@@ -59,11 +59,9 @@ async function boot() {
     renderSetupNotice();
   }
 
-  if (!user) {
-    renderLogin();
-  } else {
-    switchView('solve');
-  }
+  // ゲスト（未ログイン）は入門編のみ。ログイン状態に関わらずアプリに入れる。
+  if (!user) currentRankFilter = 'beginner';
+  switchView('solve');
 }
 
 /* ---------- ヘッダー ---------- */
@@ -75,26 +73,43 @@ function renderHeader() {
     h('span', { class: 'brand-name' }, CONFIG.appName),
   ]));
 
+  const guest = !user;
+  const nav = h('nav', { class: 'nav' }, [
+    navBtn('solve', '挑戦'),
+    navBtn('list', '問題一覧', { locked: guest }),
+    navBtn('my', '自分の問題', { locked: guest }),
+    navBtn('create', '作問', { locked: guest }),
+  ]);
+  header.appendChild(nav);
+
   if (user) {
-    const nav = h('nav', { class: 'nav' }, [
-      navBtn('solve', '挑戦'),
-      navBtn('list', '問題一覧'),
-      navBtn('my', '自分の問題'),
-      navBtn('create', '作問'),
-    ]);
-    header.appendChild(nav);
     header.appendChild(h('div', { class: 'user-box' }, [
       user.avatarUrl ? h('img', { class: 'avatar', src: user.avatarUrl, alt: '' }) : null,
       h('span', { class: 'user-name' }, user.name),
       h('button', { class: 'link-btn', onclick: () => { Misskey.logout(); location.reload(); } }, 'ログアウト'),
     ]));
+  } else {
+    header.appendChild(h('div', { class: 'user-box' }, [
+      h('span', { class: 'guest-tag' }, 'ゲスト'),
+      h('button', { class: 'btn btn-primary btn-sm', onclick: () => switchView('login') }, 'ログイン'),
+    ]));
   }
 }
-function navBtn(view, label) {
+function navBtn(view, label, opts = {}) {
+  if (opts.locked) {
+    return h('button', { class: 'nav-btn locked', onclick: () => requireLogin() },
+      [label, h('span', { class: 'lock' }, '🔒')]);
+  }
   return h('button', {
     class: 'nav-btn' + (currentView === view ? ' active' : ''),
     onclick: () => switchView(view),
   }, label);
+}
+
+// ログインが必要な操作をゲストが押したとき
+function requireLogin(msg) {
+  toast(msg || 'ログインすると使えます', 'info');
+  switchView('login');
 }
 
 /* ---------- 画面切替 ---------- */
@@ -108,6 +123,7 @@ function switchView(view) {
   else if (view === 'create') renderCreate(app);
   else if (view === 'list') renderList(app);
   else if (view === 'my') renderMy(app);
+  else if (view === 'login') renderLogin();
 }
 
 /* ---------- Supabase 未設定の案内 ---------- */
@@ -165,14 +181,25 @@ function renderLogin() {
 /* ---------- 挑戦（解く）画面 ---------- */
 let solveState = null;
 function renderSolve(app) {
-  app.appendChild(h('div', { class: 'rank-chips' },
-    [chip('', 'すべて')].concat(CONFIG.ranks.map(r => chip(r.key, r.label)))
-  ));
+  // ゲストは「すべて」を出さず、入門編のみ挑戦可能（中級・上級はロック）
+  const chips = user ? [chip('', 'すべて')] : [];
+  CONFIG.ranks.forEach(r => chips.push(chip(r.key, r.label)));
+  app.appendChild(h('div', { class: 'rank-chips' }, chips));
+
+  if (!user) {
+    app.appendChild(h('p', { class: 'guest-note' },
+      'ゲストで挑戦中。中級・上級や作問はログインで解放されます。'));
+  }
   const slot = h('div', { id: 'solve-slot' });
   app.appendChild(slot);
   loadNextQuestion(slot);
 }
 function chip(key, label) {
+  // ゲストは入門編以外ロック
+  if (!user && key !== 'beginner') {
+    return h('button', { class: 'chip locked', onclick: () => requireLogin('中級・上級はログインすると挑戦できます') },
+      [label, h('span', { class: 'lock' }, '🔒')]);
+  }
   return h('button', {
     class: 'chip' + (currentRankFilter === key ? ' active' : ''),
     onclick: () => {
@@ -190,15 +217,19 @@ async function loadNextQuestion(slot) {
     slot.appendChild(h('p', { class: 'muted center' }, 'Supabase を設定すると問題が表示されます。'));
     return;
   }
+  // ゲストは必ず入門編のみ
+  const rank = user ? (currentRankFilter || undefined) : 'beginner';
   let q;
-  try { q = await Store.randomQuestion(currentRankFilter || undefined); }
+  try { q = await Store.randomQuestion(rank); }
   catch (e) { slot.innerHTML = ''; slot.appendChild(errorBox(e)); return; }
 
   slot.innerHTML = '';
   if (!q) {
     slot.appendChild(h('div', { class: 'card center' }, [
       h('p', { class: 'muted' }, 'この難易度の問題はまだありません。'),
-      h('button', { class: 'btn btn-primary', onclick: () => switchView('create') }, '最初の問題をつくる'),
+      user
+        ? h('button', { class: 'btn btn-primary', onclick: () => switchView('create') }, '最初の問題をつくる')
+        : h('button', { class: 'btn btn-primary', onclick: () => requireLogin('作問はログインすると使えます') }, 'ログインして作問する'),
     ]));
     return;
   }
@@ -243,7 +274,9 @@ function onAnswer(ev, slot, q, i, choicesWrap) {
     h('div', { class: 'result-actions' }, [
       h('button', { class: 'btn btn-primary', onclick: () => shareResult(q, isRight) }, 'Misskey でシェア'),
       h('button', { class: 'btn', onclick: () => loadNextQuestion(slot) }, '次の問題へ'),
-      h('button', { class: 'btn btn-ghost', onclick: () => openDetail(q.id) }, 'この問題を修正・コメント'),
+      user
+        ? h('button', { class: 'btn btn-ghost', onclick: () => openDetail(q.id) }, 'この問題を修正・コメント')
+        : null,
     ]),
   ]);
   slot.appendChild(resultCard);
