@@ -237,6 +237,7 @@ textarea.input { resize: vertical; }
 .site-foot-tag { font-family: var(--disp); font-weight: 700; font-size: 10px; letter-spacing: 0.2em; text-transform: uppercase; opacity: .5; }
 .site-foot-pool { font-family: var(--body); font-weight: 500; font-size: 12px; letter-spacing: .03em; opacity: .8; }
 .site-foot-pool:empty { display: none; }
+.footer-create { margin-bottom: 6px; min-width: 160px; }
 
 /* ---- レスポンシブ ---- */
 @media (max-width: 560px) {
@@ -269,7 +270,7 @@ textarea.input { resize: vertical; }
 .lock { font-size: .8em; }
 
 /* ---- フッターブロック（プール＋作問） ---- */
-.foot-block { margin-top: 30px; padding-top: 18px; border-top: 3px solid var(--ink); text-align: center; }
+.foot-block { margin-top: 28px; text-align: center; }
 .pool-bar { font-family: var(--body); font-size: 12px; letter-spacing: .03em; opacity: .75; margin-bottom: 12px; }
 
 /* ---- クイズ進捗 ---- */

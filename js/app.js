@@ -62,6 +62,7 @@ async function boot() {
   user = Misskey.getUser();
   if (!Store.isConfigured()) renderSetupNotice();
   updateFooterPool();
+  setupFooterCreate();
   switchView('home');
 }
 
@@ -101,6 +102,7 @@ function renderHeader(ctx = {}) {
     acct.appendChild(h('button', { class: 'link-btn', onclick: () => switchView('login') }, 'ログイン'));
   }
   header.appendChild(acct);
+  updateFooterCreate();
 }
 
 /* ---------- 画面切替 ---------- */
@@ -128,8 +130,15 @@ function renderSetupNotice() {
   ]));
 }
 
-function createBtn() {
-  return h('button', { class: 'btn btn-ink', onclick: () => (user ? switchView('manage') : requireLogin('作問はログインすると使えます')) }, '作問する');
+// フッターの「作問する」ボタン：クリック挙動を一度だけ設定
+function setupFooterCreate() {
+  const btn = $('#footer-create');
+  if (btn) btn.addEventListener('click', () => (user ? switchView('manage') : requireLogin('作問はログインすると使えます')));
+}
+// 問題画面（クイズ中）では非表示、それ以外は表示
+function updateFooterCreate() {
+  const btn = $('#footer-create');
+  if (btn) btn.style.display = (currentView === 'quiz') ? 'none' : '';
 }
 
 /* ---------- トップ（3難易度） ---------- */
@@ -152,8 +161,6 @@ function renderHome(app) {
     blocks.appendChild(h('div', { class: 'rank-block-wrap' }, [block, h('p', { class: 'rank-block-desc' }, r.desc)]));
   });
   app.appendChild(blocks);
-
-  app.appendChild(h('div', { class: 'foot-block' }, [createBtn()]));
 }
 
 /* ---------- クイズ開始（全5問） ---------- */
@@ -278,7 +285,6 @@ function showResult() {
       h('button', { class: 'btn', onclick: () => startQuiz(quiz.rank) }, '再挑戦する'),
     ]),
   ]));
-  app.appendChild(h('div', { class: 'foot-block' }, [createBtn()]));
 
   // アニメーション（円グラフ＋数字カウントアップ）
   requestAnimationFrame(() => {
