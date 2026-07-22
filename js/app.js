@@ -61,7 +61,18 @@ async function boot() {
 
   user = Misskey.getUser();
   if (!Store.isConfigured()) renderSetupNotice();
+  updateFooterPool();
   switchView('home');
+}
+
+/* ---------- フッターの出題プール表示 ---------- */
+function updateFooterPool() {
+  const el = $('#footer-pool');
+  if (!el || !Store.isConfigured()) return;
+  Store.countByRank().then(c => {
+    const parts = CONFIG.ranks.map(r => `${r.label}：${c[r.key] || 0}問`).join(' / ');
+    el.textContent = `出題プール：${c.total || 0}問（${parts}）`;
+  }).catch(() => {});
 }
 
 /* ---------- ヘッダー（左：文脈タイトル / 右：アカウント） ---------- */
@@ -117,18 +128,6 @@ function renderSetupNotice() {
   ]));
 }
 
-/* ---------- 出題プールのバー ---------- */
-function poolBar() {
-  const bar = h('div', { class: 'pool-bar' }, '出題プール：読み込み中…');
-  if (Store.isConfigured()) {
-    Store.countByRank().then(c => {
-      const parts = CONFIG.ranks.map(r => `${r.label}：${c[r.key] || 0}問`).join(' / ');
-      bar.textContent = `出題プール：${c.total || 0}問（${parts}）`;
-    }).catch(() => { bar.textContent = ''; });
-  } else { bar.textContent = ''; }
-  return bar;
-}
-
 function createBtn() {
   return h('button', { class: 'btn btn-ink', onclick: () => (user ? switchView('manage') : requireLogin('作問はログインすると使えます')) }, '作問する');
 }
@@ -154,7 +153,7 @@ function renderHome(app) {
   });
   app.appendChild(blocks);
 
-  app.appendChild(h('div', { class: 'foot-block' }, [poolBar(), createBtn()]));
+  app.appendChild(h('div', { class: 'foot-block' }, [createBtn()]));
 }
 
 /* ---------- クイズ開始（全5問） ---------- */
@@ -279,7 +278,7 @@ function showResult() {
       h('button', { class: 'btn', onclick: () => startQuiz(quiz.rank) }, '再挑戦する'),
     ]),
   ]));
-  app.appendChild(h('div', { class: 'foot-block' }, [poolBar(), createBtn()]));
+  app.appendChild(h('div', { class: 'foot-block' }, [createBtn()]));
 
   // アニメーション（円グラフ＋数字カウントアップ）
   requestAnimationFrame(() => {
@@ -337,7 +336,6 @@ async function renderManage(app) {
 
   const slot = h('div', {}, h('p', { class: 'muted center' }, '読み込み中…'));
   app.appendChild(slot);
-  app.appendChild(h('div', { class: 'foot-block' }, [poolBar()]));
 
   if (!Store.isConfigured()) { slot.innerHTML = ''; slot.appendChild(h('p', { class: 'muted center' }, 'Supabase を設定すると一覧が表示されます。')); return; }
   let list;
@@ -475,6 +473,7 @@ function renderCreate(app, editing = null) {
     try {
       if (isEdit) { await Store.updateQuestion(editing.id, payload, user); toast('編集を保存しました', 'success'); }
       else { await Store.createQuestion(payload, user); toast('問題を登録しました！', 'success'); }
+      updateFooterPool();
       manageFilter = payload.rank;
       switchView('manage');
     } catch (e) { submit.disabled = false; toast(e.message || '保存に失敗しました', 'error'); }
