@@ -12,8 +12,12 @@ window.QUIZ_CONFIG = {
   supabaseAnonKey: 'sb_publishable_eANsHPV3coCJom_IKZaBBg_k9DMP4q9',
   // ▲▲▲ ここまで ▲▲▲
 
-  // アプリ名（画面上部・シェア文に使われます）
-  appName: 'オンラインコミュニティは クイズ',
+  // アプリ名・タグライン（画面・シェア文に使われます）
+  appName: 'みんなで WA 検定',
+  tagline: 'みんなで作ってみんなで解く4択クイズ',
+
+  // 1回のクイズの出題数
+  questionsPerQuiz: 5,
 
   // ログインに使う Misskey サーバー。
   // lockMisskeyHost を true にすると、このサーバー専用になります
@@ -21,11 +25,12 @@ window.QUIZ_CONFIG = {
   defaultMisskeyHost: 'wa-community.xsns.jp',
   lockMisskeyHost: true,
 
-  // 3ランク。label は後から自由に変えられます（key は変えないでください）。
+  // 3ランク。label・desc・color は自由に変えられます（key は変えないでください）。
+  // color は 'yellow' / 'red' / 'blue' から選択。
   ranks: [
-    { key: 'beginner',     label: '入門編' },
-    { key: 'intermediate', label: '中級'   },
-    { key: 'mania',        label: '上級'   },
+    { key: 'beginner',     label: '入門編', color: 'yellow', desc: '入会したてで迷ってる人向け' },
+    { key: 'intermediate', label: '中級編', color: 'red',    desc: 'ちょっと慣れてきた人向け'   },
+    { key: 'mania',        label: '上級編', color: 'blue',   desc: '沼に入りたい人向け'         },
   ],
 
   // シェア文につけるハッシュタグ（# は不要）

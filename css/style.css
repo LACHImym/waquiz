@@ -41,13 +41,17 @@ h2 { font-size: 21px; }
 
 /* ---- ヘッダー ---- */
 .header {
-  display: flex; align-items: center; gap: 14px 20px; flex-wrap: wrap;
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
   padding: 16px 20px; background: var(--paper);
   border-bottom: 3px solid var(--ink); position: sticky; top: 0; z-index: 20;
 }
-.brand { display: flex; align-items: baseline; gap: 10px; }
+.brand { display: flex; align-items: baseline; gap: 10px; background: none; border: none; padding: 0; cursor: pointer; }
 .brand-mark { font-size: 15px; letter-spacing: 0.1em; color: var(--red); }
-.brand-name { font-family: var(--disp); font-weight: 900; font-size: 15px; letter-spacing: -0.02em; text-transform: uppercase; }
+.brand-name { font-family: var(--disp); font-weight: 900; font-size: 15px; letter-spacing: -0.02em; text-transform: uppercase; color: var(--ink); }
+.screen-title { font-family: var(--disp); font-weight: 900; font-size: 20px; letter-spacing: -0.01em; background: none; border: none; padding: 0; cursor: pointer; color: var(--ink); }
+.acct { display: flex; align-items: center; gap: 8px; }
+.acct-icon { width: 34px; height: 34px; border-radius: 50%; object-fit: cover; border: 2px solid var(--ink); background: #8a8f9e; display: inline-block; cursor: pointer; padding: 0; }
+.acct-blank { background: #8a8f9e; }
 .nav { display: flex; gap: 6px; margin-left: auto; flex-wrap: wrap; }
 .nav-btn {
   font-family: var(--disp); font-weight: 900; font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase;
@@ -237,4 +241,91 @@ textarea.input { resize: vertical; }
   .nav { width: 100%; order: 3; margin-left: 0; }
   .user-box { margin-left: auto; }
   h1 { font-size: 24px; }
+}
+
+/* ============================================================
+ *  新デザイン（みんなで WA 検定）追加スタイル
+ * ============================================================ */
+
+/* ---- カラーブロック ---- */
+.clr-yellow { background: var(--yellow); color: var(--ink); border-color: var(--yellow); }
+.clr-red    { background: var(--red);    color: var(--paper); border-color: var(--red); }
+.clr-blue   { background: var(--blue);   color: var(--paper); border-color: var(--blue); }
+
+/* ---- トップ（3難易度） ---- */
+.home-hero { text-align: center; margin: 24px 0 26px; }
+.home-title { font-family: var(--disp); font-weight: 900; font-size: 30px; letter-spacing: -0.02em; }
+.home-tagline { font-family: var(--body); font-size: 12px; letter-spacing: .02em; margin-top: 6px; opacity: .8; }
+.rank-blocks { display: flex; flex-direction: column; gap: 18px; }
+.rank-block-wrap { text-align: center; }
+.rank-block { width: 100%; border: 3px solid var(--ink); padding: 26px 14px; cursor: pointer; display: block; }
+.rank-block:hover { opacity: .92; }
+.rank-block.locked { opacity: .4; }
+.rank-block-label { font-family: var(--disp); font-weight: 900; font-size: 24px; letter-spacing: .02em; }
+.rank-block-desc { font-family: var(--body); font-size: 12px; margin-top: 8px; opacity: .85; }
+.lock { font-size: .8em; }
+
+/* ---- フッターブロック（プール＋作問） ---- */
+.foot-block { margin-top: 30px; padding-top: 18px; border-top: 3px solid var(--ink); text-align: center; }
+.pool-bar { font-family: var(--body); font-size: 12px; letter-spacing: .03em; opacity: .75; margin-bottom: 12px; }
+
+/* ---- クイズ進捗 ---- */
+.quiz-progress { margin-bottom: 14px; }
+.quiz-progress > span { font-family: var(--disp); font-weight: 900; font-size: 11px; letter-spacing: .1em; text-transform: uppercase; opacity: .6; }
+.seg-bar { display: flex; gap: 4px; margin-top: 6px; }
+.seg { flex: 1; height: 5px; background: rgba(28,28,26,0.15); }
+
+/* ---- 問題カード（2×2グリッド） ---- */
+.quiz-card { padding: 22px; }
+.q-title { font-family: var(--disp); font-weight: 900; font-size: 19px; text-transform: none; line-height: 1.25; letter-spacing: -0.01em; text-align: center; margin-bottom: 20px; }
+.q-mark { color: var(--red); }
+.choice-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.gopt { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; text-align: left; background: var(--paper); border: 3px solid var(--ink); color: var(--ink); padding: 16px 14px; min-height: 74px; cursor: pointer; font-family: var(--body); transition: background .12s, color .12s, border-color .12s, opacity .12s; }
+.gopt:hover:not(:disabled) { background: var(--ink); color: var(--paper); }
+.gopt:hover:not(:disabled) .gopt-n { color: var(--paper); }
+.gopt:disabled { cursor: default; }
+.gopt-n { font-family: var(--disp); font-weight: 900; font-size: 15px; color: var(--ink); }
+.gopt-t { font-weight: 500; font-size: 15px; line-height: 1.3; }
+.gopt.is-picked { border-width: 4px; }
+.gopt.is-faded { opacity: .35; }
+.gopt.is-faded .gopt-n { }
+
+/* ---- 解説・アクション ---- */
+.explain { margin-top: 18px; background: var(--paper-2); border-left: 5px solid var(--ink); padding: 14px; }
+.explain-head { font-family: var(--disp); font-weight: 900; font-size: 14px; letter-spacing: .04em; margin-bottom: 6px; }
+.explain p { font-size: 14px; line-height: 1.5; white-space: pre-wrap; }
+.explain-body { font-size: 14px; line-height: 1.5; white-space: pre-wrap; margin-bottom: 8px; }
+.quiz-actions { margin-top: 16px; }
+
+/* ---- クレジット ---- */
+.credit { display: flex; flex-direction: column; gap: 2px; font-family: var(--body); font-size: 11px; letter-spacing: .03em; opacity: .7; margin-top: 18px; padding-top: 12px; border-top: 1px dashed var(--line); text-align: center; }
+
+/* ---- 結果（円グラフ） ---- */
+.result-wrap { text-align: center; padding: 20px 0 8px; }
+.donut-wrap { position: relative; width: 220px; height: 220px; margin: 6px auto 4px; }
+.donut { width: 100%; height: 100%; }
+.donut-center { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+.donut-pct { font-family: var(--disp); font-weight: 900; font-size: 44px; letter-spacing: -0.03em; line-height: 1; }
+.donut-sub { font-family: var(--body); font-size: 13px; opacity: .7; margin-top: 6px; }
+.result-line { font-family: var(--disp); font-weight: 700; font-size: 15px; margin: 14px 0 18px; }
+.result-actions { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
+.result-actions .btn { min-width: 150px; }
+.share-btn { border-width: 3px; }
+
+/* ---- 作問一覧（アコーディオン） ---- */
+.newq-btn { margin-bottom: 16px; }
+.acc-list { display: flex; flex-direction: column; gap: 10px; }
+.acc-item { border: 3px solid var(--ink); background: var(--paper); }
+.acc-head { display: flex; align-items: center; gap: 0; width: 100%; background: none; border: none; cursor: pointer; padding: 0; text-align: left; }
+.acc-bar { width: 12px; align-self: stretch; flex: none; min-height: 52px; }
+.acc-tri { flex: none; padding: 0 12px; font-size: 12px; transition: transform .15s ease; }
+.acc-item.open .acc-tri { transform: rotate(90deg); }
+.acc-q { font-family: var(--disp); font-weight: 700; font-size: 14px; line-height: 1.3; padding: 14px 14px 14px 0; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.acc-body { padding: 0; }
+.acc-item.open .acc-body { padding: 4px 16px 18px; border-top: 2px solid var(--line); }
+
+/* ---- レスポンシブ（結果ボタン等） ---- */
+@media (max-width: 420px) {
+  .result-actions .btn { min-width: 130px; }
+  .home-title { font-size: 26px; }
 }

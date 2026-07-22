@@ -55,6 +55,27 @@ const Store = (() => {
     return list[Math.floor(Math.random() * list.length)];
   }
 
+  // 指定ランクのプールからランダムに n 問（重複なし）
+  async function sampleQuestions(rank, n) {
+    const list = await listQuestions(rank);
+    const shuffled = list.slice();
+    for (let i = shuffled.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+    }
+    return shuffled.slice(0, n);
+  }
+
+  // ランク別の問題数（出題プール表示用）
+  async function countByRank() {
+    must();
+    const { data, error } = await db.from('questions').select('rank');
+    if (error) throw error;
+    const counts = { total: data.length };
+    data.forEach(r => { counts[r.rank] = (counts[r.rank] || 0) + 1; });
+    return counts;
+  }
+
   async function createQuestion(payload, user) {
     must();
     const handle = Misskey.handleOf(user);
@@ -63,6 +84,7 @@ const Store = (() => {
       body: payload.body,
       choices: payload.choices,
       correct_index: payload.correctIndex,
+      explanation: payload.explanation || '',
       created_by: handle,
       created_by_name: user.name,
       updated_by: handle,
@@ -82,6 +104,7 @@ const Store = (() => {
       body: payload.body,
       choices: payload.choices,
       correct_index: payload.correctIndex,
+      explanation: payload.explanation || '',
       updated_by: handle,
       updated_by_name: user.name,
       updated_at: new Date().toISOString(),
@@ -140,7 +163,8 @@ const Store = (() => {
 
   return {
     init, isConfigured,
-    listQuestions, listMyQuestions, getQuestion, randomQuestion, createQuestion, updateQuestion,
+    listQuestions, listMyQuestions, getQuestion, randomQuestion, sampleQuestions, countByRank,
+    createQuestion, updateQuestion,
     listComments, addComment, listHistory,
   };
 })();

@@ -11,6 +11,7 @@ create table if not exists questions (
   body            text not null,                       -- 問題文
   choices         jsonb not null,                      -- ["選択肢1","選択肢2","選択肢3","選択肢4"]
   correct_index   int  not null,                       -- 正解の番号（0〜3）
+  explanation     text default '',                     -- 解答解説
   created_by      text not null,                       -- @user@host
   created_by_name text,
   updated_by      text,
