@@ -62,7 +62,9 @@ async function boot() {
   user = Misskey.getUser();
   if (!Store.isConfigured()) renderSetupNotice();
   updateFooterPool();
-  switchView('home');
+  // 未ログインなら、まずログイン画面へ（ゲスト入場を選んだ人は除く）
+  if (!user && !sessionStorage.getItem('ocq_guest')) switchView('login');
+  else switchView('home');
 }
 
 /* ---------- フッターの出題プール表示 ---------- */
@@ -124,6 +126,7 @@ function openMenu() {
   items.push(menuItem('トップ', () => switchView('home')));
   items.push(menuItem('マイページ', () => (user ? switchView('mypage') : requireLogin('マイページはログインすると使えます'))));
   items.push(menuItem('作問する', () => (user ? switchView('manage') : requireLogin('作問はログインすると使えます'))));
+  if (isOwnerAccount()) items.push(menuItem('👑 オーナーページ', () => switchView('owner')));
 
   if (user) {
     items.push(h('div', { class: 'menu-sep' }));
@@ -155,6 +158,7 @@ function switchView(view) {
   else if (view === 'create') renderCreate(app);
   else if (view === 'login') renderLogin(app);
   else if (view === 'mypage') renderMyPage(app);
+  else if (view === 'owner') renderOwnerPage(app);
 }
 
 function requireLogin(msg) {
@@ -694,6 +698,49 @@ async function renderMyPage(app) {
   })));
 }
 
+/* ---------- オーナーページ（全体の状況） ---------- */
+async function renderOwnerPage(app) {
+  if (!user) return requireLogin();
+  if (!isOwnerAccount()) return toast('オーナーのみ入れるページです', 'error');
+  renderHeader({ title: '👑 オーナーページ' });
+
+  app.appendChild(h('button', { class: 'btn btn-ink btn-block', onclick: () => switchView('manage') }, '問題の閲覧（全員分）'));
+
+  const slot = h('div', {}, h('p', { class: 'muted center', style: 'margin-top:16px' }, '読み込み中…'));
+  app.appendChild(slot);
+  if (!Store.isConfigured()) { slot.innerHTML = ''; return; }
+
+  let ranks, counts;
+  try {
+    [ranks, counts] = await Promise.all([Store.ranking(), Store.countByRank()]);
+  } catch (e) { slot.innerHTML = ''; slot.appendChild(errorBox(e)); return; }
+  slot.innerHTML = '';
+
+  // ---- 全体サマリー ----
+  const totalAnswers = ranks.reduce((s, r) => s + r.total, 0);
+  slot.appendChild(h('h3', { class: 'section-title' }, '// 全体サマリー'));
+  slot.appendChild(h('div', { class: 'stat-trio' }, [
+    h('div', { class: 'stat-tile clr-blue' }, [h('div', { class: 'stat-val' }, String(ranks.length)), h('div', { class: 'stat-label' }, '参加者')]),
+    h('div', { class: 'stat-tile clr-yellow' }, [h('div', { class: 'stat-val' }, String(counts.total || 0)), h('div', { class: 'stat-label' }, '問題数')]),
+    h('div', { class: 'stat-tile clr-red' }, [h('div', { class: 'stat-val' }, String(totalAnswers)), h('div', { class: 'stat-label' }, '解答数')]),
+  ]));
+
+  // ---- 全員分のランキング（省略なし） ----
+  slot.appendChild(h('h3', { class: 'section-title' }, '// 正答数ランキング（全員）'));
+  if (!ranks.length) slot.appendChild(h('p', { class: 'muted' }, 'まだ誰も解いていません。'));
+  else slot.appendChild(h('ol', { class: 'rank-list' }, ranks.map((r, i) => {
+    const pct = r.total ? Math.round(r.correct / r.total * 100) : 0;
+    return h('li', { class: 'rank-row' }, [
+      h('span', { class: 'rank-pos' }, String(i + 1)),
+      h('div', { class: 'rank-txt' }, [
+        h('div', { class: 'rank-name' }, r.name || r.handle),
+        h('div', { class: 'rank-handle muted' }, r.handle),
+      ]),
+      h('span', { class: 'rank-score' }, [`${r.correct}問正解`, h('span', { class: 'rank-sub' }, `／${r.total}問（${pct}%）`)]),
+    ]);
+  })));
+}
+
 /* ---------- ログイン画面 ---------- */
 function renderLogin(app) {
   app = $('#app'); app.innerHTML = '';
@@ -709,7 +756,9 @@ function renderLogin(app) {
       ]),
       h('button', { class: 'btn btn-primary btn-block', onclick: () => Misskey.login() }, `${host} でログイン`),
       h('p', { class: 'hint' }, `※ ${host} のアカウントが必要です。ブラウザで既にログイン済みなら、開く画面で「許可」を押すだけです。`),
-      h('button', { class: 'btn btn-ghost btn-block btn-sm', onclick: () => switchView('home') }, '← トップへ戻る'),
+      h('div', { class: 'guest-entry' },
+        h('button', { class: 'link-btn guest-link', onclick: () => { sessionStorage.setItem('ocq_guest', '1'); switchView('home'); } },
+          'どうしてもログインできない場合：ゲストで入場（入門編のみ）')),
     ]));
     return;
   }
