@@ -38,6 +38,5 @@ window.QUIZ_CONFIG = {
 
   // オーナーアカウント（全員の問題を閲覧できる特別な権限）。
   // 「@ユーザー名@サーバー」の形式で追加します。複数人OK。
-  // 例： owners: ['@lachi@wa-community.xsns.jp'],
-  owners: [],
+  owners: ['@lachi@wa-community.xsns.jp'],
 };

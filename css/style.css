@@ -240,6 +240,9 @@ textarea.input { resize: vertical; }
 .site-foot-pool:empty { display: none; }
 .footer-create { margin-bottom: 6px; min-width: 160px; }
 .owner-note { font-size: 12px; opacity: .6; margin: 12px 0; }
+.quiz-comments { margin-top: 8px; }
+.quiz-comments .comment-form { margin-top: 0; }
+.comment-list-label { font-family: var(--disp); font-weight: 900; font-size: 11px; letter-spacing: .1em; margin: 14px 0 8px; }
 .detail-actions { display: flex; gap: 8px; flex-wrap: wrap; }
 
 /* ---- レスポンシブ ---- */

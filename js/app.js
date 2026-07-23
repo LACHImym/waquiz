@@ -285,6 +285,14 @@ function answerQuiz(i, grid, q) {
   reveal.appendChild(h('div', { class: 'quiz-actions' }, [
     h('button', { class: 'btn btn-primary btn-block', onclick: () => nextQuiz() }, isLast ? '結果を見る →' : '次の問題へ →'),
   ]));
+  // コメント：記入欄 → みんなのコメント（次へボタンの下）
+  const cWrap = h('div', { class: 'quiz-comments' });
+  reveal.appendChild(cWrap);
+  Store.listComments(q.id).then(comments => {
+    cWrap.appendChild(h('h3', { class: 'section-title' }, '// コメント'));
+    cWrap.appendChild(commentsBlock(q.id, comments.slice().reverse(), true)); // 新しい順
+  }).catch(() => {});
+
   reveal.appendChild(creditLine(q));
   reveal.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 }
@@ -474,26 +482,39 @@ async function toggleAcc(row, body, q) {
   body.appendChild(creditLine(full));
 }
 
-/* ---------- コメント欄 ---------- */
-function commentsBlock(qid, comments) {
+/* ---------- コメント欄 ----------
+ * formFirst: true なら「記入欄 → みんなのコメント一覧」の順で表示 */
+function commentsBlock(qid, comments, formFirst = false) {
   const listEl = h('div', { class: 'comment-list' },
-    comments.length ? comments.map(renderComment) : [h('p', { class: 'muted' }, 'まだありません。')]);
-  const input = h('textarea', { class: 'input', rows: '2', placeholder: 'コメントや補足を書く…' });
-  const kindSel = h('select', { class: 'input input-inline' }, [
-    h('option', { value: 'comment' }, 'コメント'), h('option', { value: 'supplement' }, '補足'),
-  ]);
-  const send = h('button', { class: 'btn btn-primary btn-sm' }, '送信');
-  send.addEventListener('click', async () => {
-    const b = input.value.trim(); if (!b) return;
-    send.disabled = true;
-    try {
-      const c = await Store.addComment(qid, kindSel.value, b, user);
-      input.value = ''; send.disabled = false;
-      if (listEl.querySelector('.muted')) listEl.innerHTML = '';
-      listEl.appendChild(renderComment(c));
-    } catch (e) { send.disabled = false; toast(e.message || '送信に失敗', 'error'); }
-  });
-  return h('div', {}, [listEl, h('div', { class: 'comment-form' }, [kindSel, input, send])]);
+    comments.length ? comments.map(renderComment) : [h('p', { class: 'comment-empty muted' }, 'まだありません。')]);
+
+  let form;
+  if (user) {
+    const input = h('textarea', { class: 'input', rows: '2', placeholder: 'コメントや補足を書く…' });
+    const kindSel = h('select', { class: 'input input-inline' }, [
+      h('option', { value: 'comment' }, 'コメント'), h('option', { value: 'supplement' }, '補足'),
+    ]);
+    const send = h('button', { class: 'btn btn-primary btn-sm' }, '送信');
+    send.addEventListener('click', async () => {
+      const b = input.value.trim(); if (!b) return;
+      send.disabled = true;
+      try {
+        const c = await Store.addComment(qid, kindSel.value, b, user);
+        input.value = ''; send.disabled = false;
+        const empty = listEl.querySelector('.comment-empty');
+        if (empty) empty.remove();
+        // 新しいコメントは一覧の一番上に追加（新しい順で見えるように）
+        formFirst ? listEl.prepend(renderComment(c)) : listEl.appendChild(renderComment(c));
+      } catch (e) { send.disabled = false; toast(e.message || '送信に失敗', 'error'); }
+    });
+    form = h('div', { class: 'comment-form' }, [kindSel, input, send]);
+  } else {
+    form = h('p', { class: 'hint' }, '※ コメントはログインすると書けます。');
+  }
+
+  return formFirst
+    ? h('div', {}, [form, h('p', { class: 'comment-list-label muted' }, 'みんなのコメント'), listEl])
+    : h('div', {}, [listEl, form]);
 }
 function renderComment(c) {
   return h('div', { class: 'comment' }, [
