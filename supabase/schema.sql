@@ -67,3 +67,9 @@ create policy "insert questions" on questions for insert with check (true);
 create policy "update questions" on questions for update using (true) with check (true);
 create policy "insert comments"  on comments  for insert with check (true);
 create policy "insert history"   on history   for insert with check (true);
+
+-- 削除：anon（＝このアプリ）から可
+-- ※「本人のみ削除可」はアプリ側で制御しています（認証がMisskey側のため）
+create policy "delete questions" on questions for delete using (true);
+create policy "delete comments"  on comments  for delete using (true);
+create policy "delete history"   on history   for delete using (true);
