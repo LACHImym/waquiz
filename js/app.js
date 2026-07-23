@@ -80,9 +80,24 @@ async function boot() {
   user = Misskey.getUser();
   if (!Store.isConfigured()) renderSetupNotice();
   updateFooterPool();
+  loginBonus();
   // 未ログインなら、まずログイン画面へ（ゲスト入場を選んだ人は除く）
   if (!user && !sessionStorage.getItem('ocq_guest')) switchView('login');
   else switchView('home');
+}
+
+/* ---------- ログインボーナス（連続ログイン） ---------- */
+async function loginBonus() {
+  if (!user || !Store.isConfigured()) return;
+  let s;
+  try { s = await Store.recordLogin(user, todayYMD()); } catch { return; }
+  if (!s) return;
+  // 同じ日は1回だけ演出（端末ごと）
+  const key = 'ocq_bonus_' + todayYMD();
+  if (localStorage.getItem(key)) return;
+  localStorage.setItem(key, '1');
+  const msg = s.current >= 2 ? `🔥 ${s.current}日連続ログイン中！` : `🔥 ログインボーナス！今日も1問いこう`;
+  toast(msg, 'success');
 }
 
 /* ---------- フッターの出題プール表示 ---------- */
@@ -732,10 +747,11 @@ async function renderMyPage(app) {
   app.appendChild(slot);
 
   if (!Store.isConfigured()) { slot.innerHTML = ''; return; }
-  let results, recent, ranks;
+  let results, recent, ranks, streak;
   try {
-    [results, recent, ranks] = await Promise.all([
+    [results, recent, ranks, streak] = await Promise.all([
       Store.listMyResults(user, 5), Store.listRecentAnswers(user, 10), Store.ranking(),
+      Store.getStreak(user, todayYMD()).catch(() => null),
     ]);
   } catch (e) {
     slot.innerHTML = '';
@@ -744,6 +760,17 @@ async function renderMyPage(app) {
     return;
   }
   slot.innerHTML = '';
+
+  // ---- 連続ログイン ----
+  if (streak) {
+    slot.appendChild(h('div', { class: 'streak-box' }, [
+      h('div', { class: 'streak-flame' }, '🔥'),
+      h('div', {}, [
+        h('div', { class: 'streak-cur' }, `${streak.current}日連続ログイン中`),
+        h('div', { class: 'streak-sub muted' }, `最長 ${streak.longest}日 ・ 累計 ${streak.totalDays}日`),
+      ]),
+    ]));
+  }
 
   // ---- 過去の成績 ----
   slot.appendChild(h('h3', { class: 'section-title' }, '// 過去の成績'));

@@ -415,3 +415,9 @@ textarea.input { resize: vertical; }
 .daily-date.hidden, .hidden { display: none; }
 .correct-in { border-color: var(--blue) !important; }
 .acc-daily-tag { display: inline-block; font-family: var(--disp); font-weight: 900; font-size: 10px; background: var(--ink); color: var(--paper); padding: 1px 6px; margin-right: 2px; }
+
+/* ---- 連続ログイン（マイページ） ---- */
+.streak-box { display: flex; align-items: center; gap: 14px; border: 3px solid var(--ink); background: var(--yellow); padding: 14px 16px; margin-bottom: 4px; }
+.streak-flame { font-size: 34px; line-height: 1; }
+.streak-cur { font-family: var(--disp); font-weight: 900; font-size: 18px; color: var(--ink); }
+.streak-sub { font-family: var(--body); font-size: 12px; margin-top: 2px; }

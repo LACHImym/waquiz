@@ -64,6 +64,16 @@ create table if not exists results (
   created_at   timestamptz default now()
 );
 
+-- ---- ログインボーナス（1日1回の記録） ----
+create table if not exists logins (
+  id           uuid primary key default gen_random_uuid(),
+  user_handle  text not null,
+  user_name    text,
+  login_date   date not null,
+  created_at   timestamptz default now(),
+  unique (user_handle, login_date)
+);
+
 create index if not exists idx_questions_rank on questions(rank);
 create index if not exists idx_comments_qid   on comments(question_id);
 create index if not exists idx_history_qid     on history(question_id);
@@ -83,6 +93,7 @@ alter table comments  enable row level security;
 alter table history   enable row level security;
 alter table answers   enable row level security;
 alter table results   enable row level security;
+alter table logins    enable row level security;
 
 -- 読み取り：誰でも可
 create policy "read questions" on questions for select using (true);
@@ -98,6 +109,8 @@ create policy "insert comments"  on comments  for insert with check (true);
 create policy "insert history"   on history   for insert with check (true);
 create policy "insert answers"   on answers   for insert with check (true);
 create policy "insert results"   on results   for insert with check (true);
+create policy "read logins"      on logins    for select using (true);
+create policy "insert logins"    on logins    for insert with check (true);
 
 -- 削除：anon（＝このアプリ）から可
 -- ※「本人のみ削除可」はアプリ側で制御しています（認証がMisskey側のため）
