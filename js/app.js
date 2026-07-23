@@ -762,7 +762,6 @@ async function renderMyPage(app) {
 
   // 自分の問題へ
   app.appendChild(h('button', { class: 'btn btn-ink btn-block', onclick: () => switchView('manage') }, '自分の問題を見る'));
-  if (isOwnerAccount()) app.appendChild(h('button', { class: 'btn btn-block', onclick: () => switchView('owner') }, '👑 全問題の閲覧'));
 
   const slot = h('div', {}, h('p', { class: 'muted center', style: 'margin-top:16px' }, '読み込み中…'));
   app.appendChild(slot);
