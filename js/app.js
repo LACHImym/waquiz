@@ -166,7 +166,7 @@ function openMenu() {
   items.push(menuItem('ランキング', () => switchView('ranking')));
   items.push(menuItem('マイページ', () => (user ? switchView('mypage') : requireLogin('マイページはログインすると使えます'))));
   items.push(menuItem('作問する', () => (user ? switchView('manage') : requireLogin('作問はログインすると使えます'))));
-  if (isOwnerAccount()) items.push(menuItem('👑 オーナーページ', () => switchView('owner')));
+  if (isOwnerAccount()) items.push(menuItem('👑 全問題の閲覧', () => switchView('owner')));
 
   if (user) {
     items.push(h('div', { class: 'menu-sep' }));
@@ -476,18 +476,17 @@ function creditLine(q) {
   ]);
 }
 
-/* ---------- 作問一覧（アコーディオン） ---------- */
+/* ---------- 作問一覧（アコーディオン・自分の問題のみ） ---------- */
 async function renderManage(app) {
   if (!user) return requireLogin();
-  const ownerMode = isOwnerAccount();
   renderHeader({ title: '作問' });
 
   app.appendChild(h('button', { class: 'btn btn-ink btn-block newq-btn', onclick: () => switchView('create') }, '＋ 新規作成'));
-  app.appendChild(h('p', { class: 'hint' },
-    ownerMode ? '👑 オーナー表示：全員の問題が見えています。' : '自分が作った問題だけが表示されます。'));
+  app.appendChild(h('p', { class: 'hint' }, '自分が作った問題だけが表示されます。'));
 
   const chips = h('div', { class: 'rank-chips' },
-    [manageChip('', 'すべて', 'ink')].concat(CONFIG.ranks.map(r => manageChip(r.key, r.label, r.color))));
+    [chipFilter('', 'すべて', 'ink', manageFilter, k => { manageFilter = k; switchView('manage'); })]
+      .concat(CONFIG.ranks.map(r => chipFilter(r.key, r.label, r.color, manageFilter, k => { manageFilter = k; switchView('manage'); }))));
   app.appendChild(chips);
 
   const slot = h('div', {}, h('p', { class: 'muted center' }, '読み込み中…'));
@@ -497,7 +496,7 @@ async function renderManage(app) {
   let list;
   try {
     list = await Store.listQuestions(manageFilter || undefined);
-    if (!ownerMode) list = list.filter(q => isOwner(q)); // 自分の問題のみ
+    list = list.filter(q => isOwner(q)); // 常に自分の問題のみ（オーナーも）
   }
   catch (e) { slot.innerHTML = ''; slot.appendChild(errorBox(e)); return; }
 
@@ -507,15 +506,17 @@ async function renderManage(app) {
   list.forEach(q => acc.appendChild(accRow(q)));
   slot.appendChild(acc);
 }
-function manageChip(key, label, color) {
+
+// フィルタチップ（共通）
+function chipFilter(key, label, color, active, onPick) {
   return h('button', {
-    class: 'chip' + (manageFilter === key ? ' active' : ''),
-    style: manageFilter === key ? `background:${COLOR[color] || COLOR.ink};border-color:${COLOR[color] || COLOR.ink};color:${color === 'yellow' ? '#1c1c1a' : '#f7f3e8'}` : '',
-    onclick: () => { manageFilter = key; switchView('manage'); },
+    class: 'chip' + (active === key ? ' active' : ''),
+    style: active === key ? `background:${COLOR[color] || COLOR.ink};border-color:${COLOR[color] || COLOR.ink};color:${color === 'yellow' ? '#1c1c1a' : '#f7f3e8'}` : '',
+    onclick: () => onPick(key),
   }, label);
 }
 
-function accRow(q) {
+function accRow(q, showAuthor = false) {
   const body = h('div', { class: 'acc-body' });
   const isDaily = !!q.scheduled_date;
   const barColor = isDaily ? COLOR[CONFIG.daily.color] : rankColor(q.rank);
@@ -526,6 +527,7 @@ function accRow(q) {
       h('span', { class: 'acc-q' }, [
         isDaily ? h('span', { class: 'acc-daily-tag' }, `📅${fmtYmdJp(q.scheduled_date)}`) : null,
         ` Q. ${q.body}`,
+        showAuthor ? h('span', { class: 'acc-author' }, `作：${esc(q.created_by_name || q.created_by || '不明')}`) : null,
       ]),
     ]),
     body,
@@ -759,8 +761,8 @@ async function renderMyPage(app) {
   ]));
 
   // 自分の問題へ
-  app.appendChild(h('button', { class: 'btn btn-ink btn-block', onclick: () => switchView('manage') },
-    isOwnerAccount() ? '問題の閲覧（全員分）' : '自分の問題を見る'));
+  app.appendChild(h('button', { class: 'btn btn-ink btn-block', onclick: () => switchView('manage') }, '自分の問題を見る'));
+  if (isOwnerAccount()) app.appendChild(h('button', { class: 'btn btn-block', onclick: () => switchView('owner') }, '👑 全問題の閲覧'));
 
   const slot = h('div', {}, h('p', { class: 'muted center', style: 'margin-top:16px' }, '読み込み中…'));
   app.appendChild(slot);
@@ -863,36 +865,33 @@ async function renderMyPage(app) {
   })));
 }
 
-/* ---------- オーナーページ（全体の状況） ---------- */
+/* ---------- オーナーページ（全員分の問題を閲覧） ---------- */
+let ownerFilter = '';
 async function renderOwnerPage(app) {
   if (!user) return requireLogin();
   if (!isOwnerAccount()) return toast('オーナーのみ入れるページです', 'error');
-  renderHeader({ title: '👑 オーナーページ' });
+  renderHeader({ title: '👑 全問題の閲覧' });
+  app.appendChild(h('p', { class: 'hint' }, '👑 オーナー表示：コミュニティ全員が作った問題を閲覧できます。'));
 
-  app.appendChild(h('button', { class: 'btn btn-ink btn-block', onclick: () => switchView('manage') }, '問題の閲覧（全員分）'));
+  const chips = h('div', { class: 'rank-chips' },
+    [chipFilter('', 'すべて', 'ink', ownerFilter, k => { ownerFilter = k; switchView('owner'); })]
+      .concat(CONFIG.ranks.map(r => chipFilter(r.key, r.label, r.color, ownerFilter, k => { ownerFilter = k; switchView('owner'); }))));
+  app.appendChild(chips);
 
-  const slot = h('div', {}, h('p', { class: 'muted center', style: 'margin-top:16px' }, '読み込み中…'));
+  const slot = h('div', {}, h('p', { class: 'muted center' }, '読み込み中…'));
   app.appendChild(slot);
   if (!Store.isConfigured()) { slot.innerHTML = ''; return; }
 
-  let ranks, counts;
-  try {
-    [ranks, counts] = await Promise.all([Store.ranking(), Store.countByRank()]);
-  } catch (e) { slot.innerHTML = ''; slot.appendChild(errorBox(e)); return; }
+  let list;
+  try { list = await Store.listQuestions(ownerFilter || undefined); }
+  catch (e) { slot.innerHTML = ''; slot.appendChild(errorBox(e)); return; }
   slot.innerHTML = '';
 
-  // ---- 全体サマリー ----
-  const totalAnswers = ranks.reduce((s, r) => s + r.total, 0);
-  slot.appendChild(h('h3', { class: 'section-title' }, '// 全体サマリー'));
-  slot.appendChild(h('div', { class: 'stat-trio' }, [
-    h('div', { class: 'stat-tile clr-blue' }, [h('div', { class: 'stat-val' }, String(ranks.length)), h('div', { class: 'stat-label' }, '参加者')]),
-    h('div', { class: 'stat-tile clr-yellow' }, [h('div', { class: 'stat-val' }, String(counts.total || 0)), h('div', { class: 'stat-label' }, '問題数')]),
-    h('div', { class: 'stat-tile clr-red' }, [h('div', { class: 'stat-val' }, String(totalAnswers)), h('div', { class: 'stat-label' }, '解答数')]),
-  ]));
-
-  // ---- 全員分のランキング（省略なし） ----
-  slot.appendChild(h('h3', { class: 'section-title' }, '// 正答数ランキング（全員）'));
-  slot.appendChild(fullRankingList(ranks));
+  slot.appendChild(h('p', { class: 'muted', style: 'font-size:12px;margin-bottom:10px' }, `全 ${list.length} 問`));
+  if (!list.length) { slot.appendChild(h('p', { class: 'muted center' }, 'まだ問題がありません。')); return; }
+  const acc = h('div', { class: 'acc-list' });
+  list.forEach(q => acc.appendChild(accRow(q, true))); // 作問者タグ付き
+  slot.appendChild(acc);
 }
 
 // 全員分ランキングのリスト（オーナーページ・ランキングページ共通）
