@@ -62,7 +62,6 @@ async function boot() {
   user = Misskey.getUser();
   if (!Store.isConfigured()) renderSetupNotice();
   updateFooterPool();
-  setupFooterCreate();
   switchView('home');
 }
 
@@ -90,19 +89,60 @@ function renderHeader(ctx = {}) {
       ]);
   header.appendChild(title);
 
-  // 右上アカウントアイコン
+  // 右上：アカウントアイコン＋ハンバーガー
   const acct = h('div', { class: 'acct' });
   if (user) {
     acct.appendChild(user.avatarUrl
       ? h('img', { class: 'acct-icon', src: user.avatarUrl, alt: user.name, title: user.name })
       : h('span', { class: 'acct-icon acct-blank', title: user.name }));
-    acct.appendChild(h('button', { class: 'link-btn', onclick: () => { Misskey.logout(); location.reload(); } }, 'ログアウト'));
-  } else {
-    acct.appendChild(h('button', { class: 'acct-icon acct-blank', title: 'ログイン', onclick: () => switchView('login') }));
-    acct.appendChild(h('button', { class: 'link-btn', onclick: () => switchView('login') }, 'ログイン'));
   }
+  acct.appendChild(h('button', { class: 'burger', title: 'メニュー', onclick: openMenu }, '☰'));
   header.appendChild(acct);
-  updateFooterCreate();
+}
+
+/* ---------- ハンバーガーメニュー ---------- */
+function openMenu() {
+  const m = $('#menu');
+  m.innerHTML = '';
+  m.classList.add('open');
+
+  const items = [];
+  // ログイン情報
+  if (user) {
+    items.push(h('div', { class: 'menu-user' }, [
+      user.avatarUrl ? h('img', { class: 'menu-avatar', src: user.avatarUrl, alt: '' }) : h('span', { class: 'menu-avatar acct-blank' }),
+      h('div', { class: 'menu-user-txt' }, [
+        h('div', { class: 'menu-user-name' }, user.name),
+        h('div', { class: 'menu-user-handle' }, Misskey.handleOf(user)),
+      ]),
+    ]));
+  } else {
+    items.push(h('button', { class: 'btn btn-primary btn-block', onclick: () => { closeMenu(); switchView('login'); } }, 'ログイン'));
+  }
+
+  items.push(h('div', { class: 'menu-sep' }));
+  items.push(menuItem('トップ', () => switchView('home')));
+  items.push(menuItem('マイページ', () => (user ? switchView('mypage') : requireLogin('マイページはログインすると使えます'))));
+  items.push(menuItem('作問する', () => (user ? switchView('manage') : requireLogin('作問はログインすると使えます'))));
+
+  if (user) {
+    items.push(h('div', { class: 'menu-sep' }));
+    items.push(h('button', { class: 'link-btn menu-logout', onclick: () => { Misskey.logout(); location.reload(); } }, 'ログアウト'));
+  }
+
+  m.appendChild(h('div', { class: 'menu-panel' }, [
+    h('button', { class: 'menu-close', onclick: closeMenu }, '×'),
+    ...items,
+  ]));
+  m.onclick = e => { if (e.target === m) closeMenu(); };
+}
+function menuItem(label, fn) {
+  return h('button', { class: 'menu-item', onclick: () => { closeMenu(); fn(); } }, label);
+}
+function closeMenu() {
+  const m = $('#menu');
+  m.classList.remove('open');
+  m.innerHTML = '';
 }
 
 /* ---------- 画面切替 ---------- */
@@ -114,6 +154,7 @@ function switchView(view) {
   else if (view === 'manage') renderManage(app);
   else if (view === 'create') renderCreate(app);
   else if (view === 'login') renderLogin(app);
+  else if (view === 'mypage') renderMyPage(app);
 }
 
 function requireLogin(msg) {
@@ -126,6 +167,11 @@ function isOwner(q) {
   return !!user && q.created_by === Misskey.handleOf(user);
 }
 
+// オーナーアカウント（全員の問題を閲覧できる）か？
+function isOwnerAccount() {
+  return !!user && (CONFIG.owners || []).includes(Misskey.handleOf(user));
+}
+
 /* ---------- Supabase 未設定の案内 ---------- */
 function renderSetupNotice() {
   $('#notice').appendChild(h('div', { class: 'setup-notice' }, [
@@ -135,16 +181,6 @@ function renderSetupNotice() {
   ]));
 }
 
-// フッターの「作問する」ボタン：クリック挙動を一度だけ設定
-function setupFooterCreate() {
-  const btn = $('#footer-create');
-  if (btn) btn.addEventListener('click', () => (user ? switchView('manage') : requireLogin('作問はログインすると使えます')));
-}
-// 問題画面（クイズ中）では非表示、それ以外は表示
-function updateFooterCreate() {
-  const btn = $('#footer-create');
-  if (btn) btn.style.display = (currentView === 'quiz') ? 'none' : '';
-}
 
 /* ---------- トップ（3難易度） ---------- */
 function renderHome(app) {
@@ -227,6 +263,7 @@ function answerQuiz(i, grid, q) {
   quiz.answered = true;
   const correct = q.correct_index;
   if (i === correct) quiz.correct++;
+  Store.recordAnswer(q.id, i === correct, user); // 成績記録（未ログイン時は何もしない）
   const accent = rankColor(quiz.rank);
   const onAccentText = rankOf(quiz.rank).color === 'yellow' ? '#1c1c1a' : '#f7f3e8';
   [...grid.children].forEach((btn, idx) => {
@@ -262,6 +299,7 @@ function nextQuiz() {
 function showResult() {
   const total = quiz.list.length;
   const pct = Math.round((quiz.correct / total) * 100);
+  Store.recordResult(quiz.rank, quiz.correct, total, user); // 成績記録（未ログイン時は何もしない）
   const color = rankColor(quiz.rank);
   currentView = 'result';
   renderHeader({ title: rankLabel(quiz.rank), color });
@@ -337,9 +375,12 @@ function creditLine(q) {
 /* ---------- 作問一覧（アコーディオン） ---------- */
 async function renderManage(app) {
   if (!user) return requireLogin();
+  const ownerMode = isOwnerAccount();
   renderHeader({ title: '作問' });
 
   app.appendChild(h('button', { class: 'btn btn-ink btn-block newq-btn', onclick: () => switchView('create') }, '＋ 新規作成'));
+  app.appendChild(h('p', { class: 'hint' },
+    ownerMode ? '👑 オーナー表示：全員の問題が見えています。' : '自分が作った問題だけが表示されます。'));
 
   const chips = h('div', { class: 'rank-chips' },
     [manageChip('', 'すべて', 'ink')].concat(CONFIG.ranks.map(r => manageChip(r.key, r.label, r.color))));
@@ -350,7 +391,10 @@ async function renderManage(app) {
 
   if (!Store.isConfigured()) { slot.innerHTML = ''; slot.appendChild(h('p', { class: 'muted center' }, 'Supabase を設定すると一覧が表示されます。')); return; }
   let list;
-  try { list = await Store.listQuestions(manageFilter || undefined); }
+  try {
+    list = await Store.listQuestions(manageFilter || undefined);
+    if (!ownerMode) list = list.filter(q => isOwner(q)); // 自分の問題のみ
+  }
   catch (e) { slot.innerHTML = ''; slot.appendChild(errorBox(e)); return; }
 
   slot.innerHTML = '';
@@ -499,11 +543,19 @@ function renderCreate(app, editing = null) {
     if (payload.correctIndex < 0) return toast('正解の選択肢を選んでください', 'error');
     submit.disabled = true;
     try {
-      if (isEdit) { await Store.updateQuestion(editing.id, payload, user); toast('編集を保存しました', 'success'); }
-      else { await Store.createQuestion(payload, user); toast('問題を登録しました！', 'success'); }
-      updateFooterPool();
-      manageFilter = payload.rank;
-      switchView('manage');
+      if (isEdit) {
+        await Store.updateQuestion(editing.id, payload, user);
+        toast('編集を保存しました', 'success');
+        updateFooterPool();
+        manageFilter = payload.rank;
+        switchView('manage');
+      } else {
+        await Store.createQuestion(payload, user);
+        toast('問題を登録しました！', 'success');
+        updateFooterPool();
+        manageFilter = payload.rank;
+        renderCreateDone(payload);
+      }
     } catch (e) { submit.disabled = false; toast(e.message || '保存に失敗しました', 'error'); }
   });
 
@@ -517,6 +569,108 @@ function renderCreate(app, editing = null) {
     submit,
     h('button', { class: 'btn btn-ghost btn-block btn-sm', onclick: () => switchView('manage') }, '← 一覧へ戻る'),
   ]));
+}
+
+/* ---------- 作問完了（シェア） ---------- */
+function renderCreateDone(payload) {
+  const app = $('#app'); app.innerHTML = '';
+  renderHeader({ title: '作問' });
+  app.appendChild(h('section', { class: 'card center' }, [
+    h('h1', {}, '登録しました！🎉'),
+    h('p', { class: 'muted' }, `【${rankLabel(payload.rank)}】Q. ${payload.body}`),
+    h('div', { class: 'result-actions', style: 'margin-top:18px' }, [
+      h('button', { class: 'btn btn-primary', onclick: () => shareNewQuestion(payload) }, '⤴ 作問したことをシェア'),
+      h('button', { class: 'btn', onclick: () => switchView('create') }, 'もう1問つくる'),
+      h('button', { class: 'btn btn-ghost', onclick: () => switchView('manage') }, '一覧へ'),
+    ]),
+    h('p', { class: 'hint' }, '※ シェアには正解は含まれません。安心して投稿してください。'),
+  ]));
+}
+
+function shareNewQuestion(p) {
+  const text =
+    `「${CONFIG.appName}」に新しい問題を作りました！【${rankLabel(p.rank)}】\n\n` +
+    `Q. ${p.body}\n` +
+    p.choices.map((c, i) => `${i + 1}. ${c}`).join('\n') + '\n\n' +
+    `答えはこちらで挑戦してみて↓\n` +
+    (location.href.startsWith('http') ? `${location.origin + location.pathname}\n` : '') +
+    `#${CONFIG.shareHashtag}`;
+  Misskey.share(text);
+}
+
+/* ---------- マイページ ---------- */
+async function renderMyPage(app) {
+  if (!user) return requireLogin('マイページはログインすると使えます');
+  renderHeader({ title: 'マイページ' });
+
+  app.appendChild(h('div', { class: 'menu-user mypage-user' }, [
+    user.avatarUrl ? h('img', { class: 'menu-avatar', src: user.avatarUrl, alt: '' }) : h('span', { class: 'menu-avatar acct-blank' }),
+    h('div', { class: 'menu-user-txt' }, [
+      h('div', { class: 'menu-user-name' }, user.name + (isOwnerAccount() ? ' 👑' : '')),
+      h('div', { class: 'menu-user-handle' }, Misskey.handleOf(user)),
+    ]),
+  ]));
+
+  // 自分の問題へ
+  app.appendChild(h('button', { class: 'btn btn-ink btn-block', onclick: () => switchView('manage') },
+    isOwnerAccount() ? '問題の閲覧（全員分）' : '自分の問題を見る'));
+
+  const slot = h('div', {}, h('p', { class: 'muted center', style: 'margin-top:16px' }, '読み込み中…'));
+  app.appendChild(slot);
+
+  if (!Store.isConfigured()) { slot.innerHTML = ''; return; }
+  let results, recent, ranks;
+  try {
+    [results, recent, ranks] = await Promise.all([
+      Store.listMyResults(user, 20), Store.listRecentAnswers(user, 10), Store.ranking(),
+    ]);
+  } catch (e) {
+    slot.innerHTML = '';
+    slot.appendChild(errorBox(e));
+    slot.appendChild(h('p', { class: 'hint' }, '※ 成績の記録には Supabase 側の追加設定（migrate_add_results.sql）が必要です。'));
+    return;
+  }
+  slot.innerHTML = '';
+
+  // ---- 過去の成績 ----
+  slot.appendChild(h('h3', { class: 'section-title' }, '// 過去の成績'));
+  if (!results.length) slot.appendChild(h('p', { class: 'muted' }, 'まだ記録がありません。クイズに挑戦してみよう！'));
+  else slot.appendChild(h('ul', { class: 'score-list' }, results.map(r => {
+    const pct = r.total ? Math.round(r.correct / r.total * 100) : 0;
+    return h('li', { class: 'score-row' }, [
+      h('span', { class: 'score-rank', style: `background:${rankColor(r.rank)};color:${rankOf(r.rank).color === 'yellow' ? '#1c1c1a' : '#f7f3e8'}` }, rankLabel(r.rank)),
+      h('span', { class: 'score-val' }, `${r.correct}/${r.total}問（${pct}%）`),
+      h('span', { class: 'score-date muted' }, fmtDay(r.created_at)),
+    ]);
+  })));
+
+  // ---- 正答数ランキング ----
+  slot.appendChild(h('h3', { class: 'section-title' }, '// 正答数ランキング'));
+  slot.appendChild(h('p', { class: 'hint', style: 'margin-bottom:8px' }, 'これまでの正解数の合計。たくさん解くほど上位に！'));
+  if (!ranks.length) slot.appendChild(h('p', { class: 'muted' }, 'まだ誰も解いていません。'));
+  else slot.appendChild(h('ol', { class: 'rank-list' }, ranks.slice(0, 20).map((r, i) => {
+    const isMe = r.handle === Misskey.handleOf(user);
+    return h('li', { class: 'rank-row' + (isMe ? ' me' : '') }, [
+      h('span', { class: 'rank-pos' }, String(i + 1)),
+      h('span', { class: 'rank-name' }, (r.name || r.handle) + (isMe ? '（あなた）' : '')),
+      h('span', { class: 'rank-score' }, `${r.correct}問正解`),
+    ]);
+  })));
+
+  // ---- 直近に解いた10問の振り返り ----
+  slot.appendChild(h('h3', { class: 'section-title' }, '// 直近に解いた10問の振り返り'));
+  if (!recent.length) slot.appendChild(h('p', { class: 'muted' }, 'まだ解答がありません。'));
+  else slot.appendChild(h('div', { class: 'review-list' }, recent.map(a => {
+    const q = a.questions;
+    return h('div', { class: 'review-row' }, [
+      h('span', { class: 'review-mark ' + (a.is_correct ? 'ok' : 'ng') }, a.is_correct ? '○' : '×'),
+      h('div', { class: 'review-txt' }, [
+        h('p', { class: 'review-q' }, q ? q.body : '（削除された問題）'),
+        q ? h('p', { class: 'review-a muted' }, `正解：${q.choices[q.correct_index]}`) : null,
+        h('p', { class: 'review-date muted' }, fmtDate(a.created_at)),
+      ]),
+    ]);
+  })));
 }
 
 /* ---------- ログイン画面 ---------- */

@@ -336,3 +336,45 @@ textarea.input { resize: vertical; }
   .result-actions .btn { min-width: 130px; }
   .home-title { font-size: 26px; }
 }
+
+/* ============================================================
+ *  ハンバーガーメニュー & マイページ
+ * ============================================================ */
+.burger { background: none; border: none; font-size: 24px; line-height: 1; cursor: pointer; color: var(--ink); padding: 4px 6px; }
+.menu { position: fixed; inset: 0; background: rgba(28,28,26,.5); display: none; z-index: 60; }
+.menu.open { display: block; }
+.menu-panel { position: absolute; top: 0; right: 0; height: 100%; width: 270px; max-width: 85vw; background: var(--paper); border-left: 3px solid var(--ink); padding: 54px 20px 20px; display: flex; flex-direction: column; gap: 10px; overflow-y: auto; }
+.menu-close { position: absolute; top: 10px; right: 14px; background: var(--ink); color: var(--paper); border: none; width: 30px; height: 30px; font-size: 20px; cursor: pointer; line-height: 1; }
+.menu-user { display: flex; align-items: center; gap: 10px; }
+.menu-avatar { width: 44px; height: 44px; border-radius: 50%; object-fit: cover; border: 2px solid var(--ink); flex: none; display: inline-block; }
+.menu-user-name { font-family: var(--disp); font-weight: 900; font-size: 15px; }
+.menu-user-handle { font-family: var(--body); font-size: 11px; opacity: .6; word-break: break-all; }
+.menu-sep { border-top: 3px solid var(--ink); margin: 6px 0; }
+.menu-item { font-family: var(--disp); font-weight: 900; font-size: 15px; letter-spacing: .04em; text-align: left; background: none; border: none; color: var(--ink); padding: 10px 4px; cursor: pointer; }
+.menu-item:hover { background: var(--paper-2); }
+.menu-logout { text-align: left; padding: 6px 4px; }
+
+/* ---- マイページ ---- */
+.mypage-user { margin-bottom: 16px; }
+.score-list { list-style: none; display: flex; flex-direction: column; gap: 8px; }
+.score-row { display: flex; align-items: center; gap: 10px; border: 2px solid var(--ink); padding: 8px 12px; font-size: 13px; }
+.score-rank { font-family: var(--disp); font-weight: 900; font-size: 11px; padding: 3px 10px; flex: none; }
+.score-val { font-family: var(--disp); font-weight: 700; }
+.score-date { margin-left: auto; font-size: 11px; }
+.rank-list { list-style: none; display: flex; flex-direction: column; gap: 6px; }
+.rank-row { display: flex; align-items: center; gap: 10px; padding: 8px 12px; border: 2px solid var(--line); font-size: 14px; }
+.rank-row.me { border: 3px solid var(--blue); background: rgba(31,76,214,.06); }
+.rank-pos { font-family: var(--disp); font-weight: 900; width: 26px; height: 26px; background: var(--ink); color: var(--paper); display: grid; place-items: center; font-size: 13px; flex: none; }
+.rank-row:nth-child(1) .rank-pos { background: var(--yellow); color: var(--ink); }
+.rank-row:nth-child(2) .rank-pos { background: #b9b3a2; color: var(--ink); }
+.rank-row:nth-child(3) .rank-pos { background: #c97e35; color: var(--paper); }
+.rank-name { font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rank-score { margin-left: auto; font-family: var(--disp); font-weight: 900; flex: none; }
+.review-list { display: flex; flex-direction: column; gap: 8px; }
+.review-row { display: flex; gap: 12px; border: 2px solid var(--ink); padding: 10px 12px; }
+.review-mark { font-family: var(--disp); font-weight: 900; font-size: 22px; flex: none; width: 30px; text-align: center; }
+.review-mark.ok { color: var(--blue); }
+.review-mark.ng { color: var(--red); }
+.review-q { font-weight: 700; font-size: 14px; line-height: 1.35; }
+.review-a { font-size: 12px; margin-top: 2px; }
+.review-date { font-size: 10px; margin-top: 2px; }

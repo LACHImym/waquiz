@@ -121,6 +121,55 @@ const Store = (() => {
     if (error) throw error;
   }
 
+  // ---- 解答の記録・成績 ----
+  async function recordAnswer(questionId, isCorrect, user) {
+    if (!user || !db) return;
+    const row = { question_id: questionId, user_handle: Misskey.handleOf(user), user_name: user.name, is_correct: isCorrect };
+    const { error } = await db.from('answers').insert(row);
+    if (error) console.warn('answer insert failed', error);
+  }
+
+  async function recordResult(rank, correct, total, user) {
+    if (!user || !db) return;
+    const row = { rank, correct, total, user_handle: Misskey.handleOf(user), user_name: user.name };
+    const { error } = await db.from('results').insert(row);
+    if (error) console.warn('result insert failed', error);
+  }
+
+  async function listMyResults(user, limit = 20) {
+    must();
+    const { data, error } = await db.from('results')
+      .select('*').eq('user_handle', Misskey.handleOf(user))
+      .order('created_at', { ascending: false }).limit(limit);
+    if (error) throw error;
+    return data;
+  }
+
+  async function listRecentAnswers(user, limit = 10) {
+    must();
+    const { data, error } = await db.from('answers')
+      .select('*, questions(body, choices, correct_index, rank)')
+      .eq('user_handle', Misskey.handleOf(user))
+      .order('created_at', { ascending: false }).limit(limit);
+    if (error) throw error;
+    return data;
+  }
+
+  // 正答数ランキング（正解の総数が多い順＝たくさん解くほど有利）
+  async function ranking() {
+    must();
+    const { data, error } = await db.from('answers').select('user_handle, user_name, is_correct');
+    if (error) throw error;
+    const map = {};
+    data.forEach(a => {
+      const m = map[a.user_handle] || (map[a.user_handle] = { handle: a.user_handle, name: a.user_name, correct: 0, total: 0 });
+      m.total++;
+      if (a.is_correct) m.correct++;
+      if (a.user_name) m.name = a.user_name;
+    });
+    return Object.values(map).sort((x, y) => y.correct - x.correct || y.total - x.total);
+  }
+
   // ---- コメント / 補足 ----
   async function listComments(questionId) {
     must();
@@ -171,6 +220,7 @@ const Store = (() => {
     init, isConfigured,
     listQuestions, listMyQuestions, getQuestion, randomQuestion, sampleQuestions, countByRank,
     createQuestion, updateQuestion, deleteQuestion,
+    recordAnswer, recordResult, listMyResults, listRecentAnswers, ranking,
     listComments, addComment, listHistory,
   };
 })();
