@@ -68,6 +68,7 @@ let user = null;
 let currentView = 'home';
 let quiz = null;           // { rank, list:[], i, correct, answered }
 let manageFilter = '';     // 作問一覧の絞り込み
+let newSinceTs = null;     // 前回訪問時刻（これ以降に作られた問題に NEW バッジ）
 
 /* ---------- 起動 ---------- */
 async function boot() {
@@ -78,6 +79,11 @@ async function boot() {
   } catch (e) { toast(e.message || 'ログインに失敗しました', 'error'); }
 
   user = Misskey.getUser();
+  // NEWバッジ用：前回訪問時刻を読み出し（初回ログインは null＝出さない）、今回の時刻を保存
+  if (user) {
+    newSinceTs = localStorage.getItem('ocq_lastseen'); // 初回は null
+    try { localStorage.setItem('ocq_lastseen', new Date().toISOString()); } catch {}
+  }
   if (!Store.isConfigured()) renderSetupNotice();
   updateFooterPool();
   loginBonus();
@@ -258,6 +264,7 @@ function renderHome(app) {
   }
 
   // --- 3難易度 ---
+  const rankBlocks = {};
   CONFIG.ranks.forEach(r => {
     const locked = !user && r.key !== 'beginner';
     const block = h('button', {
@@ -266,9 +273,21 @@ function renderHome(app) {
     }, [
       h('span', { class: 'rank-block-label' }, [r.label, locked ? h('span', { class: 'lock' }, ' 🔒') : null]),
     ]);
+    rankBlocks[r.key] = block;
     blocks.appendChild(h('div', { class: 'rank-block-wrap' }, [block, h('p', { class: 'rank-block-desc' }, r.desc)]));
   });
   app.appendChild(blocks);
+
+  // NEW バッジ：前回訪問以降に作られた問題があるランクに付ける（初回ログインは付けない）
+  if (user && newSinceTs && Store.isConfigured()) {
+    Store.newestByRank().then(m => {
+      CONFIG.ranks.forEach(r => {
+        if (m[r.key] && m[r.key] > newSinceTs && rankBlocks[r.key]) {
+          rankBlocks[r.key].appendChild(h('span', { class: 'new-badge' }, 'NEW'));
+        }
+      });
+    }).catch(() => {});
+  }
 }
 
 /* ---------- クイズ開始（全5問） ---------- */

@@ -82,6 +82,16 @@ const Store = (() => {
     return shuffle(data).slice(0, n);
   }
 
+  // ランクごとの最新作成日時（通常問題のみ）。NEWバッジ判定用。
+  async function newestByRank() {
+    must();
+    const { data, error } = await db.from('questions').select('rank, created_at').is('scheduled_date', null);
+    if (error) throw error;
+    const m = {};
+    data.forEach(r => { if (!m[r.rank] || r.created_at > m[r.rank]) m[r.rank] = r.created_at; });
+    return m;
+  }
+
   async function countDaily(todayYmd) {
     must();
     const { count, error } = await db.from('questions')
@@ -307,7 +317,7 @@ const Store = (() => {
   return {
     init, isConfigured,
     listQuestions, listMyQuestions, getQuestion, randomQuestion, sampleQuestions, countByRank,
-    sampleDaily, countDaily,
+    sampleDaily, countDaily, newestByRank,
     createQuestion, updateQuestion, deleteQuestion,
     recordAnswer, recordResult, listMyResults, listRecentAnswers, ranking,
     recordLogin, getStreak,
