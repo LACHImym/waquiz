@@ -115,6 +115,12 @@ const Store = (() => {
     return data;
   }
 
+  async function deleteQuestion(id) {
+    must();
+    const { error } = await db.from('questions').delete().eq('id', id);
+    if (error) throw error;
+  }
+
   // ---- コメント / 補足 ----
   async function listComments(questionId) {
     must();
@@ -164,7 +170,7 @@ const Store = (() => {
   return {
     init, isConfigured,
     listQuestions, listMyQuestions, getQuestion, randomQuestion, sampleQuestions, countByRank,
-    createQuestion, updateQuestion,
+    createQuestion, updateQuestion, deleteQuestion,
     listComments, addComment, listHistory,
   };
 })();

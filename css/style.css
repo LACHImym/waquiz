@@ -94,6 +94,7 @@ h2 { font-size: 21px; }
 .btn:disabled { opacity: .4; cursor: default; }
 .btn-primary { background: var(--red); color: var(--paper); border-color: var(--red); }
 .btn-ink { background: var(--ink); color: var(--paper); }
+.btn-danger { background: var(--paper); color: var(--red); border-color: var(--red); }
 .btn-ghost { background: transparent; }
 .btn-block { display: block; width: 100%; margin-top: 12px; }
 .btn-sm { padding: 9px 12px; font-size: 11px; }
@@ -238,6 +239,8 @@ textarea.input { resize: vertical; }
 .site-foot-pool { font-family: var(--body); font-weight: 500; font-size: 12px; letter-spacing: .03em; opacity: .8; }
 .site-foot-pool:empty { display: none; }
 .footer-create { margin-bottom: 6px; min-width: 160px; }
+.owner-note { font-size: 12px; opacity: .6; margin: 12px 0; }
+.detail-actions { display: flex; gap: 8px; flex-wrap: wrap; }
 
 /* ---- レスポンシブ ---- */
 @media (max-width: 560px) {

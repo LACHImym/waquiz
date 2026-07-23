@@ -121,6 +121,11 @@ function requireLogin(msg) {
   switchView('login');
 }
 
+// その問題を作った本人か？
+function isOwner(q) {
+  return !!user && q.created_by === Misskey.handleOf(user);
+}
+
 /* ---------- Supabase 未設定の案内 ---------- */
 function renderSetupNotice() {
   $('#notice').appendChild(h('div', { class: 'setup-notice' }, [
@@ -394,10 +399,26 @@ async function toggleAcc(row, body, q) {
   // 解答解説
   body.appendChild(h('h3', { class: 'section-title' }, '// 解答解説'));
   body.appendChild(h('p', { class: 'explain-body' }, full.explanation || '（解説はまだありません）'));
-  // 編集ボタン
-  body.appendChild(h('div', { class: 'detail-actions' }, [
-    h('button', { class: 'btn btn-ink btn-sm', onclick: () => renderCreate($('#app'), full) }, '✎ 編集する'),
-  ]));
+  // 編集・削除（作った本人のみ）
+  if (isOwner(full)) {
+    const delBtn = h('button', { class: 'btn btn-danger btn-sm' }, '🗑 削除する');
+    delBtn.addEventListener('click', async () => {
+      if (!confirm('この問題を削除します。元に戻せません。よろしいですか？')) return;
+      delBtn.disabled = true;
+      try {
+        await Store.deleteQuestion(full.id);
+        toast('問題を削除しました', 'success');
+        updateFooterPool();
+        switchView('manage');
+      } catch (e) { delBtn.disabled = false; toast(e.message || '削除に失敗しました', 'error'); }
+    });
+    body.appendChild(h('div', { class: 'detail-actions' }, [
+      h('button', { class: 'btn btn-ink btn-sm', onclick: () => renderCreate($('#app'), full) }, '✎ 編集する'),
+      delBtn,
+    ]));
+  } else {
+    body.appendChild(h('p', { class: 'owner-note' }, `※ 編集・削除は作成者（${esc(full.created_by_name || full.created_by || '不明')}さん）のみ可能です`));
+  }
   // コメント・補足
   body.appendChild(h('h3', { class: 'section-title' }, '// コメント・補足'));
   body.appendChild(commentsBlock(q.id, comments));
@@ -444,6 +465,7 @@ function renderComment(c) {
 /* ---------- 作問フォーム（解答解説つき） ---------- */
 function renderCreate(app, editing = null) {
   if (!user) return requireLogin();
+  if (editing && !isOwner(editing)) return toast('他の人が作った問題は編集できません', 'error');
   const isEdit = !!editing;
   currentView = 'create';
   renderHeader({ title: isEdit ? '編集' : '新規作成' });
