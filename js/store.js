@@ -55,21 +55,45 @@ const Store = (() => {
     return list[Math.floor(Math.random() * list.length)];
   }
 
-  // 指定ランクのプールからランダムに n 問（重複なし）
-  async function sampleQuestions(rank, n) {
-    const list = await listQuestions(rank);
-    const shuffled = list.slice();
-    for (let i = shuffled.length - 1; i > 0; i--) {
+  function shuffle(arr) {
+    const a = arr.slice();
+    for (let i = a.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));
-      [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+      [a[i], a[j]] = [a[j], a[i]];
     }
-    return shuffled.slice(0, n);
+    return a;
   }
 
-  // ランク別の問題数（出題プール表示用）
+  // 通常の難易度プール（本日の問題＝scheduled_date付きは除外）からランダムに n 問
+  async function sampleQuestions(rank, n) {
+    must();
+    let q = db.from('questions').select('*').is('scheduled_date', null);
+    if (rank) q = q.eq('rank', rank);
+    const { data, error } = await q;
+    if (error) throw error;
+    return shuffle(data).slice(0, n);
+  }
+
+  // 本日の問題（scheduled_date が今日）からランダムに n 問
+  async function sampleDaily(n, todayYmd) {
+    must();
+    const { data, error } = await db.from('questions').select('*').eq('scheduled_date', todayYmd);
+    if (error) throw error;
+    return shuffle(data).slice(0, n);
+  }
+
+  async function countDaily(todayYmd) {
+    must();
+    const { count, error } = await db.from('questions')
+      .select('*', { count: 'exact', head: true }).eq('scheduled_date', todayYmd);
+    if (error) throw error;
+    return count || 0;
+  }
+
+  // ランク別の問題数（通常プールのみ・出題プール表示用）
   async function countByRank() {
     must();
-    const { data, error } = await db.from('questions').select('rank');
+    const { data, error } = await db.from('questions').select('rank').is('scheduled_date', null);
     if (error) throw error;
     const counts = { total: data.length };
     data.forEach(r => { counts[r.rank] = (counts[r.rank] || 0) + 1; });
@@ -85,6 +109,7 @@ const Store = (() => {
       choices: payload.choices,
       correct_index: payload.correctIndex,
       explanation: payload.explanation || '',
+      scheduled_date: payload.scheduledDate || null,
       created_by: handle,
       created_by_name: user.name,
       updated_by: handle,
@@ -105,6 +130,7 @@ const Store = (() => {
       choices: payload.choices,
       correct_index: payload.correctIndex,
       explanation: payload.explanation || '',
+      scheduled_date: payload.scheduledDate || null,
       updated_by: handle,
       updated_by_name: user.name,
       updated_at: new Date().toISOString(),
@@ -219,6 +245,7 @@ const Store = (() => {
   return {
     init, isConfigured,
     listQuestions, listMyQuestions, getQuestion, randomQuestion, sampleQuestions, countByRank,
+    sampleDaily, countDaily,
     createQuestion, updateQuestion, deleteQuestion,
     recordAnswer, recordResult, listMyResults, listRecentAnswers, ranking,
     listComments, addComment, listHistory,

@@ -10,8 +10,9 @@ create table if not exists questions (
   rank            text not null default 'beginner',   -- beginner / intermediate / mania
   body            text not null,                       -- 問題文
   choices         jsonb not null,                      -- ["選択肢1","選択肢2","選択肢3","選択肢4"]
-  correct_index   int  not null,                       -- 正解の番号（0〜3）
+  correct_index   int  not null,                       -- 正解の番号（0〜3・保存時は先頭0＝正解）
   explanation     text default '',                     -- 解答解説
+  scheduled_date  date,                                -- 本日の問題の出題予定日（通常問題は NULL）
   created_by      text not null,                       -- @user@host
   created_by_name text,
   updated_by      text,
@@ -68,6 +69,7 @@ create index if not exists idx_comments_qid   on comments(question_id);
 create index if not exists idx_history_qid     on history(question_id);
 create index if not exists idx_answers_user    on answers(user_handle);
 create index if not exists idx_results_user    on results(user_handle);
+create index if not exists idx_questions_sched  on questions(scheduled_date);
 
 -- ============================================================
 --  RLS（行レベルセキュリティ）

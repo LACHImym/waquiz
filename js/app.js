@@ -24,10 +24,28 @@ const h = (tag, attrs = {}, children = []) => {
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c =>
   ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const rankOf = key => CONFIG.ranks.find(r => r.key === key) || CONFIG.ranks[0];
-const rankLabel = key => rankOf(key).label;
 const COLOR = { yellow: '#f2c94e', red: '#d8261c', blue: '#1f4cd6', ink: '#1c1c1a' };
-const rankColor = key => COLOR[rankOf(key).color] || COLOR.ink;
+// 'daily' は特別カテゴリ。ランクと同じ関数で扱えるようにする。
+const colorKeyOf = key => key === 'daily' ? CONFIG.daily.color : rankOf(key).color;
+const rankLabel = key => key === 'daily' ? CONFIG.daily.label : rankOf(key).label;
+const rankColor = key => COLOR[colorKeyOf(key)] || COLOR.ink;
+const onAccent = key => colorKeyOf(key) === 'yellow' ? '#1c1c1a' : '#f7f3e8';
 const LETTERS = '1234';
+// 日付ユーティリティ（ブラウザのローカル日付＝日本時間）
+const pad2 = n => String(n).padStart(2, '0');
+const ymd = d => `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+const todayYMD = () => ymd(new Date());
+const tomorrowYMD = () => { const d = new Date(); d.setDate(d.getDate() + 1); return ymd(d); };
+const fmtYmdJp = s => s ? s.replace(/-/g, '/') : '';
+// 0..n-1 のインデックスをシャッフルして返す
+const shuffleIdx = n => {
+  const a = Array.from({ length: n }, (_, i) => i);
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+};
 const fmtDate = iso => {
   if (!iso) return '';
   const d = new Date(iso), p = n => String(n).padStart(2, '0');
@@ -124,6 +142,7 @@ function openMenu() {
 
   items.push(h('div', { class: 'menu-sep' }));
   items.push(menuItem('トップ', () => switchView('home')));
+  items.push(menuItem('ランキング', () => switchView('ranking')));
   items.push(menuItem('マイページ', () => (user ? switchView('mypage') : requireLogin('マイページはログインすると使えます'))));
   items.push(menuItem('作問する', () => (user ? switchView('manage') : requireLogin('作問はログインすると使えます'))));
   if (isOwnerAccount()) items.push(menuItem('👑 オーナーページ', () => switchView('owner')));
@@ -159,6 +178,7 @@ function switchView(view) {
   else if (view === 'login') renderLogin(app);
   else if (view === 'mypage') renderMyPage(app);
   else if (view === 'owner') renderOwnerPage(app);
+  else if (view === 'ranking') renderRanking(app);
 }
 
 function requireLogin(msg) {
@@ -186,7 +206,7 @@ function renderSetupNotice() {
 }
 
 
-/* ---------- トップ（3難易度） ---------- */
+/* ---------- トップ（本日の問題＋3難易度） ---------- */
 function renderHome(app) {
   renderHeader({});
   app.appendChild(h('section', { class: 'home-hero' }, [
@@ -195,6 +215,34 @@ function renderHome(app) {
   ]));
 
   const blocks = h('div', { class: 'rank-blocks' });
+
+  // --- 本日の問題（一番上） ---
+  const dLocked = !user; // ゲストは不可（ログイン誘導）
+  const dLabel = h('span', { class: 'rank-block-label' }, [CONFIG.daily.label, dLocked ? h('span', { class: 'lock' }, ' 🔒') : null]);
+  const dBlock = h('button', { class: `rank-block clr-${CONFIG.daily.color}` + (dLocked ? ' locked' : '') }, [dLabel]);
+  const dDesc = h('p', { class: 'rank-block-desc' }, CONFIG.daily.desc);
+  const dWrap = h('div', { class: 'rank-block-wrap' }, [dBlock, dDesc]);
+  blocks.appendChild(dWrap);
+
+  // 本日の問題は在庫を確認して出し分け
+  if (dLocked) {
+    dBlock.onclick = () => requireLogin('本日の問題はログインすると挑戦できます');
+  } else if (Store.isConfigured()) {
+    dBlock.disabled = true;
+    Store.countDaily(todayYMD()).then(cnt => {
+      if (cnt <= CONFIG.daily.minStock) {
+        dWrap.classList.add('daily-empty');
+        dDesc.textContent = '問題が揃っていません';
+        dBlock.onclick = () => toast('本日の問題はまだ準備中です（4問以上で公開）', 'info');
+        dBlock.disabled = false;
+      } else {
+        dBlock.disabled = false;
+        dBlock.onclick = () => startQuiz('daily');
+      }
+    }).catch(() => { dBlock.disabled = false; });
+  }
+
+  // --- 3難易度 ---
   CONFIG.ranks.forEach(r => {
     const locked = !user && r.key !== 'beginner';
     const block = h('button', {
@@ -219,7 +267,11 @@ async function startQuiz(rankKey) {
   app.appendChild(h('p', { class: 'muted center' }, '問題を準備中…'));
 
   let list;
-  try { list = await Store.sampleQuestions(rankKey, CONFIG.questionsPerQuiz); }
+  try {
+    list = rankKey === 'daily'
+      ? await Store.sampleDaily(CONFIG.questionsPerQuiz, todayYMD())
+      : await Store.sampleQuestions(rankKey, CONFIG.questionsPerQuiz);
+  }
   catch (e) { app.innerHTML = ''; app.appendChild(errorBox(e)); return; }
 
   if (!list.length) {
@@ -247,8 +299,13 @@ function renderQuiz() {
       h('span', { class: 'seg' + (idx < quiz.i ? ' done' : idx === quiz.i ? ' cur' : ''), style: idx <= quiz.i ? `background:${rankColor(quiz.rank)}` : '' }))),
   ]));
 
+  // 選択肢は毎回ランダムに並べ替え
+  const order = shuffleIdx(q.choices.length);
+  const displayed = order.map(idx => q.choices[idx]);
+  quiz.cur = { dispCorrect: order.indexOf(q.correct_index) };
+
   const grid = h('div', { class: 'choice-grid' });
-  q.choices.forEach((c, i) => {
+  displayed.forEach((c, i) => {
     grid.appendChild(h('button', { class: 'gopt', onclick: () => answerQuiz(i, grid, q) },
       [h('span', { class: 'gopt-n' }, LETTERS[i] + '.'), h('span', { class: 'gopt-t' }, c)]));
   });
@@ -265,11 +322,12 @@ function renderQuiz() {
 function answerQuiz(i, grid, q) {
   if (quiz.answered) return;
   quiz.answered = true;
-  const correct = q.correct_index;
-  if (i === correct) quiz.correct++;
-  Store.recordAnswer(q.id, i === correct, user); // 成績記録（未ログイン時は何もしない）
+  const correct = quiz.cur.dispCorrect; // 表示上の正解位置
+  const isRight = i === correct;
+  if (isRight) quiz.correct++;
+  Store.recordAnswer(q.id, isRight, user); // 成績記録（未ログイン時は何もしない）
   const accent = rankColor(quiz.rank);
-  const onAccentText = rankOf(quiz.rank).color === 'yellow' ? '#1c1c1a' : '#f7f3e8';
+  const onAccentText = onAccent(quiz.rank);
   [...grid.children].forEach((btn, idx) => {
     btn.disabled = true;
     if (idx === correct) {
@@ -425,11 +483,16 @@ function manageChip(key, label, color) {
 
 function accRow(q) {
   const body = h('div', { class: 'acc-body' });
+  const isDaily = !!q.scheduled_date;
+  const barColor = isDaily ? COLOR[CONFIG.daily.color] : rankColor(q.rank);
   const row = h('div', { class: 'acc-item' }, [
     h('button', { class: 'acc-head', onclick: () => toggleAcc(row, body, q) }, [
-      h('span', { class: 'acc-bar', style: `background:${rankColor(q.rank)}` }),
+      h('span', { class: 'acc-bar', style: `background:${barColor}` }),
       h('span', { class: 'acc-tri' }, '▶'),
-      h('span', { class: 'acc-q' }, `Q. ${q.body}`),
+      h('span', { class: 'acc-q' }, [
+        isDaily ? h('span', { class: 'acc-daily-tag' }, `📅${fmtYmdJp(q.scheduled_date)}`) : null,
+        ` Q. ${q.body}`,
+      ]),
     ]),
     body,
   ]);
@@ -540,53 +603,75 @@ function renderCreate(app, editing = null) {
   renderHeader({ title: isEdit ? '編集' : '新規作成' });
   app = $('#app'); app.innerHTML = '';
 
+  const isDailyInit = !!(editing && editing.scheduled_date);
+
+  // 難易度
   const rankSel = h('select', { class: 'input' },
     CONFIG.ranks.map(r => h('option', { value: r.key, selected: editing && editing.rank === r.key ? '' : null }, r.label)));
+  const rankField = h('div', {}, [h('label', { class: 'field-label' }, '難易度ランク'), rankSel]);
+
+  // 本日の問題トグル＋出題予定日
+  const dailyChk = h('input', { type: 'checkbox', ...(isDailyInit ? { checked: '' } : {}) });
+  const dateIn = h('input', { class: 'input', type: 'date',
+    value: editing && editing.scheduled_date ? editing.scheduled_date : tomorrowYMD() });
+  const dateField = h('div', { class: 'daily-date' + (isDailyInit ? '' : ' hidden') }, [
+    h('label', { class: 'field-label' }, '出題予定日（本日の問題）'), dateIn,
+    h('p', { class: 'hint' }, '既定は明日。指定した日に「本日の問題」として出題されます。'),
+  ]);
+  dailyChk.addEventListener('change', () => {
+    const on = dailyChk.checked;
+    dateField.classList.toggle('hidden', !on);
+    rankField.classList.toggle('hidden', on); // 本日の問題は難易度なし
+  });
+  if (isDailyInit) rankField.classList.add('hidden');
+  const dailyToggle = h('label', { class: 'daily-toggle' }, [dailyChk, h('span', {}, '📅 本日の問題として作る（出題日を指定）')]);
+
   const bodyIn = h('textarea', { class: 'input', rows: '3', placeholder: '問題文を入力…' }, editing ? editing.body : '');
-  const choiceInputs = [];
-  const choicesWrap = h('div', { class: 'create-choices' });
-  for (let i = 0; i < 4; i++) {
-    const radio = h('input', { type: 'radio', name: 'correct', value: String(i),
-      ...(editing ? (editing.correct_index === i ? { checked: '' } : {}) : (i === 0 ? { checked: '' } : {})) });
-    const inp = h('input', { class: 'input', type: 'text', placeholder: `選択肢 ${i + 1}`, value: editing ? (editing.choices[i] || '') : '' });
-    choiceInputs.push({ radio, inp });
-    choicesWrap.appendChild(h('div', { class: 'create-choice-row' }, [
-      h('label', { class: 'radio-wrap', title: '正解にする' }, [radio, h('span', { class: 'radio-dot' })]), inp]));
-  }
+
+  // 正解1・不正解3
+  const correctText = editing ? (editing.choices[editing.correct_index] || '') : '';
+  const wrongTexts = editing ? editing.choices.filter((_, i) => i !== editing.correct_index) : ['', '', ''];
+  const correctIn = h('input', { class: 'input correct-in', type: 'text', placeholder: '正解の選択肢', value: correctText });
+  const wrongIns = [0, 1, 2].map(i => h('input', { class: 'input', type: 'text', placeholder: `不正解 ${i + 1}`, value: wrongTexts[i] || '' }));
+
   const explainIn = h('textarea', { class: 'input', rows: '3', placeholder: '解答解説を入力（任意）…' }, editing ? (editing.explanation || '') : '');
 
   const submit = h('button', { class: 'btn btn-primary btn-block' }, isEdit ? '編集を保存' : '問題を登録');
   submit.addEventListener('click', async () => {
+    const isDaily = dailyChk.checked;
+    const correct = correctIn.value.trim();
+    const wrongs = wrongIns.map(w => w.value.trim());
     const payload = {
-      rank: rankSel.value, body: bodyIn.value.trim(),
-      choices: choiceInputs.map(c => c.inp.value.trim()),
-      correctIndex: choiceInputs.findIndex(c => c.radio.checked),
+      rank: isDaily ? 'beginner' : rankSel.value, // 本日の問題は内部的に beginner 固定
+      body: bodyIn.value.trim(),
+      choices: [correct, ...wrongs],   // 保存時は先頭が正解
+      correctIndex: 0,
       explanation: explainIn.value.trim(),
+      scheduledDate: isDaily ? dateIn.value : null,
     };
     if (!payload.body) return toast('問題文を入力してください', 'error');
-    if (payload.choices.some(c => !c)) return toast('4つの選択肢をすべて入力してください', 'error');
-    if (payload.correctIndex < 0) return toast('正解の選択肢を選んでください', 'error');
+    if (!correct) return toast('正解の選択肢を入力してください', 'error');
+    if (wrongs.some(w => !w)) return toast('不正解を3つすべて入力してください', 'error');
+    if (isDaily && !dateIn.value) return toast('出題予定日を入力してください', 'error');
     submit.disabled = true;
     try {
-      if (isEdit) {
-        await Store.updateQuestion(editing.id, payload, user);
-        toast('編集を保存しました', 'success');
-      } else {
-        await Store.createQuestion(payload, user);
-        toast('問題を登録しました！', 'success');
-      }
+      if (isEdit) { await Store.updateQuestion(editing.id, payload, user); toast('編集を保存しました', 'success'); }
+      else { await Store.createQuestion(payload, user); toast('問題を登録しました！', 'success'); }
       updateFooterPool();
-      manageFilter = payload.rank;
-      renderCreateDone(payload, isEdit);
+      manageFilter = isDaily ? '' : payload.rank;
+      renderCreateDone({ ...payload, isDaily }, isEdit);
     } catch (e) { submit.disabled = false; toast(e.message || '保存に失敗しました', 'error'); }
   });
 
   app.appendChild(h('section', { class: 'card' }, [
     h('h1', {}, isEdit ? '問題を編集' : '問題をつくる'),
-    h('p', { class: 'hint' }, '正解にする選択肢の左のマークを選んでください。'),
-    h('label', { class: 'field-label' }, '難易度ランク'), rankSel,
+    h('p', { class: 'hint' }, '選択肢は出題時に毎回ランダムに並びます。正解1つ・不正解3つを入力してください。'),
+    h('div', { class: 'daily-toggle-wrap' }, dailyToggle),
+    dateField,
+    rankField,
     h('label', { class: 'field-label' }, '問題文'), bodyIn,
-    h('label', { class: 'field-label' }, '選択肢（4つ・マークが正解）'), choicesWrap,
+    h('label', { class: 'field-label' }, '✓ 正解（1つ）'), correctIn,
+    h('label', { class: 'field-label' }, '✗ 不正解（3つ）'), ...wrongIns,
     h('label', { class: 'field-label' }, '解答解説'), explainIn,
     submit,
     h('button', { class: 'btn btn-ghost btn-block btn-sm', onclick: () => switchView('manage') }, '← 一覧へ戻る'),
@@ -597,9 +682,10 @@ function renderCreate(app, editing = null) {
 function renderCreateDone(payload, isEdit = false) {
   const app = $('#app'); app.innerHTML = '';
   renderHeader({ title: '作問' });
+  const catLabel = payload.isDaily ? `${CONFIG.daily.label}・${fmtYmdJp(payload.scheduledDate)}` : rankLabel(payload.rank);
   app.appendChild(h('section', { class: 'card center' }, [
     h('h1', {}, isEdit ? '保存しました！🎉' : '登録しました！🎉'),
-    h('p', { class: 'muted' }, `【${rankLabel(payload.rank)}】Q. ${payload.body}`),
+    h('p', { class: 'muted' }, `【${catLabel}】Q. ${payload.body}`),
     h('div', { class: 'result-actions', style: 'margin-top:18px' }, [
       h('button', { class: 'btn btn-primary', onclick: () => shareNewQuestion(payload, isEdit) },
         isEdit ? '⤴ 更新したことをシェア' : '⤴ 作問したことをシェア'),
@@ -611,9 +697,10 @@ function renderCreateDone(payload, isEdit = false) {
 }
 
 function shareNewQuestion(p, isEdit = false) {
+  const cat = p.isDaily ? `${CONFIG.daily.label}（${fmtYmdJp(p.scheduledDate)}）` : rankLabel(p.rank);
   const lead = isEdit
-    ? `「${CONFIG.appName}」の問題をブラッシュアップしました！【${rankLabel(p.rank)}】`
-    : `「${CONFIG.appName}」に新しい問題を作りました！【${rankLabel(p.rank)}】`;
+    ? `「${CONFIG.appName}」の問題をブラッシュアップしました！【${cat}】`
+    : `「${CONFIG.appName}」に新しい問題を作りました！【${cat}】`;
   const text =
     `${lead}\n\n` +
     `Q. ${p.body}\n` +
@@ -759,18 +846,40 @@ async function renderOwnerPage(app) {
 
   // ---- 全員分のランキング（省略なし） ----
   slot.appendChild(h('h3', { class: 'section-title' }, '// 正答数ランキング（全員）'));
-  if (!ranks.length) slot.appendChild(h('p', { class: 'muted' }, 'まだ誰も解いていません。'));
-  else slot.appendChild(h('ol', { class: 'rank-list' }, ranks.map((r, i) => {
+  slot.appendChild(fullRankingList(ranks));
+}
+
+// 全員分ランキングのリスト（オーナーページ・ランキングページ共通）
+function fullRankingList(ranks) {
+  if (!ranks.length) return h('p', { class: 'muted' }, 'まだ誰も解いていません。');
+  const myHandle = user ? Misskey.handleOf(user) : null;
+  return h('ol', { class: 'rank-list' }, ranks.map((r, i) => {
     const pct = r.total ? Math.round(r.correct / r.total * 100) : 0;
-    return h('li', { class: 'rank-row' }, [
+    const isMe = r.handle === myHandle;
+    return h('li', { class: 'rank-row' + (isMe ? ' me' : '') }, [
       h('span', { class: 'rank-pos' }, String(i + 1)),
       h('div', { class: 'rank-txt' }, [
-        h('div', { class: 'rank-name' }, r.name || r.handle),
+        h('div', { class: 'rank-name' }, (r.name || r.handle) + (isMe ? '（あなた）' : '')),
         h('div', { class: 'rank-handle muted' }, r.handle),
       ]),
       h('span', { class: 'rank-score' }, [`${r.correct}問正解`, h('span', { class: 'rank-sub' }, `／${r.total}問（${pct}%）`)]),
     ]);
-  })));
+  }));
+}
+
+/* ---------- ランキング（メニューから・全員閲覧可） ---------- */
+async function renderRanking(app) {
+  renderHeader({ title: 'ランキング' });
+  const slot = h('div', {}, h('p', { class: 'muted center' }, '読み込み中…'));
+  app.appendChild(slot);
+  if (!Store.isConfigured()) { slot.innerHTML = ''; return; }
+  let ranks;
+  try { ranks = await Store.ranking(); }
+  catch (e) { slot.innerHTML = ''; slot.appendChild(errorBox(e)); return; }
+  slot.innerHTML = '';
+  slot.appendChild(h('h3', { class: 'section-title' }, '// 正答数ランキング'));
+  slot.appendChild(h('p', { class: 'hint', style: 'margin-bottom:10px' }, 'これまでの正解数の合計。たくさん解くほど上位に！'));
+  slot.appendChild(fullRankingList(ranks));
 }
 
 /* ---------- ログイン画面 ---------- */

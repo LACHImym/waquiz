@@ -33,6 +33,9 @@ window.QUIZ_CONFIG = {
     { key: 'mania',        label: '上級編', color: 'blue',   desc: '沼に入りたい人向け'         },
   ],
 
+  // 本日の問題（その日限りのお題）。ストックがこの数「以下」だとグレーアウト。
+  daily: { label: '本日の問題', color: 'ink', desc: 'その日限りのタイムリーなお題', minStock: 3 },
+
   // シェア文につけるハッシュタグ（# は不要）
   shareHashtag: 'waquiz',
 

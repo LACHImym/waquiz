@@ -404,3 +404,14 @@ textarea.input { resize: vertical; }
 .review-cslot { padding: 0 12px; }
 .review-cslot > div { padding-bottom: 12px; border-top: 1px dashed var(--line); padding-top: 12px; }
 .rank-ellipsis { text-align: center; list-style: none; font-family: var(--disp); font-weight: 900; padding: 2px 0; }
+
+/* ---- 本日の問題 / 作問トグル / 表示 ---- */
+.clr-ink { background: var(--ink); color: var(--paper); border-color: var(--ink); }
+.rank-block-wrap.daily-empty .rank-block { opacity: .4; cursor: not-allowed; }
+.rank-block-wrap.daily-empty .rank-block-desc { color: var(--red); font-weight: 700; opacity: 1; }
+.daily-toggle-wrap { border: 3px solid var(--ink); background: var(--paper-2); padding: 12px 14px; margin-bottom: 4px; }
+.daily-toggle { display: flex; align-items: center; gap: 10px; cursor: pointer; font-family: var(--disp); font-weight: 700; font-size: 13px; }
+.daily-toggle input { width: 20px; height: 20px; flex: none; }
+.daily-date.hidden, .hidden { display: none; }
+.correct-in { border-color: var(--blue) !important; }
+.acc-daily-tag { display: inline-block; font-family: var(--disp); font-weight: 900; font-size: 10px; background: var(--ink); color: var(--paper); padding: 1px 6px; margin-right: 2px; }
