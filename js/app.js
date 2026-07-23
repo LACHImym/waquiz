@@ -325,12 +325,12 @@ function shareResult(pct) {
   Misskey.share(text);
 }
 
-/* ---------- 作成者/更新者クレジット ---------- */
+/* ---------- クレジット（作成者：作成日（最終更新日）） ---------- */
 function creditLine(q) {
+  const updated = q.updated_at && fmtDay(q.updated_at) !== fmtDay(q.created_at)
+    ? `（${fmtDay(q.updated_at)}更新）` : '';
   return h('div', { class: 'credit' }, [
-    h('span', {}, `${fmtDay(q.created_at)}：${esc(q.created_by_name || q.created_by || '不明')}作成`),
-    q.updated_at && q.updated_at !== q.created_at
-      ? h('span', {}, `${fmtDay(q.updated_at)}：${esc(q.updated_by_name || q.updated_by || '')}更新`) : null,
+    h('span', {}, `${esc(q.created_by_name || q.created_by || '不明')}：${fmtDay(q.created_at)}${updated}`),
   ]);
 }
 
