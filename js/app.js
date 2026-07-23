@@ -571,16 +571,13 @@ function renderCreate(app, editing = null) {
       if (isEdit) {
         await Store.updateQuestion(editing.id, payload, user);
         toast('編集を保存しました', 'success');
-        updateFooterPool();
-        manageFilter = payload.rank;
-        switchView('manage');
       } else {
         await Store.createQuestion(payload, user);
         toast('問題を登録しました！', 'success');
-        updateFooterPool();
-        manageFilter = payload.rank;
-        renderCreateDone(payload);
       }
+      updateFooterPool();
+      manageFilter = payload.rank;
+      renderCreateDone(payload, isEdit);
     } catch (e) { submit.disabled = false; toast(e.message || '保存に失敗しました', 'error'); }
   });
 
@@ -597,14 +594,15 @@ function renderCreate(app, editing = null) {
 }
 
 /* ---------- 作問完了（シェア） ---------- */
-function renderCreateDone(payload) {
+function renderCreateDone(payload, isEdit = false) {
   const app = $('#app'); app.innerHTML = '';
   renderHeader({ title: '作問' });
   app.appendChild(h('section', { class: 'card center' }, [
-    h('h1', {}, '登録しました！🎉'),
+    h('h1', {}, isEdit ? '保存しました！🎉' : '登録しました！🎉'),
     h('p', { class: 'muted' }, `【${rankLabel(payload.rank)}】Q. ${payload.body}`),
     h('div', { class: 'result-actions', style: 'margin-top:18px' }, [
-      h('button', { class: 'btn btn-primary', onclick: () => shareNewQuestion(payload) }, '⤴ 作問したことをシェア'),
+      h('button', { class: 'btn btn-primary', onclick: () => shareNewQuestion(payload, isEdit) },
+        isEdit ? '⤴ 更新したことをシェア' : '⤴ 作問したことをシェア'),
       h('button', { class: 'btn', onclick: () => switchView('create') }, 'もう1問つくる'),
       h('button', { class: 'btn btn-ghost', onclick: () => switchView('manage') }, '一覧へ'),
     ]),
@@ -612,9 +610,12 @@ function renderCreateDone(payload) {
   ]));
 }
 
-function shareNewQuestion(p) {
+function shareNewQuestion(p, isEdit = false) {
+  const lead = isEdit
+    ? `「${CONFIG.appName}」の問題をブラッシュアップしました！【${rankLabel(p.rank)}】`
+    : `「${CONFIG.appName}」に新しい問題を作りました！【${rankLabel(p.rank)}】`;
   const text =
-    `「${CONFIG.appName}」に新しい問題を作りました！【${rankLabel(p.rank)}】\n\n` +
+    `${lead}\n\n` +
     `Q. ${p.body}\n` +
     p.choices.map((c, i) => `${i + 1}. ${c}`).join('\n') + '\n\n' +
     `答えはこちらで挑戦してみて↓\n` +
@@ -647,7 +648,7 @@ async function renderMyPage(app) {
   let results, recent, ranks;
   try {
     [results, recent, ranks] = await Promise.all([
-      Store.listMyResults(user, 20), Store.listRecentAnswers(user, 10), Store.ranking(),
+      Store.listMyResults(user, 5), Store.listRecentAnswers(user, 10), Store.ranking(),
     ]);
   } catch (e) {
     slot.innerHTML = '';
@@ -669,31 +670,62 @@ async function renderMyPage(app) {
     ]);
   })));
 
-  // ---- 正答数ランキング ----
+  // ---- 正答数ランキング（上位3名＋自分の順位） ----
   slot.appendChild(h('h3', { class: 'section-title' }, '// 正答数ランキング'));
   slot.appendChild(h('p', { class: 'hint', style: 'margin-bottom:8px' }, 'これまでの正解数の合計。たくさん解くほど上位に！'));
   if (!ranks.length) slot.appendChild(h('p', { class: 'muted' }, 'まだ誰も解いていません。'));
-  else slot.appendChild(h('ol', { class: 'rank-list' }, ranks.slice(0, 20).map((r, i) => {
-    const isMe = r.handle === Misskey.handleOf(user);
-    return h('li', { class: 'rank-row' + (isMe ? ' me' : '') }, [
-      h('span', { class: 'rank-pos' }, String(i + 1)),
-      h('span', { class: 'rank-name' }, (r.name || r.handle) + (isMe ? '（あなた）' : '')),
-      h('span', { class: 'rank-score' }, `${r.correct}問正解`),
-    ]);
-  })));
+  else {
+    const myHandle = Misskey.handleOf(user);
+    const meIdx = ranks.findIndex(r => r.handle === myHandle);
+    const rankRow = (r, i) => {
+      const isMe = r.handle === myHandle;
+      return h('li', { class: 'rank-row' + (isMe ? ' me' : '') }, [
+        h('span', { class: 'rank-pos' }, String(i + 1)),
+        h('span', { class: 'rank-name' }, (r.name || r.handle) + (isMe ? '（あなた）' : '')),
+        h('span', { class: 'rank-score' }, `${r.correct}問正解`),
+      ]);
+    };
+    const rows = ranks.slice(0, 3).map(rankRow);
+    if (meIdx >= 3) {
+      rows.push(h('li', { class: 'rank-ellipsis muted' }, '…'));
+      rows.push(rankRow(ranks[meIdx], meIdx));
+    }
+    slot.appendChild(h('ol', { class: 'rank-list' }, rows));
+    if (meIdx === -1) slot.appendChild(h('p', { class: 'hint' }, 'クイズに挑戦するとランキングに載ります。'));
+  }
 
   // ---- 直近に解いた10問の振り返り ----
   slot.appendChild(h('h3', { class: 'section-title' }, '// 直近に解いた10問の振り返り'));
   if (!recent.length) slot.appendChild(h('p', { class: 'muted' }, 'まだ解答がありません。'));
   else slot.appendChild(h('div', { class: 'review-list' }, recent.map(a => {
     const q = a.questions;
-    return h('div', { class: 'review-row' }, [
-      h('span', { class: 'review-mark ' + (a.is_correct ? 'ok' : 'ng') }, a.is_correct ? '○' : '×'),
-      h('div', { class: 'review-txt' }, [
-        h('p', { class: 'review-q' }, q ? q.body : '（削除された問題）'),
-        q ? h('p', { class: 'review-a muted' }, `正解：${q.choices[q.correct_index]}`) : null,
-        h('p', { class: 'review-date muted' }, fmtDate(a.created_at)),
+    const cSlot = h('div', { class: 'review-cslot' });
+    let cOpen = false;
+    const cBtn = q ? h('button', {
+      class: 'icon-btn', title: 'この問題にコメントする',
+      onclick: async () => {
+        cOpen = !cOpen;
+        if (!cOpen) { cSlot.innerHTML = ''; return; }
+        cSlot.innerHTML = '';
+        cSlot.appendChild(h('p', { class: 'muted' }, '読み込み中…'));
+        try {
+          const cs = await Store.listComments(a.question_id);
+          cSlot.innerHTML = '';
+          cSlot.appendChild(commentsBlock(a.question_id, cs.slice().reverse(), true));
+        } catch (e) { cSlot.innerHTML = ''; cSlot.appendChild(h('p', { class: 'muted' }, '読み込みに失敗しました')); }
+      },
+    }, '💬') : null;
+    return h('div', { class: 'review-row-wrap' }, [
+      h('div', { class: 'review-row' }, [
+        h('span', { class: 'review-mark ' + (a.is_correct ? 'ok' : 'ng') }, a.is_correct ? '○' : '×'),
+        h('div', { class: 'review-txt' }, [
+          h('p', { class: 'review-q' }, q ? q.body : '（削除された問題）'),
+          q ? h('p', { class: 'review-a muted' }, `正解：${q.choices[q.correct_index]}`) : null,
+          h('p', { class: 'review-date muted' }, fmtDate(a.created_at)),
+        ]),
+        cBtn,
       ]),
+      cSlot,
     ]);
   })));
 }

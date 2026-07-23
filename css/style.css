@@ -395,3 +395,12 @@ textarea.input { resize: vertical; }
 .rank-txt .rank-name { white-space: normal; }
 .rank-handle { font-size: 10px; word-break: break-all; }
 .rank-sub { font-family: var(--body); font-weight: 500; font-size: 11px; opacity: .6; margin-left: 4px; }
+
+/* ---- マイページ：振り返りコメント & ランキング省略 ---- */
+.icon-btn { flex: none; align-self: flex-start; background: var(--paper); border: 2px solid var(--ink); width: 34px; height: 34px; font-size: 15px; cursor: pointer; display: grid; place-items: center; padding: 0; }
+.icon-btn:hover { background: var(--paper-2); }
+.review-row-wrap { border: 2px solid var(--ink); }
+.review-row-wrap .review-row { border: none; }
+.review-cslot { padding: 0 12px; }
+.review-cslot > div { padding-bottom: 12px; border-top: 1px dashed var(--line); padding-top: 12px; }
+.rank-ellipsis { text-align: center; list-style: none; font-family: var(--disp); font-weight: 900; padding: 2px 0; }
