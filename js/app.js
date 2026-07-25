@@ -640,7 +640,8 @@ function renderCreate(app, editing = null) {
   app = $('#app'); app.innerHTML = '';
 
   const isDailyInit = !!(editing && editing.scheduled_date);
-  const initCat = isDailyInit ? 'daily' : (editing ? editing.rank : 'beginner');
+  // 新規作成時はどれも未選択。編集時のみ既存カテゴリを選択状態に。
+  const initCat = isDailyInit ? 'daily' : (editing ? editing.rank : null);
 
   // カテゴリ選択（本日の問題＋3難易度）をラジオボタンで。各ガイドライン付き。
   const cats = [{ key: 'daily', label: CONFIG.daily.label, color: CONFIG.daily.color, guide: CONFIG.daily.guide }]
@@ -664,7 +665,7 @@ function renderCreate(app, editing = null) {
     h('label', { class: 'field-label' }, '出題予定日（本日の問題）'), dateIn,
     h('p', { class: 'hint' }, '既定は明日。指定した日に「本日の問題」として出題されます。'),
   ]);
-  function currentCat() { return Object.keys(catRadios).find(k => catRadios[k].checked) || 'beginner'; }
+  function currentCat() { return Object.keys(catRadios).find(k => catRadios[k].checked) || null; }
   function onCatChange() { dateField.classList.toggle('hidden', currentCat() !== 'daily'); }
 
   const bodyIn = h('textarea', { class: 'input', rows: '3', placeholder: '問題文を入力…' }, editing ? editing.body : '');
@@ -680,6 +681,7 @@ function renderCreate(app, editing = null) {
   const submit = h('button', { class: 'btn btn-primary btn-block' }, isEdit ? '編集を保存' : '問題を登録');
   submit.addEventListener('click', async () => {
     const cat = currentCat();
+    if (!cat) return toast('カテゴリを選んでください', 'error');
     const isDaily = cat === 'daily';
     const correct = correctIn.value.trim();
     const wrongs = wrongIns.map(w => w.value.trim());
