@@ -27,14 +27,15 @@ window.QUIZ_CONFIG = {
 
   // 3ランク。label・desc・color は自由に変えられます（key は変えないでください）。
   // color は 'yellow' / 'red' / 'blue' から選択。
+  // desc＝ホームの説明、guide＝作問時のガイドライン
   ranks: [
-    { key: 'beginner',     label: '入門編', color: 'yellow', desc: '入会したてで迷ってる人向け' },
-    { key: 'intermediate', label: '中級編', color: 'red',    desc: 'ちょっと慣れてきた人向け'   },
-    { key: 'mania',        label: '上級編', color: 'blue',   desc: '沼に入りたい人向け'         },
+    { key: 'beginner',     label: '入門編', color: 'yellow', desc: '入会したてで迷ってる人向け', guide: '公式・準公式に関するもの' },
+    { key: 'intermediate', label: '中級編', color: 'red',    desc: 'ちょっと慣れてきた人向け',   guide: 'メンバー複数名が参加しており情報が受動的にとれるもの' },
+    { key: 'mania',        label: '上級編', color: 'blue',   desc: '沼に入りたい人向け',         guide: '特定のメンバーに関するもの' },
   ],
 
   // 本日の問題（その日限りのお題）。ストックがこの数「以下」だとグレーアウト。
-  daily: { label: '本日の問題', color: 'ink', desc: 'その日限りのタイムリーなお題', minStock: 3 },
+  daily: { label: '本日の問題', color: 'ink', desc: 'その日限りのタイムリーなお題', guide: '1日限定の話題性のあるもの', minStock: 3 },
 
   // シェア文につけるハッシュタグ（# は不要）
   shareHashtag: 'waquiz',

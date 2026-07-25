@@ -640,27 +640,32 @@ function renderCreate(app, editing = null) {
   app = $('#app'); app.innerHTML = '';
 
   const isDailyInit = !!(editing && editing.scheduled_date);
+  const initCat = isDailyInit ? 'daily' : (editing ? editing.rank : 'beginner');
 
-  // 難易度
-  const rankSel = h('select', { class: 'input' },
-    CONFIG.ranks.map(r => h('option', { value: r.key, selected: editing && editing.rank === r.key ? '' : null }, r.label)));
-  const rankField = h('div', {}, [h('label', { class: 'field-label' }, '難易度ランク'), rankSel]);
+  // カテゴリ選択（本日の問題＋3難易度）をラジオボタンで。各ガイドライン付き。
+  const cats = [{ key: 'daily', label: CONFIG.daily.label, color: CONFIG.daily.color, guide: CONFIG.daily.guide }]
+    .concat(CONFIG.ranks.map(r => ({ key: r.key, label: r.label, color: r.color, guide: r.guide })));
+  const catRadios = {};
+  const catField = h('div', { class: 'cat-list' }, cats.map(c => {
+    const radio = h('input', { type: 'radio', name: 'category', value: c.key, ...(initCat === c.key ? { checked: '' } : {}) });
+    catRadios[c.key] = radio;
+    radio.addEventListener('change', onCatChange);
+    return h('label', { class: 'cat-item' }, [
+      h('span', { class: 'radio-wrap' }, [radio, h('span', { class: 'radio-dot' })]),
+      h('span', { class: `cat-chip clr-${c.color}` }, c.label),
+      h('span', { class: 'cat-guide' }, c.guide),
+    ]);
+  }));
 
-  // 本日の問題トグル＋出題予定日
-  const dailyChk = h('input', { type: 'checkbox', ...(isDailyInit ? { checked: '' } : {}) });
+  // 出題予定日（本日の問題のときだけ表示）
   const dateIn = h('input', { class: 'input', type: 'date',
     value: editing && editing.scheduled_date ? editing.scheduled_date : tomorrowYMD() });
   const dateField = h('div', { class: 'daily-date' + (isDailyInit ? '' : ' hidden') }, [
     h('label', { class: 'field-label' }, '出題予定日（本日の問題）'), dateIn,
     h('p', { class: 'hint' }, '既定は明日。指定した日に「本日の問題」として出題されます。'),
   ]);
-  dailyChk.addEventListener('change', () => {
-    const on = dailyChk.checked;
-    dateField.classList.toggle('hidden', !on);
-    rankField.classList.toggle('hidden', on); // 本日の問題は難易度なし
-  });
-  if (isDailyInit) rankField.classList.add('hidden');
-  const dailyToggle = h('label', { class: 'daily-toggle' }, [dailyChk, h('span', {}, '📅 本日の問題として作る（出題日を指定）')]);
+  function currentCat() { return Object.keys(catRadios).find(k => catRadios[k].checked) || 'beginner'; }
+  function onCatChange() { dateField.classList.toggle('hidden', currentCat() !== 'daily'); }
 
   const bodyIn = h('textarea', { class: 'input', rows: '3', placeholder: '問題文を入力…' }, editing ? editing.body : '');
 
@@ -674,11 +679,12 @@ function renderCreate(app, editing = null) {
 
   const submit = h('button', { class: 'btn btn-primary btn-block' }, isEdit ? '編集を保存' : '問題を登録');
   submit.addEventListener('click', async () => {
-    const isDaily = dailyChk.checked;
+    const cat = currentCat();
+    const isDaily = cat === 'daily';
     const correct = correctIn.value.trim();
     const wrongs = wrongIns.map(w => w.value.trim());
     const payload = {
-      rank: isDaily ? 'beginner' : rankSel.value, // 本日の問題は内部的に beginner 固定
+      rank: isDaily ? 'beginner' : cat, // 本日の問題は内部的に beginner 固定
       body: bodyIn.value.trim(),
       choices: [correct, ...wrongs],   // 保存時は先頭が正解
       correctIndex: 0,
@@ -702,9 +708,8 @@ function renderCreate(app, editing = null) {
   app.appendChild(h('section', { class: 'card' }, [
     h('h1', {}, isEdit ? '問題を編集' : '問題をつくる'),
     h('p', { class: 'hint' }, '選択肢は出題時に毎回ランダムに並びます。正解1つ・不正解3つを入力してください。'),
-    h('div', { class: 'daily-toggle-wrap' }, dailyToggle),
+    h('label', { class: 'field-label' }, 'カテゴリ（1つ選択）'), catField,
     dateField,
-    rankField,
     h('label', { class: 'field-label' }, '問題文'), bodyIn,
     h('label', { class: 'field-label' }, '✓ 正解（1つ）'), correctIn,
     h('label', { class: 'field-label' }, '✗ 不正解（3つ）'), ...wrongIns,

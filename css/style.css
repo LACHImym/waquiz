@@ -428,3 +428,14 @@ textarea.input { resize: vertical; }
 
 /* ---- 作問者タグ（全問題閲覧） ---- */
 .acc-author { display: inline-block; font-family: var(--body); font-size: 10px; opacity: .6; margin-left: 6px; white-space: nowrap; }
+
+/* ---- 作問カテゴリ選択（ラジオ＋ガイド） ---- */
+.cat-list { display: flex; flex-direction: column; gap: 8px; }
+.cat-item { display: grid; grid-template-columns: auto auto 1fr; align-items: center; gap: 10px; border: 3px solid var(--ink); padding: 10px 12px; cursor: pointer; }
+.cat-item .radio-wrap { flex: none; }
+.cat-chip { font-family: var(--disp); font-weight: 900; font-size: 13px; padding: 4px 10px; white-space: nowrap; }
+.cat-guide { font-family: var(--body); font-size: 12px; line-height: 1.35; opacity: .8; }
+@media (max-width: 480px) {
+  .cat-item { grid-template-columns: auto 1fr; }
+  .cat-item .cat-guide { grid-column: 1 / -1; margin-left: 34px; }
+}
