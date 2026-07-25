@@ -35,7 +35,7 @@ window.QUIZ_CONFIG = {
   ],
 
   // 本日の問題（その日限りのお題）。ストックがこの数「以下」だとグレーアウト。
-  daily: { label: '本日の問題', color: 'ink', desc: 'その日限りのタイムリーなお題', guide: '1日限定の話題性のあるもの', minStock: 3 },
+  daily: { label: '本日の問題', color: 'ink', desc: 'その日限りのタイムリーなお題', guide: '一過性の話題', minStock: 3 },
 
   // シェア文につけるハッシュタグ（# は不要）
   shareHashtag: 'waquiz',
