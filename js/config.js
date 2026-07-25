@@ -30,7 +30,7 @@ window.QUIZ_CONFIG = {
   // desc＝ホームの説明、guide＝作問時のガイドライン
   ranks: [
     { key: 'beginner',     label: '入門編', color: 'yellow', desc: '入会したてで迷ってる人向け', guide: '公式・準公式に関するもの' },
-    { key: 'intermediate', label: '中級編', color: 'red',    desc: 'ちょっと慣れてきた人向け',   guide: 'メンバー複数名が参加しており情報が受動的にとれるもの' },
+    { key: 'intermediate', label: '中級編', color: 'red',    desc: 'ちょっと慣れてきた人向け',   guide: 'メンバー複数名が参加しておりAERUや配信アーカイブなどで情報が後からでも見返せるもの' },
     { key: 'mania',        label: '上級編', color: 'blue',   desc: '沼に入りたい人向け',         guide: '特定のメンバーに関するもの' },
   ],
 
