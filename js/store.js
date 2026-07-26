@@ -153,8 +153,14 @@ const Store = (() => {
 
   async function deleteQuestion(id) {
     must();
-    const { error } = await db.from('questions').delete().eq('id', id);
+    // .select() を付けると「実際に削除された行」が返る。
+    // RLS の delete 許可が無いと 0 行（エラーなし）になるので検知できる。
+    const { data, error } = await db.from('questions').delete().eq('id', id).select();
     if (error) throw error;
+    if (!data || data.length === 0) {
+      throw new Error('削除できませんでした。DBの「削除の許可」設定が必要です（supabase/migrate_all.sql を実行してください）。');
+    }
+    return data;
   }
 
   // ---- 解答の記録・成績 ----
