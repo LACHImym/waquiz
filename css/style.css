@@ -455,3 +455,15 @@ textarea.input { resize: vertical; }
 .rank-delta.up { color: var(--blue); }
 .rank-delta.down { color: var(--red); }
 .points-breakdown { font-size: 11px; margin-top: 6px; line-height: 1.5; }
+
+/* ---- 面白クイズランキング ---- */
+.funny-list { list-style: none; display: flex; flex-direction: column; gap: 8px; }
+.funny-row { display: flex; align-items: center; gap: 10px; border: 2px solid var(--ink); padding: 10px 12px; }
+.funny-pos { font-family: var(--disp); font-weight: 900; width: 26px; height: 26px; background: var(--ink); color: var(--paper); display: grid; place-items: center; font-size: 13px; flex: none; }
+.funny-list li:nth-child(1) .funny-pos { background: var(--yellow); color: var(--ink); }
+.funny-list li:nth-child(2) .funny-pos { background: #b9b3a2; color: var(--ink); }
+.funny-list li:nth-child(3) .funny-pos { background: #c97e35; color: var(--paper); }
+.funny-txt { flex: 1; min-width: 0; }
+.funny-q { font-weight: 700; font-size: 14px; line-height: 1.3; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.funny-meta { font-size: 11px; margin-top: 2px; }
+.funny-count { font-family: var(--disp); font-weight: 900; font-size: 15px; flex: none; }

@@ -832,12 +832,13 @@ async function renderMyPage(app) {
   app.appendChild(slot);
 
   if (!Store.isConfigured()) { slot.innerHTML = ''; return; }
-  let results, recent, ranks, streak, total;
+  let results, recent, ranks, streak, total, funny;
   try {
-    [results, recent, ranks, streak, total] = await Promise.all([
+    [results, recent, ranks, streak, total, funny] = await Promise.all([
       Store.listMyResults(user, 5), Store.listRecentAnswers(user, 10), Store.ranking(),
       Store.getStreak(user, todayYMD()).catch(() => null),
       Store.totalRanking().catch(() => []),
+      Store.funnyRanking(5).catch(() => []),
     ]);
   } catch (e) {
     slot.innerHTML = '';
@@ -880,6 +881,22 @@ async function renderMyPage(app) {
   slot.appendChild(h('h3', { class: 'section-title' }, '// 正答数ランキング'));
   slot.appendChild(h('p', { class: 'hint', style: 'margin-bottom:8px' }, '正解数の合計。自分と前後2名を表示。'));
   slot.appendChild(windowRankingList(ranks, r => `${r.correct}問正解`));
+
+  // ---- 面白クイズランキング（🤣が多い問題 上位5） ----
+  slot.appendChild(h('h3', { class: 'section-title' }, `// 面白クイズランキング`));
+  slot.appendChild(h('p', { class: 'hint', style: 'margin-bottom:8px' }, `${CONFIG.goodEmoji}が多い問題 上位5。`));
+  if (!funny || !funny.length) slot.appendChild(h('p', { class: 'muted' }, `まだ${CONFIG.goodEmoji}が付いた問題がありません。`));
+  else slot.appendChild(h('ol', { class: 'funny-list' }, funny.map((x, i) => {
+    const isDaily = !!x.q.scheduled_date;
+    return h('li', { class: 'funny-row' }, [
+      h('span', { class: 'funny-pos' }, String(i + 1)),
+      h('div', { class: 'funny-txt' }, [
+        h('p', { class: 'funny-q' }, `Q. ${x.q.body}`),
+        h('p', { class: 'funny-meta muted' }, `${isDaily ? CONFIG.daily.label : rankLabel(x.q.rank)}・作：${esc(x.q.created_by_name || x.q.created_by || '不明')}`),
+      ]),
+      h('span', { class: 'funny-count' }, `${CONFIG.goodEmoji}${x.count}`),
+    ]);
+  })));
 
   // ---- 直近に解いた10問の振り返り ----
   slot.appendChild(h('h3', { class: 'section-title' }, '// 直近に解いた10問の振り返り'));

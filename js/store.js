@@ -237,6 +237,26 @@ const Store = (() => {
     return pts;
   }
 
+  // 面白クイズランキング（🤣が多い問題 上位 n）
+  async function funnyRanking(limit = 5) {
+    must();
+    const [gds, qs] = await Promise.all([
+      db.from('goods').select('question_id'),
+      db.from('questions').select('id, body, rank, scheduled_date, created_by_name, created_by'),
+    ]);
+    if (gds.error) throw gds.error;
+    if (qs.error) throw qs.error;
+    const counts = {};
+    gds.data.forEach(g => { counts[g.question_id] = (counts[g.question_id] || 0) + 1; });
+    const qmap = {};
+    qs.data.forEach(q => { qmap[q.id] = q; });
+    return Object.entries(counts)
+      .map(([id, c]) => ({ q: qmap[id], count: c }))
+      .filter(x => x.q && x.count > 0)
+      .sort((a, b) => b.count - a.count)
+      .slice(0, limit);
+  }
+
   // ---- 総合ランキング（各アクションを配点して合算） ----
   async function totalRanking() {
     must();
@@ -426,7 +446,7 @@ const Store = (() => {
     listQuestions, listMyQuestions, getQuestion, randomQuestion, sampleQuestions, countByRank,
     sampleDaily, countDaily, newestByRank,
     createQuestion, updateQuestion, deleteQuestion,
-    recordAnswer, recordResult, listMyResults, listRecentAnswers, ranking, totalRanking,
+    recordAnswer, recordResult, listMyResults, listRecentAnswers, ranking, totalRanking, funnyRanking,
     goodCount, hasGood, toggleGood,
     recordLogin, getStreak, loginPointsForDay,
     listComments, addComment, listHistory,
