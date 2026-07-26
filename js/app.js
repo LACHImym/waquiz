@@ -410,7 +410,7 @@ function nextQuiz() {
 // 👍 いいねボタン（良い問題への評価。ログイン時のみ押せる）
 function goodButton(questionId) {
   const label = h('span', { class: 'good-count' }, '…');
-  const btn = h('button', { class: 'good-btn', onclick: onClick }, [h('span', {}, '👍'), label]);
+  const btn = h('button', { class: 'good-btn', onclick: onClick }, [h('span', {}, CONFIG.goodEmoji), label]);
   let state = { on: false, count: 0, ready: false };
   if (Store.isConfigured()) {
     Promise.all([Store.goodCount(questionId), Store.hasGood(questionId, user)]).then(([c, on]) => {
@@ -419,7 +419,7 @@ function goodButton(questionId) {
   } else { label.textContent = ''; }
   function paint() { label.textContent = state.count; btn.classList.toggle('on', state.on); }
   async function onClick() {
-    if (!user) return requireLogin('👍はログインすると押せます');
+    if (!user) return requireLogin(`${CONFIG.goodEmoji}はログインすると押せます`);
     if (!state.ready) return;
     btn.disabled = true;
     try {
@@ -867,7 +867,7 @@ async function renderMyPage(app) {
 
   // ---- 総合ランキング（自分と前後2名） ----
   slot.appendChild(h('h3', { class: 'section-title' }, '// 総合ランキング'));
-  slot.appendChild(h('p', { class: 'hint', style: 'margin-bottom:8px' }, 'ログイン・作問・解答・コメント・👍などの合計ポイント。自分と前後2名を表示。'));
+  slot.appendChild(h('p', { class: 'hint', style: 'margin-bottom:8px' }, `ログイン・作問・解答・コメント・${CONFIG.goodEmoji}などの合計ポイント。自分と前後2名を表示。`));
   slot.appendChild(windowRankingList(total, r => `${r.points}pt`));
   if (myPoints(total)) slot.appendChild(h('p', { class: 'points-breakdown muted' }, myPointsBreakdown(total)));
 
@@ -997,7 +997,7 @@ function myPoints(total) {
 function myPointsBreakdown(total) {
   const me = (total || []).find(r => user && r.handle === Misskey.handleOf(user));
   if (!me) return '';
-  const L = { login: 'ログイン', solve: '解答', correct: '正解', create: '作問', comment: 'コメント', commentReceived: '被コメント', goodGiven: '👍した', goodReceived: '👍された' };
+  const L = { login: 'ログイン', solve: '解答', correct: '正解', create: '作問', comment: 'コメント', commentReceived: '被コメント', goodGiven: `${CONFIG.goodEmoji}した`, goodReceived: `${CONFIG.goodEmoji}された` };
   const parts = Object.keys(L).filter(k => me.breakdown[k]).map(k => `${L[k]} ${me.breakdown[k]}`);
   return `あなたの内訳（計${me.points}pt）：` + (parts.join(' ・ ') || 'なし');
 }

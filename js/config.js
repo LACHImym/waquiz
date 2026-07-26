@@ -19,6 +19,9 @@ window.QUIZ_CONFIG = {
   // 1回のクイズの出題数
   questionsPerQuiz: 5,
 
+  // いいねボタンの絵文字
+  goodEmoji: '🤣',
+
   // ログインに使う Misskey サーバー。
   // lockMisskeyHost を true にすると、このサーバー専用になります
   // （＝このサーバーにアカウントがある人だけがログイン可能・入力欄は非表示）。
