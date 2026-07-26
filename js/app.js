@@ -892,7 +892,7 @@ async function renderMyPage(app) {
       h('span', { class: 'funny-pos' }, String(i + 1)),
       h('div', { class: 'funny-txt' }, [
         h('p', { class: 'funny-q' }, `Q. ${x.q.body}`),
-        h('p', { class: 'funny-meta muted' }, `${isDaily ? CONFIG.daily.label : rankLabel(x.q.rank)}・作：${esc(x.q.created_by_name || x.q.created_by || '不明')}`),
+        h('p', { class: 'funny-meta muted' }, `${isDaily ? CONFIG.daily.label : rankLabel(x.q.rank)}`),
       ]),
       h('span', { class: 'funny-count' }, `${CONFIG.goodEmoji}${x.count}`),
     ]);
