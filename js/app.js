@@ -407,26 +407,31 @@ function nextQuiz() {
   renderQuiz();
 }
 
-// 👍 いいねボタン（良い問題への評価。ログイン時のみ押せる）
+// 🤣 いいねボタン（良い問題への評価。押すと即座に数が増える）
 function goodButton(questionId) {
   const label = h('span', { class: 'good-count' }, '…');
   const btn = h('button', { class: 'good-btn', onclick: onClick }, [h('span', {}, CONFIG.goodEmoji), label]);
-  let state = { on: false, count: 0, ready: false };
+  let count = 0, on = false, busy = false;
   if (Store.isConfigured()) {
-    Promise.all([Store.goodCount(questionId), Store.hasGood(questionId, user)]).then(([c, on]) => {
-      state = { on, count: c, ready: true }; paint();
-    }).catch(() => { label.textContent = ''; });
+    Store.goodCount(questionId).then(c => { count = c; label.textContent = c; }).catch(() => { label.textContent = '0'; });
+    Store.hasGood(questionId, user).then(v => { on = v; btn.classList.toggle('on', on); }).catch(() => {});
   } else { label.textContent = ''; }
-  function paint() { label.textContent = state.count; btn.classList.toggle('on', state.on); }
+
   async function onClick() {
     if (!user) return requireLogin(`${CONFIG.goodEmoji}はログインすると押せます`);
-    if (!state.ready) return;
-    btn.disabled = true;
+    if (busy) return; busy = true;
+    // 押した瞬間に反映（楽観的更新）
+    const wentOn = !on;
+    on = wentOn; count += wentOn ? 1 : -1; label.textContent = count; btn.classList.toggle('on', on);
     try {
-      const on = await Store.toggleGood(questionId, user);
-      state.on = on; state.count += on ? 1 : -1; paint();
-    } catch (e) { toast(e.message || '失敗しました', 'error'); }
-    btn.disabled = false;
+      const serverOn = await Store.toggleGood(questionId, user);
+      if (serverOn !== on) { on = serverOn; btn.classList.toggle('on', on); } // サーバーとズレたら合わせる
+    } catch (e) {
+      // 失敗：見た目を元に戻して原因を案内
+      on = !wentOn; count += wentOn ? -1 : 1; label.textContent = count; btn.classList.toggle('on', on);
+      toast(`${CONFIG.goodEmoji}を保存できませんでした。DBの設定（supabase/migrate_all.sql）を実行してください。`, 'error');
+    }
+    busy = false;
   }
   return btn;
 }

@@ -199,10 +199,10 @@ const Store = (() => {
 
   // ---- 👍 グッド ----
   async function goodCount(questionId) {
-    must();
+    if (!db) return 0;
     const { count, error } = await db.from('goods')
       .select('*', { count: 'exact', head: true }).eq('question_id', questionId);
-    if (error) throw error;
+    if (error) return 0; // テーブル未作成でも 0 で返し、ボタンを止めない
     return count || 0;
   }
   async function hasGood(questionId, user) {
