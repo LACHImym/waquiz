@@ -197,6 +197,107 @@ const Store = (() => {
     return data;
   }
 
+  // ---- 👍 グッド ----
+  async function goodCount(questionId) {
+    must();
+    const { count, error } = await db.from('goods')
+      .select('*', { count: 'exact', head: true }).eq('question_id', questionId);
+    if (error) throw error;
+    return count || 0;
+  }
+  async function hasGood(questionId, user) {
+    if (!user || !db) return false;
+    const { data, error } = await db.from('goods')
+      .select('id').eq('question_id', questionId).eq('user_handle', Misskey.handleOf(user)).limit(1);
+    if (error) return false;
+    return !!(data && data.length);
+  }
+  // 押す/取り消しをトグル。新しい状態(boolean)を返す
+  async function toggleGood(questionId, user) {
+    must();
+    const handle = Misskey.handleOf(user);
+    const on = await hasGood(questionId, user);
+    if (on) {
+      const { error } = await db.from('goods').delete().eq('question_id', questionId).eq('user_handle', handle);
+      if (error) throw error;
+      return false;
+    } else {
+      const { error } = await db.from('goods').insert({ question_id: questionId, user_handle: handle });
+      if (error) throw error;
+      return true;
+    }
+  }
+
+  // 連続N日目のログインで得られる点数（基本＋ボーナス＋5の倍数）
+  function loginPointsForDay(day) {
+    const P = CONFIG.points;
+    let pts = P.login || 0;
+    if (P.loginBonus && P.loginBonus[day]) pts += P.loginBonus[day];
+    if (day >= 5 && day % 5 === 0) pts += (P.loginEvery5 || 0);
+    return pts;
+  }
+
+  // ---- 総合ランキング（各アクションを配点して合算） ----
+  async function totalRanking() {
+    must();
+    const P = CONFIG.points;
+    const [qs, ans, cms, lgs, gds] = await Promise.all([
+      db.from('questions').select('id, created_by, created_by_name'),
+      db.from('answers').select('user_handle, user_name, is_correct'),
+      db.from('comments').select('author, author_name, question_id'),
+      db.from('logins').select('user_handle, user_name'),
+      db.from('goods').select('user_handle, question_id'),
+    ]);
+    for (const r of [qs, ans, cms, lgs, gds]) if (r.error) throw r.error;
+
+    const M = {};
+    const get = (handle, name) => {
+      const m = M[handle] || (M[handle] = { handle, name: name || handle, points: 0, breakdown: {} });
+      if (name) m.name = name;
+      return m;
+    };
+    const add = (handle, name, key, pts) => {
+      const m = get(handle, name);
+      m.points += pts; m.breakdown[key] = (m.breakdown[key] || 0) + pts;
+    };
+
+    // 問題→作成者ハンドルの対応表（コメント/👍の「受け取り」集計用）
+    const qAuthor = {};
+    qs.data.forEach(q => {
+      qAuthor[q.id] = q.created_by;
+      add(q.created_by, q.created_by_name, 'create', P.create);
+    });
+    ans.data.forEach(a => {
+      add(a.user_handle, a.user_name, 'solve', P.solve);
+      if (a.is_correct) add(a.user_handle, a.user_name, 'correct', P.correct);
+    });
+    cms.data.forEach(c => {
+      add(c.author, c.author_name, 'comment', P.comment);
+      const author = qAuthor[c.question_id];
+      if (author && author !== c.author) add(author, null, 'commentReceived', P.commentReceived); // 自問への他者コメント
+    });
+    // ログインは連続日数に応じて配点（各ユーザーの日付列からストリークを再現）
+    const byUser = {};
+    lgs.data.forEach(l => {
+      const u = byUser[l.user_handle] || (byUser[l.user_handle] = { name: l.user_name, dates: [] });
+      u.dates.push(l.login_date);
+      if (l.user_name) u.name = l.user_name;
+    });
+    Object.entries(byUser).forEach(([handle, u]) => {
+      const dates = u.dates.slice().sort();
+      let day = 0, prev = null, sum = 0;
+      for (const d of dates) { day = (prev && shiftYmd(prev, 1) === d) ? day + 1 : 1; sum += loginPointsForDay(day); prev = d; }
+      add(handle, u.name, 'login', sum);
+    });
+    gds.data.forEach(g => {
+      add(g.user_handle, null, 'goodGiven', P.goodGiven);
+      const author = qAuthor[g.question_id];
+      if (author && author !== g.user_handle) add(author, null, 'goodReceived', P.goodReceived);
+    });
+
+    return Object.values(M).sort((x, y) => y.points - x.points);
+  }
+
   // 正答数ランキング（正解の総数が多い順＝たくさん解くほど有利）
   async function ranking() {
     must();
@@ -325,8 +426,9 @@ const Store = (() => {
     listQuestions, listMyQuestions, getQuestion, randomQuestion, sampleQuestions, countByRank,
     sampleDaily, countDaily, newestByRank,
     createQuestion, updateQuestion, deleteQuestion,
-    recordAnswer, recordResult, listMyResults, listRecentAnswers, ranking,
-    recordLogin, getStreak,
+    recordAnswer, recordResult, listMyResults, listRecentAnswers, ranking, totalRanking,
+    goodCount, hasGood, toggleGood,
+    recordLogin, getStreak, loginPointsForDay,
     listComments, addComment, listHistory,
   };
 })();

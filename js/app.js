@@ -102,8 +102,12 @@ async function loginBonus() {
   const key = 'ocq_bonus_' + todayYMD();
   if (localStorage.getItem(key)) return;
   localStorage.setItem(key, '1');
-  const msg = s.current >= 2 ? `🔥 ${s.current}日連続ログイン中！` : `🔥 ログインボーナス！今日も1問いこう`;
+  const streakTxt = s.current >= 2 ? `🔥 ${s.current}日連続ログイン中！` : '🔥 ログインボーナス！';
+  const pts = Store.loginPointsForDay(s.current);
+  const msg = `${streakTxt}（＋${pts}pt）`;
   toast(msg, 'success');
+  sessionStorage.setItem('ocq_bonus_home', msg); // トップ画面にも表示
+  if (currentView === 'home') renderHome($('#app'));
 }
 
 /* ---------- フッターの出題プール表示 ---------- */
@@ -163,7 +167,6 @@ function openMenu() {
 
   items.push(h('div', { class: 'menu-sep' }));
   items.push(menuItem('トップ', () => switchView('home')));
-  items.push(menuItem('ランキング', () => switchView('ranking')));
   items.push(menuItem('マイページ', () => (user ? switchView('mypage') : requireLogin('マイページはログインすると使えます'))));
   items.push(menuItem('作問する', () => (user ? switchView('manage') : requireLogin('作問はログインすると使えます'))));
   if (isOwnerAccount()) items.push(menuItem('👑 全問題の閲覧', () => switchView('owner')));
@@ -199,7 +202,6 @@ function switchView(view) {
   else if (view === 'login') renderLogin(app);
   else if (view === 'mypage') renderMyPage(app);
   else if (view === 'owner') renderOwnerPage(app);
-  else if (view === 'ranking') renderRanking(app);
 }
 
 function requireLogin(msg) {
@@ -234,6 +236,9 @@ function renderHome(app) {
     h('h1', { class: 'home-title' }, CONFIG.appName),
     h('p', { class: 'home-tagline' }, CONFIG.tagline),
   ]));
+
+  const bonusMsg = sessionStorage.getItem('ocq_bonus_home');
+  if (user && bonusMsg) app.appendChild(h('div', { class: 'home-bonus' }, bonusMsg));
 
   const blocks = h('div', { class: 'rank-blocks' });
 
@@ -378,6 +383,9 @@ function answerQuiz(i, grid, q) {
     h('div', { class: 'explain-head' }, i === correct ? '正解！' : '不正解'),
     h('p', {}, q.explanation ? q.explanation : '（解説はまだありません）'),
   ]));
+  // 👍 いいねボタン（この問題への評価）
+  reveal.appendChild(goodButton(q.id));
+
   reveal.appendChild(h('div', { class: 'quiz-actions' }, [
     h('button', { class: 'btn btn-primary btn-block', onclick: () => nextQuiz() }, isLast ? '結果を見る →' : '次の問題へ →'),
   ]));
@@ -397,6 +405,30 @@ function nextQuiz() {
   if (quiz.i >= quiz.list.length - 1) return showResult();
   quiz.i++;
   renderQuiz();
+}
+
+// 👍 いいねボタン（良い問題への評価。ログイン時のみ押せる）
+function goodButton(questionId) {
+  const label = h('span', { class: 'good-count' }, '…');
+  const btn = h('button', { class: 'good-btn', onclick: onClick }, [h('span', {}, '👍'), label]);
+  let state = { on: false, count: 0, ready: false };
+  if (Store.isConfigured()) {
+    Promise.all([Store.goodCount(questionId), Store.hasGood(questionId, user)]).then(([c, on]) => {
+      state = { on, count: c, ready: true }; paint();
+    }).catch(() => { label.textContent = ''; });
+  } else { label.textContent = ''; }
+  function paint() { label.textContent = state.count; btn.classList.toggle('on', state.on); }
+  async function onClick() {
+    if (!user) return requireLogin('👍はログインすると押せます');
+    if (!state.ready) return;
+    btn.disabled = true;
+    try {
+      const on = await Store.toggleGood(questionId, user);
+      state.on = on; state.count += on ? 1 : -1; paint();
+    } catch (e) { toast(e.message || '失敗しました', 'error'); }
+    btn.disabled = false;
+  }
+  return btn;
 }
 
 /* ---------- 結果（アニメ円グラフ） ---------- */
@@ -424,6 +456,7 @@ function showResult() {
   const pctSub = h('div', { class: 'donut-sub' }, `${quiz.correct}問 / ${total}問中`);
   donutWrap.appendChild(h('div', { class: 'donut-center' }, [pctNum, pctSub]));
 
+  const rankSlot = h('div', { class: 'result-rank' });
   app.appendChild(h('section', { class: 'result-wrap' }, [
     donutWrap,
     h('p', { class: 'result-line' }, oneLiner(pct)),
@@ -431,7 +464,27 @@ function showResult() {
       h('button', { class: `btn clr-${rankOf(quiz.rank).color} share-btn`, onclick: () => shareResult(pct) }, '⤴ シェア'),
       h('button', { class: 'btn', onclick: () => startQuiz(quiz.rank) }, '再挑戦する'),
     ]),
+    rankSlot,
   ]));
+
+  // 総合ランキング（この5問での順位変動＋自分と前後2名）
+  if (user && Store.isConfigured()) {
+    Store.totalRanking().then(list => {
+      const myHandle = Misskey.handleOf(user);
+      const meIdx = list.findIndex(r => r.handle === myHandle);
+      if (meIdx === -1) return;
+      const posNow = meIdx + 1;
+      // この5問で増えたぶんを引いて「解く前」の順位を推定
+      const gain = CONFIG.points.solve * total + CONFIG.points.correct * quiz.correct;
+      const before = list[meIdx].points - gain;
+      const posBefore = 1 + list.filter((r, i) => i !== meIdx && r.points > before).length;
+      const delta = posBefore - posNow; // 正なら上昇
+      const arrow = delta > 0 ? `↑ ${delta}ランクUP！` : delta < 0 ? `↓ ${-delta}ランクDOWN` : '→ 変わらず';
+      rankSlot.appendChild(h('h3', { class: 'section-title' }, '// 総合ランキング'));
+      rankSlot.appendChild(h('p', { class: `rank-delta ${delta > 0 ? 'up' : delta < 0 ? 'down' : ''}` }, `${posBefore}位 → ${posNow}位　${arrow}`));
+      rankSlot.appendChild(windowRankingList(list, r => `${r.points}pt`));
+    }).catch(() => {});
+  }
 
   // アニメーション（円グラフ＋数字カウントアップ）
   requestAnimationFrame(() => {
@@ -774,11 +827,12 @@ async function renderMyPage(app) {
   app.appendChild(slot);
 
   if (!Store.isConfigured()) { slot.innerHTML = ''; return; }
-  let results, recent, ranks, streak;
+  let results, recent, ranks, streak, total;
   try {
-    [results, recent, ranks, streak] = await Promise.all([
+    [results, recent, ranks, streak, total] = await Promise.all([
       Store.listMyResults(user, 5), Store.listRecentAnswers(user, 10), Store.ranking(),
       Store.getStreak(user, todayYMD()).catch(() => null),
+      Store.totalRanking().catch(() => []),
     ]);
   } catch (e) {
     slot.innerHTML = '';
@@ -811,29 +865,16 @@ async function renderMyPage(app) {
     ]);
   })));
 
-  // ---- 正答数ランキング（上位3名＋自分の順位） ----
+  // ---- 総合ランキング（自分と前後2名） ----
+  slot.appendChild(h('h3', { class: 'section-title' }, '// 総合ランキング'));
+  slot.appendChild(h('p', { class: 'hint', style: 'margin-bottom:8px' }, 'ログイン・作問・解答・コメント・👍などの合計ポイント。自分と前後2名を表示。'));
+  slot.appendChild(windowRankingList(total, r => `${r.points}pt`));
+  if (myPoints(total)) slot.appendChild(h('p', { class: 'points-breakdown muted' }, myPointsBreakdown(total)));
+
+  // ---- 正答数ランキング（自分と前後2名） ----
   slot.appendChild(h('h3', { class: 'section-title' }, '// 正答数ランキング'));
-  slot.appendChild(h('p', { class: 'hint', style: 'margin-bottom:8px' }, 'これまでの正解数の合計。たくさん解くほど上位に！'));
-  if (!ranks.length) slot.appendChild(h('p', { class: 'muted' }, 'まだ誰も解いていません。'));
-  else {
-    const myHandle = Misskey.handleOf(user);
-    const meIdx = ranks.findIndex(r => r.handle === myHandle);
-    const rankRow = (r, i) => {
-      const isMe = r.handle === myHandle;
-      return h('li', { class: 'rank-row' + (isMe ? ' me' : '') }, [
-        h('span', { class: 'rank-pos' }, String(i + 1)),
-        h('span', { class: 'rank-name' }, (r.name || r.handle) + (isMe ? '（あなた）' : '')),
-        h('span', { class: 'rank-score' }, `${r.correct}問正解`),
-      ]);
-    };
-    const rows = ranks.slice(0, 3).map(rankRow);
-    if (meIdx >= 3) {
-      rows.push(h('li', { class: 'rank-ellipsis muted' }, '…'));
-      rows.push(rankRow(ranks[meIdx], meIdx));
-    }
-    slot.appendChild(h('ol', { class: 'rank-list' }, rows));
-    if (meIdx === -1) slot.appendChild(h('p', { class: 'hint' }, 'クイズに挑戦するとランキングに載ります。'));
-  }
+  slot.appendChild(h('p', { class: 'hint', style: 'margin-bottom:8px' }, '正解数の合計。自分と前後2名を表示。'));
+  slot.appendChild(windowRankingList(ranks, r => `${r.correct}問正解`));
 
   // ---- 直近に解いた10問の振り返り ----
   slot.appendChild(h('h3', { class: 'section-title' }, '// 直近に解いた10問の振り返り'));
@@ -918,19 +959,47 @@ function fullRankingList(ranks) {
   }));
 }
 
-/* ---------- ランキング（メニューから・全員閲覧可） ---------- */
-async function renderRanking(app) {
-  renderHeader({ title: 'ランキング' });
-  const slot = h('div', {}, h('p', { class: 'muted center' }, '読み込み中…'));
-  app.appendChild(slot);
-  if (!Store.isConfigured()) { slot.innerHTML = ''; return; }
-  let ranks;
-  try { ranks = await Store.ranking(); }
-  catch (e) { slot.innerHTML = ''; slot.appendChild(errorBox(e)); return; }
-  slot.innerHTML = '';
-  slot.appendChild(h('h3', { class: 'section-title' }, '// 正答数ランキング'));
-  slot.appendChild(h('p', { class: 'hint', style: 'margin-bottom:10px' }, 'これまでの正解数の合計。たくさん解くほど上位に！'));
-  slot.appendChild(fullRankingList(ranks));
+// 自分と前後 radius 名だけのランキング窓
+function rankingWindow(list, myHandle, radius = 2) {
+  const meIdx = list.findIndex(r => r.handle === myHandle);
+  if (meIdx === -1) {
+    const n = radius * 2 + 1;
+    return { rows: list.slice(0, n).map((r, i) => ({ r, pos: i + 1 })), topCut: false, botCut: list.length > n, meMissing: true };
+  }
+  const start = Math.max(0, meIdx - radius);
+  const end = Math.min(list.length, meIdx + radius + 1);
+  return { rows: list.slice(start, end).map((r, i) => ({ r, pos: start + i + 1 })), topCut: start > 0, botCut: end < list.length, meMissing: false };
+}
+function windowRankingList(list, scoreFn) {
+  if (!list || !list.length) return h('p', { class: 'muted' }, 'まだデータがありません。');
+  const myHandle = user ? Misskey.handleOf(user) : null;
+  const w = rankingWindow(list, myHandle);
+  const items = [];
+  if (w.topCut) items.push(h('li', { class: 'rank-ellipsis muted' }, '…'));
+  w.rows.forEach(({ r, pos }) => {
+    const isMe = r.handle === myHandle;
+    items.push(h('li', { class: 'rank-row' + (isMe ? ' me' : '') }, [
+      h('span', { class: 'rank-pos' }, String(pos)),
+      h('span', { class: 'rank-name' }, (r.name || r.handle) + (isMe ? '（あなた）' : '')),
+      h('span', { class: 'rank-score' }, scoreFn(r)),
+    ]));
+  });
+  if (w.botCut) items.push(h('li', { class: 'rank-ellipsis muted' }, '…'));
+  const ol = h('ol', { class: 'rank-list' }, items);
+  if (w.meMissing) return h('div', {}, [ol, h('p', { class: 'hint' }, '参加するとランキングに載ります。')]);
+  return ol;
+}
+// 自分の総合ポイント内訳
+function myPoints(total) {
+  const me = (total || []).find(r => user && r.handle === Misskey.handleOf(user));
+  return me ? me.points : 0;
+}
+function myPointsBreakdown(total) {
+  const me = (total || []).find(r => user && r.handle === Misskey.handleOf(user));
+  if (!me) return '';
+  const L = { login: 'ログイン', solve: '解答', correct: '正解', create: '作問', comment: 'コメント', commentReceived: '被コメント', goodGiven: '👍した', goodReceived: '👍された' };
+  const parts = Object.keys(L).filter(k => me.breakdown[k]).map(k => `${L[k]} ${me.breakdown[k]}`);
+  return `あなたの内訳（計${me.points}pt）：` + (parts.join(' ・ ') || 'なし');
 }
 
 /* ---------- ログイン画面 ---------- */

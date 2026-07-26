@@ -439,3 +439,19 @@ textarea.input { resize: vertical; }
   .cat-item { grid-template-columns: auto 1fr; }
   .cat-item .cat-guide { grid-column: 1 / -1; margin-left: 34px; }
 }
+
+/* ---- 👍 いいねボタン ---- */
+.good-btn { display: inline-flex; align-items: center; gap: 8px; background: var(--paper); border: 3px solid var(--ink); color: var(--ink); font-family: var(--disp); font-weight: 900; font-size: 14px; padding: 8px 16px; cursor: pointer; margin: 14px 0 0; }
+.good-btn:hover { background: var(--paper-2); }
+.good-btn.on { background: var(--yellow); border-color: var(--ink); }
+.good-count { min-width: 14px; text-align: center; }
+
+/* ---- ログインボーナス（トップ） ---- */
+.home-bonus { text-align: center; font-family: var(--disp); font-weight: 900; font-size: 13px; letter-spacing: .04em; background: var(--yellow); color: var(--ink); border: 3px solid var(--ink); padding: 8px 12px; margin: 0 0 16px; }
+
+/* ---- 結果ページの順位変動 ---- */
+.result-rank { text-align: left; margin-top: 10px; }
+.rank-delta { font-family: var(--disp); font-weight: 900; font-size: 15px; text-align: center; margin-bottom: 10px; }
+.rank-delta.up { color: var(--blue); }
+.rank-delta.down { color: var(--red); }
+.points-breakdown { font-size: 11px; margin-top: 6px; line-height: 1.5; }

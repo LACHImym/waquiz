@@ -64,6 +64,15 @@ create table if not exists results (
   created_at   timestamptz default now()
 );
 
+-- ---- 👍 グッド（1人1問1回） ----
+create table if not exists goods (
+  id           uuid primary key default gen_random_uuid(),
+  question_id  uuid references questions(id) on delete cascade,
+  user_handle  text not null,
+  created_at   timestamptz default now(),
+  unique (question_id, user_handle)
+);
+
 -- ---- ログインボーナス（1日1回の記録） ----
 create table if not exists logins (
   id           uuid primary key default gen_random_uuid(),
@@ -94,6 +103,7 @@ alter table history   enable row level security;
 alter table answers   enable row level security;
 alter table results   enable row level security;
 alter table logins    enable row level security;
+alter table goods     enable row level security;
 
 -- 読み取り：誰でも可
 create policy "read questions" on questions for select using (true);
@@ -111,6 +121,9 @@ create policy "insert answers"   on answers   for insert with check (true);
 create policy "insert results"   on results   for insert with check (true);
 create policy "read logins"      on logins    for select using (true);
 create policy "insert logins"    on logins    for insert with check (true);
+create policy "read goods"       on goods     for select using (true);
+create policy "insert goods"     on goods     for insert with check (true);
+create policy "delete goods"     on goods     for delete using (true);
 
 -- 削除：anon（＝このアプリ）から可
 -- ※「本人のみ削除可」はアプリ側で制御しています（認証がMisskey側のため）

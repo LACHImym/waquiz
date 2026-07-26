@@ -60,4 +60,19 @@ create policy "read logins" on logins for select using (true);
 drop policy if exists "insert logins" on logins;
 create policy "insert logins" on logins for insert with check (true);
 
+-- 👍 グッド
+create table if not exists goods (
+  id uuid primary key default gen_random_uuid(),
+  question_id uuid references questions(id) on delete cascade,
+  user_handle text not null, created_at timestamptz default now(),
+  unique (question_id, user_handle)
+);
+alter table goods enable row level security;
+drop policy if exists "read goods" on goods;
+create policy "read goods" on goods for select using (true);
+drop policy if exists "insert goods" on goods;
+create policy "insert goods" on goods for insert with check (true);
+drop policy if exists "delete goods" on goods;
+create policy "delete goods" on goods for delete using (true);
+
 -- ===== ここまで =====
