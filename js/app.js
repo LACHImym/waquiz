@@ -503,6 +503,7 @@ function showResult() {
     h('div', { class: 'result-actions' }, [
       h('button', { class: `btn clr-${rankOf(quiz.rank).color} share-btn`, onclick: () => shareResult(pct) }, '⤴ シェア'),
       h('button', { class: 'btn', onclick: () => startQuiz(quiz.rank) }, '再挑戦する'),
+      user ? h('button', { class: 'btn btn-ghost', onclick: () => switchView('mypage') }, 'マイページへ') : null,
     ]),
     rankSlot,
   ]));
