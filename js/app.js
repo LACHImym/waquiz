@@ -169,10 +169,11 @@ function openMenu() {
   items.push(menuItem('トップ', () => switchView('home')));
   items.push(menuItem('マイページ', () => (user ? switchView('mypage') : requireLogin('マイページはログインすると使えます'))));
   items.push(menuItem('作問する', () => (user ? switchView('manage') : requireLogin('作問はログインすると使えます'))));
-  if (isOwnerAccount()) items.push(menuItem('👑 全問題の閲覧', () => switchView('owner')));
 
   if (user) {
     items.push(h('div', { class: 'menu-sep' }));
+    // 全問題の閲覧（オーナー）は、ログアウトと同じ控えめなフォント扱い
+    if (isOwnerAccount()) items.push(h('button', { class: 'link-btn menu-logout', onclick: () => { closeMenu(); switchView('owner'); } }, '👑 全問題の閲覧'));
     items.push(h('button', { class: 'link-btn menu-logout', onclick: () => { Misskey.logout(); location.reload(); } }, 'ログアウト'));
   }
 
@@ -951,24 +952,50 @@ async function renderOwnerPage(app) {
   app.appendChild(slot);
   if (!Store.isConfigured()) { slot.innerHTML = ''; return; }
 
-  let list;
-  try { list = await Store.listQuestions(ownerFilter || undefined); }
-  catch (e) { slot.innerHTML = ''; slot.appendChild(errorBox(e)); return; }
+  let list, total, ranks, funny;
+  try {
+    [list, total, ranks, funny] = await Promise.all([
+      Store.listQuestions(ownerFilter || undefined),
+      Store.totalRanking().catch(() => []),
+      Store.ranking().catch(() => []),
+      Store.funnyRanking(10).catch(() => []),
+    ]);
+  } catch (e) { slot.innerHTML = ''; slot.appendChild(errorBox(e)); return; }
   slot.innerHTML = '';
 
+  // ---- 全員分の問題 ----
   slot.appendChild(h('p', { class: 'muted', style: 'font-size:12px;margin-bottom:10px' }, `全 ${list.length} 問`));
-  if (!list.length) { slot.appendChild(h('p', { class: 'muted center' }, 'まだ問題がありません。')); return; }
-  const acc = h('div', { class: 'acc-list' });
-  list.forEach(q => acc.appendChild(accRow(q, true))); // 作問者タグ付き
-  slot.appendChild(acc);
+  if (!list.length) slot.appendChild(h('p', { class: 'muted center' }, 'まだ問題がありません。'));
+  else {
+    const acc = h('div', { class: 'acc-list' });
+    list.forEach(q => acc.appendChild(accRow(q, true))); // 作問者タグ付き
+    slot.appendChild(acc);
+  }
+
+  // ---- 各ランキング（全員・省略なし） ----
+  slot.appendChild(h('h3', { class: 'section-title' }, '// 総合ランキング（全員）'));
+  slot.appendChild(rankListFull(total, r => `${r.points}pt`));
+
+  slot.appendChild(h('h3', { class: 'section-title' }, '// 正答数ランキング（全員）'));
+  slot.appendChild(rankListFull(ranks, r => `${r.correct}問正解`));
+
+  slot.appendChild(h('h3', { class: 'section-title' }, `// 面白クイズランキング（${CONFIG.goodEmoji}上位）`));
+  if (!funny || !funny.length) slot.appendChild(h('p', { class: 'muted' }, `まだ${CONFIG.goodEmoji}が付いた問題がありません。`));
+  else slot.appendChild(h('ol', { class: 'funny-list' }, funny.map((x, i) => h('li', { class: 'funny-row' }, [
+    h('span', { class: 'funny-pos' }, String(i + 1)),
+    h('div', { class: 'funny-txt' }, [
+      h('p', { class: 'funny-q' }, `Q. ${x.q.body}`),
+      h('p', { class: 'funny-meta muted' }, `${x.q.scheduled_date ? CONFIG.daily.label : rankLabel(x.q.rank)}`),
+    ]),
+    h('span', { class: 'funny-count' }, `${CONFIG.goodEmoji}${x.count}`),
+  ]))));
 }
 
-// 全員分ランキングのリスト（オーナーページ・ランキングページ共通）
-function fullRankingList(ranks) {
-  if (!ranks.length) return h('p', { class: 'muted' }, 'まだ誰も解いていません。');
+// 全員分ランキングのリスト（順位・ハンドル・得点。scoreFn で右端の表記を指定）
+function rankListFull(list, scoreFn) {
+  if (!list || !list.length) return h('p', { class: 'muted' }, 'まだデータがありません。');
   const myHandle = user ? Misskey.handleOf(user) : null;
-  return h('ol', { class: 'rank-list' }, ranks.map((r, i) => {
-    const pct = r.total ? Math.round(r.correct / r.total * 100) : 0;
+  return h('ol', { class: 'rank-list' }, list.map((r, i) => {
     const isMe = r.handle === myHandle;
     return h('li', { class: 'rank-row' + (isMe ? ' me' : '') }, [
       h('span', { class: 'rank-pos' }, String(i + 1)),
@@ -976,7 +1003,7 @@ function fullRankingList(ranks) {
         h('div', { class: 'rank-name' }, (r.name || r.handle) + (isMe ? '（あなた）' : '')),
         h('div', { class: 'rank-handle muted' }, r.handle),
       ]),
-      h('span', { class: 'rank-score' }, [`${r.correct}問正解`, h('span', { class: 'rank-sub' }, `／${r.total}問（${pct}%）`)]),
+      h('span', { class: 'rank-score' }, scoreFn(r)),
     ]);
   }));
 }
