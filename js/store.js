@@ -197,6 +197,30 @@ const Store = (() => {
     return data;
   }
 
+  // 自分が作った問題に付いたコメント（自分のコメントは除く・新しい順）
+  async function commentsOnMyQuestions(user) {
+    if (!user || !db) return [];
+    const handle = Misskey.handleOf(user);
+    const { data: qs, error: e1 } = await db.from('questions').select('id, body').eq('created_by', handle);
+    if (e1) throw e1;
+    const ids = qs.map(q => q.id);
+    if (!ids.length) return [];
+    const { data: cms, error: e2 } = await db.from('comments').select('*').in('question_id', ids)
+      .order('created_at', { ascending: false });
+    if (e2) throw e2;
+    const bodyMap = {}; qs.forEach(q => { bodyMap[q.id] = q.body; });
+    return cms.filter(c => c.author !== handle).map(c => ({ ...c, qbody: bodyMap[c.question_id] }));
+  }
+
+  // 複数問題の🤣数をまとめて取得（一覧表示用）
+  async function goodCountsByQuestions(ids) {
+    if (!db || !ids || !ids.length) return {};
+    const { data, error } = await db.from('goods').select('question_id').in('question_id', ids);
+    if (error) return {};
+    const m = {}; data.forEach(g => { m[g.question_id] = (m[g.question_id] || 0) + 1; });
+    return m;
+  }
+
   // ---- 👍 グッド ----
   async function goodCount(questionId) {
     if (!db) return 0;
@@ -447,7 +471,8 @@ const Store = (() => {
     sampleDaily, countDaily, newestByRank,
     createQuestion, updateQuestion, deleteQuestion,
     recordAnswer, recordResult, listMyResults, listRecentAnswers, ranking, totalRanking, funnyRanking,
-    goodCount, hasGood, toggleGood,
+    goodCount, hasGood, toggleGood, goodCountsByQuestions,
+    commentsOnMyQuestions,
     recordLogin, getStreak, loginPointsForDay,
     listComments, addComment, listHistory,
   };

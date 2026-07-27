@@ -69,6 +69,7 @@ let currentView = 'home';
 let quiz = null;           // { rank, list:[], i, correct, answered }
 let manageFilter = '';     // 作問一覧の絞り込み
 let newSinceTs = null;     // 前回訪問時刻（これ以降に作られた問題に NEW バッジ）
+let newCommentCount = 0;   // 自分の問題への新着コメント数（ハンバーガーのバッジ）
 
 /* ---------- 起動 ---------- */
 async function boot() {
@@ -87,6 +88,7 @@ async function boot() {
   if (!Store.isConfigured()) renderSetupNotice();
   updateFooterPool();
   loginBonus();
+  refreshNewComments();
   // 未ログインなら、まずログイン画面へ（ゲスト入場を選んだ人は除く）
   if (!user && !sessionStorage.getItem('ocq_guest')) switchView('login');
   else switchView('home');
@@ -108,6 +110,22 @@ async function loginBonus() {
   toast(msg, 'success');
   sessionStorage.setItem('ocq_bonus_home', msg); // トップ画面にも表示
   if (currentView === 'home') renderHome($('#app'));
+}
+
+/* ---------- 新着コメントの検知（バッジ用） ---------- */
+function refreshNewComments() {
+  if (!user || !Store.isConfigured()) { newCommentCount = 0; updateBurgerBadge(); return; }
+  Store.commentsOnMyQuestions(user).then(list => {
+    const seen = localStorage.getItem('ocq_comments_seen') || '';
+    newCommentCount = list.filter(c => c.created_at > seen).length;
+    updateBurgerBadge();
+  }).catch(() => {});
+}
+function updateBurgerBadge() {
+  const el = $('#burger-badge');
+  if (!el) return;
+  el.textContent = newCommentCount > 0 ? String(newCommentCount) : '';
+  el.classList.toggle('hidden', !(newCommentCount > 0));
 }
 
 /* ---------- フッターの出題プール表示 ---------- */
@@ -141,7 +159,10 @@ function renderHeader(ctx = {}) {
       ? h('img', { class: 'acct-icon', src: user.avatarUrl, alt: user.name, title: user.name })
       : h('span', { class: 'acct-icon acct-blank', title: user.name }));
   }
-  acct.appendChild(h('button', { class: 'burger', title: 'メニュー', onclick: openMenu }, '☰'));
+  acct.appendChild(h('button', { class: 'burger', title: 'メニュー', onclick: openMenu }, [
+    document.createTextNode('☰'),
+    h('span', { id: 'burger-badge', class: 'burger-badge' + (newCommentCount > 0 ? '' : ' hidden') }, newCommentCount > 0 ? String(newCommentCount) : ''),
+  ]));
   header.appendChild(acct);
 }
 
@@ -168,7 +189,9 @@ function openMenu() {
   items.push(h('div', { class: 'menu-sep' }));
   items.push(menuItem('トップ', () => switchView('home')));
   items.push(menuItem('マイページ', () => (user ? switchView('mypage') : requireLogin('マイページはログインすると使えます'))));
-  items.push(menuItem('作問する', () => (user ? switchView('manage') : requireLogin('作問はログインすると使えます'))));
+  items.push(menuItem('新着コメント', () => (user ? switchView('new-comments') : requireLogin('ログインすると使えます')), newCommentCount));
+  items.push(menuItem('作った問題', () => (user ? switchView('manage') : requireLogin('ログインすると使えます'))));
+  items.push(menuItem('作問する', () => (user ? switchView('create') : requireLogin('作問はログインすると使えます'))));
 
   if (user) {
     items.push(h('div', { class: 'menu-sep' }));
@@ -189,8 +212,9 @@ function openMenu() {
   ]));
   m.onclick = e => { if (e.target === m) closeMenu(); };
 }
-function menuItem(label, fn) {
-  return h('button', { class: 'menu-item', onclick: () => { closeMenu(); fn(); } }, label);
+function menuItem(label, fn, badge = 0) {
+  return h('button', { class: 'menu-item', onclick: () => { closeMenu(); fn(); } },
+    [label, badge > 0 ? h('span', { class: 'menu-badge' }, String(badge)) : null]);
 }
 function closeMenu() {
   const m = $('#menu');
@@ -212,6 +236,7 @@ function switchView(view) {
   else if (view === 'owner-total') renderOwnerRanking(app, 'total');
   else if (view === 'owner-correct') renderOwnerRanking(app, 'correct');
   else if (view === 'owner-funny') renderOwnerRanking(app, 'funny');
+  else if (view === 'new-comments') renderNewComments(app);
 }
 
 function requireLogin(msg) {
@@ -570,8 +595,10 @@ async function renderManage(app) {
 
   slot.innerHTML = '';
   if (!list.length) { slot.appendChild(h('p', { class: 'muted center' }, 'まだ問題がありません。「新規作成」から作れます。')); return; }
+  // 各問題の🤣数をまとめて取得して見出しに表示
+  const goods = await Store.goodCountsByQuestions(list.map(q => q.id)).catch(() => ({}));
   const acc = h('div', { class: 'acc-list' });
-  list.forEach(q => acc.appendChild(accRow(q)));
+  list.forEach(q => acc.appendChild(accRow(q, { good: goods[q.id] || 0 })));
   slot.appendChild(acc);
 }
 
@@ -584,7 +611,7 @@ function chipFilter(key, label, color, active, onPick) {
   }, label);
 }
 
-function accRow(q, showAuthor = false) {
+function accRow(q, opts = {}) {
   const body = h('div', { class: 'acc-body' });
   const isDaily = !!q.scheduled_date;
   const barColor = isDaily ? COLOR[CONFIG.daily.color] : rankColor(q.rank);
@@ -595,8 +622,9 @@ function accRow(q, showAuthor = false) {
       h('span', { class: 'acc-q' }, [
         isDaily ? h('span', { class: 'acc-daily-tag' }, `📅${fmtYmdJp(q.scheduled_date)}`) : null,
         ` Q. ${q.body}`,
-        showAuthor ? h('span', { class: 'acc-author' }, `作：${esc(q.created_by_name || q.created_by || '不明')}`) : null,
+        opts.showAuthor ? h('span', { class: 'acc-author' }, `作：${esc(q.created_by_name || q.created_by || '不明')}`) : null,
       ]),
+      typeof opts.good === 'number' ? h('span', { class: 'acc-good' }, `${CONFIG.goodEmoji}${opts.good}`) : null,
     ]),
     body,
   ]);
@@ -822,6 +850,42 @@ function shareNewQuestion(p, isEdit = false) {
   Misskey.share(text);
 }
 
+/* ---------- 新着コメント（自分の問題に付いたコメント） ---------- */
+async function renderNewComments(app) {
+  if (!user) return requireLogin();
+  renderHeader({ title: '新着コメント' });
+  const seenBefore = localStorage.getItem('ocq_comments_seen') || '';
+
+  const slot = h('div', {}, h('p', { class: 'muted center' }, '読み込み中…'));
+  app.appendChild(slot);
+  if (!Store.isConfigured()) { slot.innerHTML = ''; return; }
+
+  let list;
+  try { list = await Store.commentsOnMyQuestions(user); }
+  catch (e) { slot.innerHTML = ''; slot.appendChild(errorBox(e)); return; }
+  slot.innerHTML = '';
+
+  slot.appendChild(h('p', { class: 'hint', style: 'margin-bottom:10px' }, '自分が作った問題に付いたコメント・補足です。'));
+  if (!list.length) { slot.appendChild(h('p', { class: 'muted center' }, 'まだコメントはありません。')); }
+  else slot.appendChild(h('div', { class: 'nc-list' }, list.map(c => {
+    const isNew = c.created_at > seenBefore;
+    return h('div', { class: 'nc-item' + (isNew ? ' nc-new' : '') }, [
+      h('p', { class: 'nc-q muted' }, `Q. ${c.qbody || '（削除された問題）'}`),
+      h('div', { class: 'comment-head' }, [
+        isNew ? h('span', { class: 'nc-badge-inline' }, 'NEW') : null,
+        h('span', { class: 'comment-kind kind-' + c.kind }, c.kind === 'supplement' ? '補足' : 'コメント'),
+        h('span', { class: 'comment-author' }, esc(c.author_name || c.author)),
+        h('span', { class: 'comment-date muted' }, fmtDate(c.created_at)),
+      ]),
+      h('p', { class: 'comment-body' }, c.body),
+    ]);
+  })));
+
+  // 見たことにする → バッジを消す
+  localStorage.setItem('ocq_comments_seen', new Date().toISOString());
+  newCommentCount = 0; updateBurgerBadge();
+}
+
 /* ---------- マイページ ---------- */
 async function renderMyPage(app) {
   if (!user) return requireLogin('マイページはログインすると使えます');
@@ -834,9 +898,6 @@ async function renderMyPage(app) {
       h('div', { class: 'menu-user-handle' }, Misskey.handleOf(user)),
     ]),
   ]));
-
-  // 自分の問題へ
-  app.appendChild(h('button', { class: 'btn btn-ink btn-block', onclick: () => switchView('manage') }, '自分の問題を見る'));
 
   const slot = h('div', {}, h('p', { class: 'muted center', style: 'margin-top:16px' }, '読み込み中…'));
   app.appendChild(slot);
@@ -969,7 +1030,7 @@ async function renderOwnerPage(app) {
   slot.appendChild(h('p', { class: 'muted', style: 'font-size:12px;margin-bottom:10px' }, `全 ${list.length} 問`));
   if (!list.length) { slot.appendChild(h('p', { class: 'muted center' }, 'まだ問題がありません。')); return; }
   const acc = h('div', { class: 'acc-list' });
-  list.forEach(q => acc.appendChild(accRow(q, true))); // 作問者タグ付き
+  list.forEach(q => acc.appendChild(accRow(q, { showAuthor: true }))); // 作問者タグ付き
   slot.appendChild(acc);
 }
 

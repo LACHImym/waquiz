@@ -467,3 +467,20 @@ textarea.input { resize: vertical; }
 .funny-q { font-weight: 700; font-size: 14px; line-height: 1.3; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .funny-meta { font-size: 11px; margin-top: 2px; }
 .funny-count { font-family: var(--disp); font-weight: 900; font-size: 15px; flex: none; }
+
+/* ---- ハンバーガー/メニューのバッジ ---- */
+.burger { position: relative; }
+.burger-badge { position: absolute; top: -4px; right: -6px; min-width: 16px; height: 16px; padding: 0 4px; background: var(--red); color: var(--paper); font-family: var(--disp); font-weight: 900; font-size: 10px; border-radius: 999px; display: inline-flex; align-items: center; justify-content: center; }
+.burger-badge.hidden { display: none; }
+.menu-item { display: flex; align-items: center; justify-content: space-between; }
+.menu-badge { background: var(--red); color: var(--paper); font-family: var(--disp); font-weight: 900; font-size: 11px; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 999px; display: inline-flex; align-items: center; justify-content: center; }
+
+/* ---- 作った問題の🤣数 ---- */
+.acc-good { flex: none; padding: 0 12px; font-family: var(--disp); font-weight: 900; font-size: 13px; white-space: nowrap; }
+
+/* ---- 新着コメント ---- */
+.nc-list { display: flex; flex-direction: column; gap: 10px; }
+.nc-item { border: 2px solid var(--ink); padding: 11px 12px; }
+.nc-item.nc-new { border-color: var(--red); background: rgba(216,38,28,.05); }
+.nc-q { font-size: 12px; margin-bottom: 6px; display: -webkit-box; -webkit-line-clamp: 1; -webkit-box-orient: vertical; overflow: hidden; }
+.nc-badge-inline { background: var(--red); color: var(--paper); font-family: var(--disp); font-weight: 900; font-size: 9px; letter-spacing: .06em; padding: 1px 6px; }
