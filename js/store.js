@@ -119,6 +119,7 @@ const Store = (() => {
       choices: payload.choices,
       correct_index: payload.correctIndex,
       explanation: payload.explanation || '',
+      link_url: payload.linkUrl || null,
       scheduled_date: payload.scheduledDate || null,
       created_by: handle,
       created_by_name: user.name,
@@ -140,6 +141,7 @@ const Store = (() => {
       choices: payload.choices,
       correct_index: payload.correctIndex,
       explanation: payload.explanation || '',
+      link_url: payload.linkUrl || null,
       scheduled_date: payload.scheduledDate || null,
       updated_by: handle,
       updated_by_name: user.name,
@@ -190,7 +192,7 @@ const Store = (() => {
   async function listRecentAnswers(user, limit = 10) {
     must();
     const { data, error } = await db.from('answers')
-      .select('*, questions(body, choices, correct_index, rank)')
+      .select('*, questions(body, choices, correct_index, rank, link_url, scheduled_date)')
       .eq('user_handle', Misskey.handleOf(user))
       .order('created_at', { ascending: false }).limit(limit);
     if (error) throw error;

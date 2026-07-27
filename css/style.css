@@ -484,3 +484,8 @@ textarea.input { resize: vertical; }
 .nc-item.nc-new { border-color: var(--red); background: rgba(216,38,28,.05); }
 .nc-q { font-size: 12px; margin-bottom: 6px; display: -webkit-box; -webkit-line-clamp: 1; -webkit-box-orient: vertical; overflow: hidden; }
 .nc-badge-inline { background: var(--red); color: var(--paper); font-family: var(--disp); font-weight: 900; font-size: 9px; letter-spacing: .06em; padding: 1px 6px; }
+
+/* ---- 振り返りの操作ボタン & 本文中リンク ---- */
+.review-btns { display: flex; flex-direction: column; gap: 6px; flex: none; align-self: flex-start; }
+.review-btns .icon-btn { text-decoration: none; }
+.inline-link { color: var(--blue); text-decoration: underline; word-break: break-all; }

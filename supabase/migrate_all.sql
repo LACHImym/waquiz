@@ -14,6 +14,9 @@ alter table questions add column if not exists explanation text default '';
 alter table questions add column if not exists scheduled_date date;
 create index if not exists idx_questions_sched on questions(scheduled_date);
 
+-- 任意の参考URL
+alter table questions add column if not exists link_url text;
+
 -- 削除の許可
 drop policy if exists "delete questions" on questions;
 create policy "delete questions" on questions for delete using (true);

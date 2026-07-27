@@ -12,6 +12,7 @@ create table if not exists questions (
   choices         jsonb not null,                      -- ["選択肢1","選択肢2","選択肢3","選択肢4"]
   correct_index   int  not null,                       -- 正解の番号（0〜3・保存時は先頭0＝正解）
   explanation     text default '',                     -- 解答解説
+  link_url        text,                                -- 任意の参考URL
   scheduled_date  date,                                -- 本日の問題の出題予定日（通常問題は NULL）
   created_by      text not null,                       -- @user@host
   created_by_name text,

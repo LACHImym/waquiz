@@ -21,6 +21,18 @@ const h = (tag, attrs = {}, children = []) => {
   });
   return e;
 };
+// 文中の http(s) URL をクリック可能なリンクに変換（DOMノード配列で返す）
+const linkify = text => {
+  const parts = [], re = /(https?:\/\/[^\s]+)/g;
+  let last = 0, m;
+  while ((m = re.exec(String(text)))) {
+    if (m.index > last) parts.push(String(text).slice(last, m.index));
+    parts.push(h('a', { class: 'inline-link', href: m[0], target: '_blank', rel: 'noopener' }, m[0]));
+    last = m.index + m[0].length;
+  }
+  if (last < String(text).length) parts.push(String(text).slice(last));
+  return parts.length ? parts : [String(text)];
+};
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c =>
   ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const rankOf = key => CONFIG.ranks.find(r => r.key === key) || CONFIG.ranks[0];
@@ -723,7 +735,7 @@ function renderComment(c) {
       h('span', { class: 'comment-author' }, esc(c.author_name || c.author)),
       h('span', { class: 'comment-date muted' }, fmtDate(c.created_at)),
     ]),
-    h('p', { class: 'comment-body' }, c.body),
+    h('p', { class: 'comment-body' }, linkify(c.body)),
   ]);
 }
 
@@ -774,6 +786,7 @@ function renderCreate(app, editing = null) {
   const wrongIns = [0, 1, 2].map(i => h('input', { class: 'input', type: 'text', placeholder: `不正解 ${i + 1}`, value: wrongTexts[i] || '' }));
 
   const explainIn = h('textarea', { class: 'input', rows: '3', placeholder: '解答解説を入力（任意）…' }, editing ? (editing.explanation || '') : '');
+  const linkIn = h('input', { class: 'input', type: 'url', placeholder: 'https://…（任意）', value: editing ? (editing.link_url || '') : '' });
 
   const submit = h('button', { class: 'btn btn-primary btn-block' }, isEdit ? '編集を保存' : '問題を登録');
   submit.addEventListener('click', async () => {
@@ -788,6 +801,7 @@ function renderCreate(app, editing = null) {
       choices: [correct, ...wrongs],   // 保存時は先頭が正解
       correctIndex: 0,
       explanation: explainIn.value.trim(),
+      linkUrl: linkIn.value.trim(),
       scheduledDate: isDaily ? dateIn.value : null,
     };
     if (!payload.body) return toast('問題文を入力してください', 'error');
@@ -813,6 +827,7 @@ function renderCreate(app, editing = null) {
     h('label', { class: 'field-label' }, '✓ 正解（1つ）'), correctIn,
     h('label', { class: 'field-label' }, '✗ 不正解（3つ）'), ...wrongIns,
     h('label', { class: 'field-label' }, '解答解説'), explainIn,
+    h('label', { class: 'field-label' }, '参考URL（任意）'), linkIn,
     submit,
     h('button', { class: 'btn btn-ghost btn-block btn-sm', onclick: () => switchView('manage') }, '← 一覧へ戻る'),
   ]));
@@ -878,7 +893,7 @@ async function renderNewComments(app) {
         h('span', { class: 'comment-author' }, esc(c.author_name || c.author)),
         h('span', { class: 'comment-date muted' }, fmtDate(c.created_at)),
       ]),
-      h('p', { class: 'comment-body' }, c.body),
+      h('p', { class: 'comment-body' }, linkify(c.body)),
     ]);
   })));
 
@@ -991,6 +1006,8 @@ async function renderMyPage(app) {
         } catch (e) { cSlot.innerHTML = ''; cSlot.appendChild(h('p', { class: 'muted' }, '読み込みに失敗しました')); }
       },
     }, '💬') : null;
+    const linkBtn = (q && q.link_url) ? h('a', { class: 'icon-btn', href: q.link_url, target: '_blank', rel: 'noopener', title: '参考リンクを開く' }, '🔗') : null;
+    const shareBtn = q ? h('button', { class: 'icon-btn', title: 'この問題をシェア', onclick: () => shareReviewQuestion(q) }, '⤴') : null;
     return h('div', { class: 'review-row-wrap' }, [
       h('div', { class: 'review-row' }, [
         h('span', { class: 'review-mark ' + (a.is_correct ? 'ok' : 'ng') }, a.is_correct ? '○' : '×'),
@@ -999,11 +1016,19 @@ async function renderMyPage(app) {
           q ? h('p', { class: 'review-a muted' }, `正解：${q.choices[q.correct_index]}`) : null,
           h('p', { class: 'review-date muted' }, fmtDate(a.created_at)),
         ]),
-        cBtn,
+        h('div', { class: 'review-btns' }, [linkBtn, shareBtn, cBtn]),
       ]),
       cSlot,
     ]);
   })));
+}
+
+// 「こんな問題あったよ」シェア（振り返りから）
+function shareReviewQuestion(q) {
+  const cat = q.scheduled_date ? CONFIG.daily.label : rankLabel(q.rank);
+  const url = q.link_url || (location.href.startsWith('http') ? location.origin + location.pathname : '');
+  const text = `【こんな問題あったよ】\n${q.body}\n（${cat}）\n${url}`;
+  Misskey.share(text);
 }
 
 /* ---------- オーナーページ（全員分の問題を閲覧） ---------- */
