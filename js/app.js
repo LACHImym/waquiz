@@ -172,8 +172,14 @@ function openMenu() {
 
   if (user) {
     items.push(h('div', { class: 'menu-sep' }));
-    // 全問題の閲覧（オーナー）は、ログアウトと同じ控えめなフォント扱い
-    if (isOwnerAccount()) items.push(h('button', { class: 'link-btn menu-logout', onclick: () => { closeMenu(); switchView('owner'); } }, '👑 全問題の閲覧'));
+    // オーナー用ページは、ログアウトと同じ控えめなフォント扱い
+    if (isOwnerAccount()) {
+      const ownerLink = (label, view) => h('button', { class: 'link-btn menu-logout', onclick: () => { closeMenu(); switchView(view); } }, label);
+      items.push(ownerLink('👑 全問題の閲覧', 'owner'));
+      items.push(ownerLink('👑 総合ランキング', 'owner-total'));
+      items.push(ownerLink('👑 正答数ランキング', 'owner-correct'));
+      items.push(ownerLink('👑 面白クイズランキング', 'owner-funny'));
+    }
     items.push(h('button', { class: 'link-btn menu-logout', onclick: () => { Misskey.logout(); location.reload(); } }, 'ログアウト'));
   }
 
@@ -203,6 +209,9 @@ function switchView(view) {
   else if (view === 'login') renderLogin(app);
   else if (view === 'mypage') renderMyPage(app);
   else if (view === 'owner') renderOwnerPage(app);
+  else if (view === 'owner-total') renderOwnerRanking(app, 'total');
+  else if (view === 'owner-correct') renderOwnerRanking(app, 'correct');
+  else if (view === 'owner-funny') renderOwnerRanking(app, 'funny');
 }
 
 function requireLogin(msg) {
@@ -952,43 +961,54 @@ async function renderOwnerPage(app) {
   app.appendChild(slot);
   if (!Store.isConfigured()) { slot.innerHTML = ''; return; }
 
-  let list, total, ranks, funny;
-  try {
-    [list, total, ranks, funny] = await Promise.all([
-      Store.listQuestions(ownerFilter || undefined),
-      Store.totalRanking().catch(() => []),
-      Store.ranking().catch(() => []),
-      Store.funnyRanking(10).catch(() => []),
-    ]);
-  } catch (e) { slot.innerHTML = ''; slot.appendChild(errorBox(e)); return; }
+  let list;
+  try { list = await Store.listQuestions(ownerFilter || undefined); }
+  catch (e) { slot.innerHTML = ''; slot.appendChild(errorBox(e)); return; }
   slot.innerHTML = '';
 
-  // ---- 全員分の問題 ----
   slot.appendChild(h('p', { class: 'muted', style: 'font-size:12px;margin-bottom:10px' }, `全 ${list.length} 問`));
-  if (!list.length) slot.appendChild(h('p', { class: 'muted center' }, 'まだ問題がありません。'));
-  else {
-    const acc = h('div', { class: 'acc-list' });
-    list.forEach(q => acc.appendChild(accRow(q, true))); // 作問者タグ付き
-    slot.appendChild(acc);
-  }
+  if (!list.length) { slot.appendChild(h('p', { class: 'muted center' }, 'まだ問題がありません。')); return; }
+  const acc = h('div', { class: 'acc-list' });
+  list.forEach(q => acc.appendChild(accRow(q, true))); // 作問者タグ付き
+  slot.appendChild(acc);
+}
 
-  // ---- 各ランキング（全員・省略なし） ----
-  slot.appendChild(h('h3', { class: 'section-title' }, '// 総合ランキング（全員）'));
-  slot.appendChild(rankListFull(total, r => `${r.points}pt`));
+/* ---------- オーナー用ランキング（各ページ・全員分） ---------- */
+async function renderOwnerRanking(app, kind) {
+  if (!user) return requireLogin();
+  if (!isOwnerAccount()) return toast('オーナーのみ入れるページです', 'error');
+  const titles = { total: '👑 総合ランキング', correct: '👑 正答数ランキング', funny: `👑 面白クイズランキング` };
+  renderHeader({ title: titles[kind] });
+  const slot = h('div', {}, h('p', { class: 'muted center' }, '読み込み中…'));
+  app.appendChild(slot);
+  if (!Store.isConfigured()) { slot.innerHTML = ''; return; }
 
-  slot.appendChild(h('h3', { class: 'section-title' }, '// 正答数ランキング（全員）'));
-  slot.appendChild(rankListFull(ranks, r => `${r.correct}問正解`));
-
-  slot.appendChild(h('h3', { class: 'section-title' }, `// 面白クイズランキング（${CONFIG.goodEmoji}上位）`));
-  if (!funny || !funny.length) slot.appendChild(h('p', { class: 'muted' }, `まだ${CONFIG.goodEmoji}が付いた問題がありません。`));
-  else slot.appendChild(h('ol', { class: 'funny-list' }, funny.map((x, i) => h('li', { class: 'funny-row' }, [
-    h('span', { class: 'funny-pos' }, String(i + 1)),
-    h('div', { class: 'funny-txt' }, [
-      h('p', { class: 'funny-q' }, `Q. ${x.q.body}`),
-      h('p', { class: 'funny-meta muted' }, `${x.q.scheduled_date ? CONFIG.daily.label : rankLabel(x.q.rank)}`),
-    ]),
-    h('span', { class: 'funny-count' }, `${CONFIG.goodEmoji}${x.count}`),
-  ]))));
+  try {
+    if (kind === 'total') {
+      const total = await Store.totalRanking();
+      slot.innerHTML = '';
+      slot.appendChild(h('p', { class: 'hint', style: 'margin-bottom:10px' }, 'ログイン・作問・解答・コメント・' + CONFIG.goodEmoji + 'などの合計ポイント（全員）。'));
+      slot.appendChild(rankListFull(total, r => `${r.points}pt`));
+    } else if (kind === 'correct') {
+      const ranks = await Store.ranking();
+      slot.innerHTML = '';
+      slot.appendChild(h('p', { class: 'hint', style: 'margin-bottom:10px' }, '正解数の合計（全員）。'));
+      slot.appendChild(rankListFull(ranks, r => `${r.correct}問正解`));
+    } else {
+      const funny = await Store.funnyRanking(50);
+      slot.innerHTML = '';
+      slot.appendChild(h('p', { class: 'hint', style: 'margin-bottom:10px' }, `${CONFIG.goodEmoji}が多く押された問題（全員）。`));
+      if (!funny.length) slot.appendChild(h('p', { class: 'muted' }, `まだ${CONFIG.goodEmoji}が付いた問題がありません。`));
+      else slot.appendChild(h('ol', { class: 'funny-list' }, funny.map((x, i) => h('li', { class: 'funny-row' }, [
+        h('span', { class: 'funny-pos' }, String(i + 1)),
+        h('div', { class: 'funny-txt' }, [
+          h('p', { class: 'funny-q' }, `Q. ${x.q.body}`),
+          h('p', { class: 'funny-meta muted' }, `${x.q.scheduled_date ? CONFIG.daily.label : rankLabel(x.q.rank)}`),
+        ]),
+        h('span', { class: 'funny-count' }, `${CONFIG.goodEmoji}${x.count}`),
+      ]))));
+    }
+  } catch (e) { slot.innerHTML = ''; slot.appendChild(errorBox(e)); }
 }
 
 // 全員分ランキングのリスト（順位・ハンドル・得点。scoreFn で右端の表記を指定）
