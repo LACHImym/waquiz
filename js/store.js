@@ -64,22 +64,32 @@ const Store = (() => {
     return a;
   }
 
+  // プールから n 問選ぶ。excludeIds（直近に出した問題）は極力避け、
+  // 足りなければ避けた中から補充する（＝重複を最小化）。
+  function pickWithExclusion(pool, n, excludeIds = []) {
+    const ex = new Set(excludeIds);
+    const fresh = shuffle(pool.filter(x => !ex.has(x.id)));
+    if (fresh.length >= n) return fresh.slice(0, n);
+    const seen = shuffle(pool.filter(x => ex.has(x.id)));
+    return fresh.concat(seen).slice(0, n);
+  }
+
   // 通常の難易度プール（本日の問題＝scheduled_date付きは除外）からランダムに n 問
-  async function sampleQuestions(rank, n) {
+  async function sampleQuestions(rank, n, excludeIds = []) {
     must();
     let q = db.from('questions').select('*').is('scheduled_date', null);
     if (rank) q = q.eq('rank', rank);
     const { data, error } = await q;
     if (error) throw error;
-    return shuffle(data).slice(0, n);
+    return pickWithExclusion(data, n, excludeIds);
   }
 
   // 本日の問題（scheduled_date が今日）からランダムに n 問
-  async function sampleDaily(n, todayYmd) {
+  async function sampleDaily(n, todayYmd, excludeIds = []) {
     must();
     const { data, error } = await db.from('questions').select('*').eq('scheduled_date', todayYmd);
     if (error) throw error;
-    return shuffle(data).slice(0, n);
+    return pickWithExclusion(data, n, excludeIds);
   }
 
   // ランクごとの最新作成日時（通常問題のみ）。NEWバッジ判定用。

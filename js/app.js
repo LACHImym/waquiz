@@ -352,11 +352,16 @@ async function startQuiz(rankKey) {
   const app = $('#app'); app.innerHTML = '';
   app.appendChild(h('p', { class: 'muted center' }, '問題を準備中…'));
 
+  // 直近に出した問題を避ける（端末ごとに記録）
+  const recentKey = 'ocq_recent_' + rankKey;
+  let recentIds = [];
+  try { recentIds = JSON.parse(localStorage.getItem(recentKey) || '[]'); } catch {}
+
   let list;
   try {
     list = rankKey === 'daily'
-      ? await Store.sampleDaily(CONFIG.questionsPerQuiz, todayYMD())
-      : await Store.sampleQuestions(rankKey, CONFIG.questionsPerQuiz);
+      ? await Store.sampleDaily(CONFIG.questionsPerQuiz, todayYMD(), recentIds)
+      : await Store.sampleQuestions(rankKey, CONFIG.questionsPerQuiz, recentIds);
   }
   catch (e) { app.innerHTML = ''; app.appendChild(errorBox(e)); return; }
 
@@ -370,6 +375,12 @@ async function startQuiz(rankKey) {
     ]));
     return;
   }
+  // 今回出した問題を「直近」に記録（最新順・最大12件）
+  try {
+    const merged = [...list.map(q => q.id), ...recentIds];
+    localStorage.setItem(recentKey, JSON.stringify([...new Set(merged)].slice(0, 12)));
+  } catch {}
+
   quiz = { rank: rankKey, list, i: 0, correct: 0, answered: false };
   renderQuiz();
 }
