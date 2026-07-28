@@ -64,32 +64,58 @@ const Store = (() => {
     return a;
   }
 
-  // プールから n 問選ぶ。excludeIds（直近に出した問題）は極力避け、
-  // 足りなければ避けた中から補充する（＝重複を最小化）。
-  function pickWithExclusion(pool, n, excludeIds = []) {
-    const ex = new Set(excludeIds);
-    const fresh = shuffle(pool.filter(x => !ex.has(x.id)));
-    if (fresh.length >= n) return fresh.slice(0, n);
-    const seen = shuffle(pool.filter(x => ex.has(x.id)));
-    return fresh.concat(seen).slice(0, n);
+  // 問題ごとの被解答数（全ユーザー合計）。露出の少ない＝新しい問題ほど小さい。
+  async function answerCounts() {
+    if (!db) return {};
+    const { data, error } = await db.from('answers').select('question_id');
+    if (error) return {};
+    const m = {};
+    data.forEach(a => { m[a.question_id] = (m[a.question_id] || 0) + 1; });
+    return m;
   }
 
-  // 通常の難易度プール（本日の問題＝scheduled_date付きは除外）からランダムに n 問
+  // 被解答数が少ない問題ほど当たりやすい重み付き抽選（重複なし）。
+  // weight = 1 / (解答数 + 1)  … 新問(解答0)が最大の重み。
+  function weightedSample(pool, n, countMap) {
+    const items = pool.slice();
+    const result = [];
+    const weight = q => 1 / ((countMap[q.id] || 0) + 1);
+    while (result.length < n && items.length) {
+      const total = items.reduce((s, q) => s + weight(q), 0);
+      let r = Math.random() * total, idx = 0;
+      for (; idx < items.length; idx++) { r -= weight(items[idx]); if (r <= 0) break; }
+      if (idx >= items.length) idx = items.length - 1;
+      result.push(items.splice(idx, 1)[0]);
+    }
+    return result;
+  }
+
+  // 直近回避（①）＋露出の少ない問題を優先（②）で n 問選ぶ
+  function pickBalanced(pool, n, excludeIds, countMap) {
+    const ex = new Set(excludeIds);
+    let cand = pool.filter(x => !ex.has(x.id));
+    if (cand.length < n) cand = pool; // 足りなければ全部から
+    return weightedSample(cand, n, countMap);
+  }
+
+  // 通常の難易度プール（本日の問題＝scheduled_date付きは除外）から n 問
   async function sampleQuestions(rank, n, excludeIds = []) {
     must();
     let q = db.from('questions').select('*').is('scheduled_date', null);
     if (rank) q = q.eq('rank', rank);
     const { data, error } = await q;
     if (error) throw error;
-    return pickWithExclusion(data, n, excludeIds);
+    const counts = await answerCounts();
+    return pickBalanced(data, n, excludeIds, counts);
   }
 
-  // 本日の問題（scheduled_date が今日）からランダムに n 問
+  // 本日の問題（scheduled_date が今日）から n 問
   async function sampleDaily(n, todayYmd, excludeIds = []) {
     must();
     const { data, error } = await db.from('questions').select('*').eq('scheduled_date', todayYmd);
     if (error) throw error;
-    return pickWithExclusion(data, n, excludeIds);
+    const counts = await answerCounts();
+    return pickBalanced(data, n, excludeIds, counts);
   }
 
   // ランクごとの最新作成日時（通常問題のみ）。NEWバッジ判定用。
