@@ -90,32 +90,46 @@ const Store = (() => {
     return result;
   }
 
-  // 直近回避（①）＋露出の少ない問題を優先（②）で n 問選ぶ
-  function pickBalanced(pool, n, excludeIds, countMap) {
-    const ex = new Set(excludeIds);
-    let cand = pool.filter(x => !ex.has(x.id));
-    if (cand.length < n) cand = pool; // 足りなければ全部から
-    return weightedSample(cand, n, countMap);
+  // デッキ方式：seenIds（この一周で既に出した問題）を除いた未出題から選ぶ。
+  // 未出題が n 未満になったら、残りを出し切ってから一周をリセットする。
+  // 一周の中では②の露出重み付け（新問優先）を使う。
+  // 戻り値 { list, seen }：seen は更新後の「この一周で出した問題ID」。
+  function deckSelect(pool, n, seenIds, countMap) {
+    const ids = new Set(pool.map(p => p.id));
+    const seen = (seenIds || []).filter(id => ids.has(id)); // 削除済みを除外
+    const seenSet = new Set(seen);
+    const unseen = pool.filter(p => !seenSet.has(p.id));
+
+    if (unseen.length >= n) {
+      const picked = weightedSample(unseen, n, countMap);
+      return { list: picked, seen: seen.concat(picked.map(p => p.id)) };
+    }
+    // 一周の終わり：残りを出し切って新しい一周へ
+    const tail = unseen;
+    const tailIds = new Set(tail.map(p => p.id));
+    const poolB = pool.filter(p => !tailIds.has(p.id)); // 同一クイズ内での重複を避ける
+    const fillers = weightedSample(poolB, n - tail.length, countMap);
+    return { list: tail.concat(fillers), seen: fillers.map(p => p.id) };
   }
 
   // 通常の難易度プール（本日の問題＝scheduled_date付きは除外）から n 問
-  async function sampleQuestions(rank, n, excludeIds = []) {
+  async function sampleQuestions(rank, n, seenIds = []) {
     must();
     let q = db.from('questions').select('*').is('scheduled_date', null);
     if (rank) q = q.eq('rank', rank);
     const { data, error } = await q;
     if (error) throw error;
     const counts = await answerCounts();
-    return pickBalanced(data, n, excludeIds, counts);
+    return deckSelect(data, n, seenIds, counts);
   }
 
   // 本日の問題（scheduled_date が今日）から n 問
-  async function sampleDaily(n, todayYmd, excludeIds = []) {
+  async function sampleDaily(n, todayYmd, seenIds = []) {
     must();
     const { data, error } = await db.from('questions').select('*').eq('scheduled_date', todayYmd);
     if (error) throw error;
     const counts = await answerCounts();
-    return pickBalanced(data, n, excludeIds, counts);
+    return deckSelect(data, n, seenIds, counts);
   }
 
   // ランクごとの最新作成日時（通常問題のみ）。NEWバッジ判定用。

@@ -352,18 +352,19 @@ async function startQuiz(rankKey) {
   const app = $('#app'); app.innerHTML = '';
   app.appendChild(h('p', { class: 'muted center' }, '問題を準備中…'));
 
-  // 直近に出した問題を避ける（端末ごとに記録）
-  const recentKey = 'ocq_recent_' + rankKey;
-  let recentIds = [];
-  try { recentIds = JSON.parse(localStorage.getItem(recentKey) || '[]'); } catch {}
+  // デッキ方式：この一周で出した問題を端末に記録し、全問一周するまで重複させない
+  const cycleKey = rankKey === 'daily' ? 'ocq_cycle_daily_' + todayYMD() : 'ocq_cycle_' + rankKey;
+  let seenIds = [];
+  try { seenIds = JSON.parse(localStorage.getItem(cycleKey) || '[]'); } catch {}
 
-  let list;
+  let res;
   try {
-    list = rankKey === 'daily'
-      ? await Store.sampleDaily(CONFIG.questionsPerQuiz, todayYMD(), recentIds)
-      : await Store.sampleQuestions(rankKey, CONFIG.questionsPerQuiz, recentIds);
+    res = rankKey === 'daily'
+      ? await Store.sampleDaily(CONFIG.questionsPerQuiz, todayYMD(), seenIds)
+      : await Store.sampleQuestions(rankKey, CONFIG.questionsPerQuiz, seenIds);
   }
   catch (e) { app.innerHTML = ''; app.appendChild(errorBox(e)); return; }
+  const list = res.list;
 
   if (!list.length) {
     app.innerHTML = '';
@@ -375,11 +376,8 @@ async function startQuiz(rankKey) {
     ]));
     return;
   }
-  // 今回出した問題を「直近」に記録（最新順・最大12件）
-  try {
-    const merged = [...list.map(q => q.id), ...recentIds];
-    localStorage.setItem(recentKey, JSON.stringify([...new Set(merged)].slice(0, 12)));
-  } catch {}
+  // この一周で出した問題を記録（次回は未出題から出る）
+  try { localStorage.setItem(cycleKey, JSON.stringify(res.seen)); } catch {}
 
   quiz = { rank: rankKey, list, i: 0, correct: 0, answered: false };
   renderQuiz();
