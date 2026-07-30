@@ -379,7 +379,7 @@ async function startQuiz(rankKey) {
   // この一周で出した問題を記録（次回は未出題から出る）
   try { localStorage.setItem(cycleKey, JSON.stringify(res.seen)); } catch {}
 
-  quiz = { rank: rankKey, list, i: 0, correct: 0, answered: false };
+  quiz = { rank: rankKey, list, i: 0, correct: 0, answered: false, answers: [] };
   renderQuiz();
 }
 
@@ -420,7 +420,7 @@ function answerQuiz(i, grid, q) {
   const correct = quiz.cur.dispCorrect; // 表示上の正解位置
   const isRight = i === correct;
   if (isRight) quiz.correct++;
-  Store.recordAnswer(q.id, isRight, user); // 成績記録（未ログイン時は何もしない）
+  quiz.answers.push({ question_id: q.id, is_correct: isRight }); // 完走時にまとめて記録（途中離脱は無効）
   const accent = rankColor(quiz.rank);
   const onAccentText = onAccent(quiz.rank);
   [...grid.children].forEach((btn, idx) => {
@@ -496,7 +496,6 @@ function goodButton(questionId) {
 function showResult() {
   const total = quiz.list.length;
   const pct = Math.round((quiz.correct / total) * 100);
-  Store.recordResult(quiz.rank, quiz.correct, total, user); // 成績記録（未ログイン時は何もしない）
   const color = rankColor(quiz.rank);
   currentView = 'result';
   renderHeader({ title: rankLabel(quiz.rank), color });
@@ -529,9 +528,15 @@ function showResult() {
     rankSlot,
   ]));
 
-  // 総合ランキング（この5問での順位変動＋自分と前後2名）
+  // 完走したので、この5問ぶんをまとめて記録 → その後にランキングを計算
   if (user && Store.isConfigured()) {
-    Store.totalRanking().then(list => {
+    (async () => {
+      try {
+        await Store.recordAnswersBatch(quiz.answers, user);
+        await Store.recordResult(quiz.rank, quiz.correct, total, user);
+      } catch {}
+      let list;
+      try { list = await Store.totalRanking(); } catch { return; }
       const myHandle = Misskey.handleOf(user);
       const meIdx = list.findIndex(r => r.handle === myHandle);
       if (meIdx === -1) return;
@@ -545,7 +550,7 @@ function showResult() {
       rankSlot.appendChild(h('h3', { class: 'section-title' }, '// 総合ランキング'));
       rankSlot.appendChild(h('p', { class: `rank-delta ${delta > 0 ? 'up' : delta < 0 ? 'down' : ''}` }, `${posBefore}位 → ${posNow}位　${arrow}`));
       rankSlot.appendChild(windowRankingList(list, r => `${r.points}pt`));
-    }).catch(() => {});
+    })();
   }
 
   // アニメーション（円グラフ＋数字カウントアップ）
@@ -1083,8 +1088,20 @@ async function renderOwnerRanking(app, kind) {
     if (kind === 'total') {
       const total = await Store.totalRanking();
       slot.innerHTML = '';
-      slot.appendChild(h('p', { class: 'hint', style: 'margin-bottom:10px' }, 'ログイン・作問・解答・コメント・' + CONFIG.goodEmoji + 'などの合計ポイント（全員）。'));
-      slot.appendChild(rankListFull(total, r => `${r.points}pt`));
+      slot.appendChild(h('p', { class: 'hint', style: 'margin-bottom:10px' }, '合計ポイントと内訳（全員）。'));
+      if (!total.length) { slot.appendChild(h('p', { class: 'muted' }, 'まだデータがありません。')); }
+      else {
+        const myHandle = Misskey.handleOf(user);
+        slot.appendChild(h('ol', { class: 'rank-list' }, total.map((r, i) => h('li', { class: 'rank-row' + (r.handle === myHandle ? ' me' : '') }, [
+          h('span', { class: 'rank-pos' }, String(i + 1)),
+          h('div', { class: 'rank-txt' }, [
+            h('div', { class: 'rank-name' }, r.name || r.handle),
+            h('div', { class: 'rank-handle muted' }, r.handle),
+            h('div', { class: 'rank-bd muted' }, breakdownText(r.breakdown)),
+          ]),
+          h('span', { class: 'rank-score' }, `${r.points}pt`),
+        ]))));
+      }
     } else if (kind === 'correct') {
       const ranks = await Store.ranking();
       slot.innerHTML = '';
@@ -1159,12 +1176,18 @@ function myPoints(total) {
   const me = (total || []).find(r => user && r.handle === Misskey.handleOf(user));
   return me ? me.points : 0;
 }
+function breakdownLabels() {
+  return { login: 'ログイン', solve: '解答', correct: '正解', create: '作問', comment: 'コメント', commentReceived: '被コメント', goodGiven: `${CONFIG.goodEmoji}した`, goodReceived: `${CONFIG.goodEmoji}された` };
+}
+function breakdownText(bd) {
+  const L = breakdownLabels();
+  const parts = Object.keys(L).filter(k => bd && bd[k]).map(k => `${L[k]} ${bd[k]}`);
+  return parts.join(' ・ ') || 'なし';
+}
 function myPointsBreakdown(total) {
   const me = (total || []).find(r => user && r.handle === Misskey.handleOf(user));
   if (!me) return '';
-  const L = { login: 'ログイン', solve: '解答', correct: '正解', create: '作問', comment: 'コメント', commentReceived: '被コメント', goodGiven: `${CONFIG.goodEmoji}した`, goodReceived: `${CONFIG.goodEmoji}された` };
-  const parts = Object.keys(L).filter(k => me.breakdown[k]).map(k => `${L[k]} ${me.breakdown[k]}`);
-  return `あなたの内訳（計${me.points}pt）：` + (parts.join(' ・ ') || 'なし');
+  return `あなたの内訳（計${me.points}pt）：` + breakdownText(me.breakdown);
 }
 
 /* ---------- ログイン画面 ---------- */

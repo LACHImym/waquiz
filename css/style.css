@@ -489,3 +489,6 @@ textarea.input { resize: vertical; }
 .review-btns { display: flex; flex-direction: column; gap: 6px; flex: none; align-self: flex-start; }
 .review-btns .icon-btn { text-decoration: none; }
 .inline-link { color: var(--blue); text-decoration: underline; word-break: break-all; }
+
+/* ---- 総合ランキングの内訳（オーナー） ---- */
+.rank-bd { font-size: 10px; line-height: 1.4; margin-top: 3px; }

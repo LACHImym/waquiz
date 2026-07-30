@@ -223,6 +223,17 @@ const Store = (() => {
     if (error) console.warn('answer insert failed', error);
   }
 
+  // 1セッション分の解答をまとめて記録（完走時のみ呼ぶ＝途中離脱は無効）
+  async function recordAnswersBatch(items, user) {
+    if (!user || !db || !items || !items.length) return;
+    const rows = items.map(it => ({
+      question_id: it.question_id, user_handle: Misskey.handleOf(user),
+      user_name: user.name, is_correct: it.is_correct,
+    }));
+    const { error } = await db.from('answers').insert(rows);
+    if (error) console.warn('answers batch failed', error);
+  }
+
   async function recordResult(rank, correct, total, user) {
     if (!user || !db) return;
     const row = { rank, correct, total, user_handle: Misskey.handleOf(user), user_name: user.name };
@@ -522,7 +533,7 @@ const Store = (() => {
     listQuestions, listMyQuestions, getQuestion, randomQuestion, sampleQuestions, countByRank,
     sampleDaily, countDaily, newestByRank,
     createQuestion, updateQuestion, deleteQuestion,
-    recordAnswer, recordResult, listMyResults, listRecentAnswers, ranking, totalRanking, funnyRanking,
+    recordAnswer, recordAnswersBatch, recordResult, listMyResults, listRecentAnswers, ranking, totalRanking, funnyRanking,
     goodCount, hasGood, toggleGood, goodCountsByQuestions,
     commentsOnMyQuestions,
     recordLogin, getStreak, loginPointsForDay,
