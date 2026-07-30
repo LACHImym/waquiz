@@ -22,14 +22,31 @@ const Store = (() => {
     if (!db) throw new Error('Supabase が未設定です。community-quiz/js/config.js を設定してください。');
   }
 
+  // Supabase は1クエリ最大1000行。集計は全行が必要なのでページングして全部取る。
+  async function selectAll(table, columns, build) {
+    const size = 1000;
+    let from = 0, all = [];
+    for (;;) {
+      let q = db.from(table).select(columns);
+      if (build) q = build(q);
+      q = q.range(from, from + size - 1);
+      const { data, error } = await q;
+      if (error) throw error;
+      all = all.concat(data || []);
+      if (!data || data.length < size) break;
+      from += size;
+    }
+    return all;
+  }
+
   // ---- 問題 ----
   async function listQuestions(rank) {
     must();
-    let q = db.from('questions').select('*').order('updated_at', { ascending: false });
-    if (rank) q = q.eq('rank', rank);
-    const { data, error } = await q;
-    if (error) throw error;
-    return data;
+    return selectAll('questions', '*', q => {
+      let x = q.order('updated_at', { ascending: false });
+      if (rank) x = x.eq('rank', rank);
+      return x;
+    });
   }
 
   async function getQuestion(id) {
@@ -67,8 +84,8 @@ const Store = (() => {
   // 問題ごとの被解答数（全ユーザー合計）。露出の少ない＝新しい問題ほど小さい。
   async function answerCounts() {
     if (!db) return {};
-    const { data, error } = await db.from('answers').select('question_id');
-    if (error) return {};
+    let data;
+    try { data = await selectAll('answers', 'question_id'); } catch { return {}; }
     const m = {};
     data.forEach(a => { m[a.question_id] = (m[a.question_id] || 0) + 1; });
     return m;
@@ -115,10 +132,11 @@ const Store = (() => {
   // 通常の難易度プール（本日の問題＝scheduled_date付きは除外）から n 問
   async function sampleQuestions(rank, n, seenIds = []) {
     must();
-    let q = db.from('questions').select('*').is('scheduled_date', null);
-    if (rank) q = q.eq('rank', rank);
-    const { data, error } = await q;
-    if (error) throw error;
+    const data = await selectAll('questions', '*', q => {
+      let x = q.is('scheduled_date', null);
+      if (rank) x = x.eq('rank', rank);
+      return x;
+    });
     const counts = await answerCounts();
     return deckSelect(data, n, seenIds, counts);
   }
@@ -126,8 +144,7 @@ const Store = (() => {
   // 本日の問題（scheduled_date が今日）から n 問
   async function sampleDaily(n, todayYmd, seenIds = []) {
     must();
-    const { data, error } = await db.from('questions').select('*').eq('scheduled_date', todayYmd);
-    if (error) throw error;
+    const data = await selectAll('questions', '*', q => q.eq('scheduled_date', todayYmd));
     const counts = await answerCounts();
     return deckSelect(data, n, seenIds, counts);
   }
@@ -135,8 +152,7 @@ const Store = (() => {
   // ランクごとの最新作成日時（通常問題のみ）。NEWバッジ判定用。
   async function newestByRank() {
     must();
-    const { data, error } = await db.from('questions').select('rank, created_at').is('scheduled_date', null);
-    if (error) throw error;
+    const data = await selectAll('questions', 'rank, created_at', q => q.is('scheduled_date', null));
     const m = {};
     data.forEach(r => { if (!m[r.rank] || r.created_at > m[r.rank]) m[r.rank] = r.created_at; });
     return m;
@@ -153,8 +169,7 @@ const Store = (() => {
   // ランク別の問題数（通常プールのみ・出題プール表示用）
   async function countByRank() {
     must();
-    const { data, error } = await db.from('questions').select('rank').is('scheduled_date', null);
-    if (error) throw error;
+    const data = await selectAll('questions', 'rank', q => q.is('scheduled_date', null));
     const counts = { total: data.length };
     data.forEach(r => { counts[r.rank] = (counts[r.rank] || 0) + 1; });
     return counts;
@@ -264,13 +279,10 @@ const Store = (() => {
   async function commentsOnMyQuestions(user) {
     if (!user || !db) return [];
     const handle = Misskey.handleOf(user);
-    const { data: qs, error: e1 } = await db.from('questions').select('id, body').eq('created_by', handle);
-    if (e1) throw e1;
+    const qs = await selectAll('questions', 'id, body', q => q.eq('created_by', handle));
     const ids = qs.map(q => q.id);
     if (!ids.length) return [];
-    const { data: cms, error: e2 } = await db.from('comments').select('*').in('question_id', ids)
-      .order('created_at', { ascending: false });
-    if (e2) throw e2;
+    const cms = await selectAll('comments', '*', q => q.in('question_id', ids).order('created_at', { ascending: false }));
     const bodyMap = {}; qs.forEach(q => { bodyMap[q.id] = q.body; });
     return cms.filter(c => c.author !== handle).map(c => ({ ...c, qbody: bodyMap[c.question_id] }));
   }
@@ -278,8 +290,8 @@ const Store = (() => {
   // 複数問題の🤣数をまとめて取得（一覧表示用）
   async function goodCountsByQuestions(ids) {
     if (!db || !ids || !ids.length) return {};
-    const { data, error } = await db.from('goods').select('question_id').in('question_id', ids);
-    if (error) return {};
+    let data;
+    try { data = await selectAll('goods', 'question_id', q => q.in('question_id', ids)); } catch { return {}; }
     const m = {}; data.forEach(g => { m[g.question_id] = (m[g.question_id] || 0) + 1; });
     return m;
   }
@@ -328,15 +340,13 @@ const Store = (() => {
   async function funnyRanking(limit = 5) {
     must();
     const [gds, qs] = await Promise.all([
-      db.from('goods').select('question_id'),
-      db.from('questions').select('id, body, rank, scheduled_date, created_by_name, created_by'),
+      selectAll('goods', 'question_id'),
+      selectAll('questions', 'id, body, rank, scheduled_date, created_by_name, created_by'),
     ]);
-    if (gds.error) throw gds.error;
-    if (qs.error) throw qs.error;
     const counts = {};
-    gds.data.forEach(g => { counts[g.question_id] = (counts[g.question_id] || 0) + 1; });
+    gds.forEach(g => { counts[g.question_id] = (counts[g.question_id] || 0) + 1; });
     const qmap = {};
-    qs.data.forEach(q => { qmap[q.id] = q; });
+    qs.forEach(q => { qmap[q.id] = q; });
     return Object.entries(counts)
       .map(([id, c]) => ({ q: qmap[id], count: c }))
       .filter(x => x.q && x.count > 0)
@@ -348,14 +358,14 @@ const Store = (() => {
   async function totalRanking() {
     must();
     const P = CONFIG.points;
-    const [qs, ans, cms, lgs, gds] = await Promise.all([
-      db.from('questions').select('id, created_by, created_by_name'),
-      db.from('answers').select('user_handle, user_name, is_correct'),
-      db.from('comments').select('author, author_name, question_id'),
-      db.from('logins').select('user_handle, user_name'),
-      db.from('goods').select('user_handle, question_id'),
+    const [qsD, ansD, cmsD, lgsD, gdsD] = await Promise.all([
+      selectAll('questions', 'id, created_by, created_by_name'),
+      selectAll('answers', 'user_handle, user_name, is_correct'),
+      selectAll('comments', 'author, author_name, question_id'),
+      selectAll('logins', 'user_handle, user_name, login_date'),
+      selectAll('goods', 'user_handle, question_id'),
     ]);
-    for (const r of [qs, ans, cms, lgs, gds]) if (r.error) throw r.error;
+    const qs = { data: qsD }, ans = { data: ansD }, cms = { data: cmsD }, lgs = { data: lgsD }, gds = { data: gdsD };
 
     const M = {};
     const get = (handle, name) => {
@@ -408,8 +418,7 @@ const Store = (() => {
   // 正答数ランキング（正解の総数が多い順＝たくさん解くほど有利）
   async function ranking() {
     must();
-    const { data, error } = await db.from('answers').select('user_handle, user_name, is_correct');
-    if (error) throw error;
+    const data = await selectAll('answers', 'user_handle, user_name, is_correct');
     const map = {};
     data.forEach(a => {
       const m = map[a.user_handle] || (map[a.user_handle] = { handle: a.user_handle, name: a.user_name, correct: 0, total: 0 });
