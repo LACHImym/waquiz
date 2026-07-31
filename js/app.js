@@ -101,6 +101,8 @@ async function boot() {
   updateFooterPool();
   loginBonus();
   refreshNewComments();
+  // タブを閉じる／ページを離れるときも、途中離脱として記録（ベストエフォート）
+  window.addEventListener('pagehide', () => { flushAbandon(); });
   // 未ログインなら、まずログイン画面へ（ゲスト入場を選んだ人は除く）
   if (!user && !sessionStorage.getItem('ocq_guest')) switchView('login');
   else switchView('home');
@@ -215,7 +217,7 @@ function openMenu() {
       items.push(ownerLink('👑 正答数ランキング', 'owner-correct'));
       items.push(ownerLink('👑 面白クイズランキング', 'owner-funny'));
     }
-    items.push(h('button', { class: 'link-btn menu-logout', onclick: () => { Misskey.logout(); location.reload(); } }, 'ログアウト'));
+    items.push(h('button', { class: 'link-btn menu-logout', onclick: () => { flushAbandon(); Misskey.logout(); location.reload(); } }, 'ログアウト'));
   }
 
   m.appendChild(h('div', { class: 'menu-panel' }, [
@@ -235,7 +237,26 @@ function closeMenu() {
 }
 
 /* ---------- 画面切替 ---------- */
+// 途中離脱の記録：2問だけ解いて抜けたら、残り3問は「不正解」として記録する。
+// （解いたぶんだけ選んで正答率を水増しする裏ワザ対策。抜けても得しない）
+async function flushAbandon() {
+  const q = quiz;
+  if (!q || q._done) return;
+  const answeredN = q.answers.length;
+  // 1問も解かずに抜けた場合、または完走済みは記録しない
+  if (answeredN === 0 || answeredN >= q.list.length) return;
+  q._done = true;
+  if (!user || !Store.isConfigured()) return;
+  const rest = q.list.slice(answeredN).map(x => ({ question_id: x.id, is_correct: false }));
+  const all = q.answers.concat(rest); // 解いたぶん＝実際の正誤、残り＝不正解
+  try {
+    await Store.recordAnswersBatch(all, user);
+    await Store.recordResult(q.rank, q.correct, q.list.length, user);
+  } catch {}
+}
+
 function switchView(view) {
+  if (currentView === 'quiz') flushAbandon(); // クイズ画面から抜ける＝途中離脱として記録
   currentView = view;
   const app = $('#app');
   app.innerHTML = '';
@@ -420,7 +441,7 @@ function answerQuiz(i, grid, q) {
   const correct = quiz.cur.dispCorrect; // 表示上の正解位置
   const isRight = i === correct;
   if (isRight) quiz.correct++;
-  quiz.answers.push({ question_id: q.id, is_correct: isRight }); // 完走時にまとめて記録（途中離脱は無効）
+  quiz.answers.push({ question_id: q.id, is_correct: isRight }); // 完走時にまとめて記録（途中離脱時は残りを不正解として記録）
   const accent = rankColor(quiz.rank);
   const onAccentText = onAccent(quiz.rank);
   [...grid.children].forEach((btn, idx) => {
@@ -494,6 +515,7 @@ function goodButton(questionId) {
 
 /* ---------- 結果（アニメ円グラフ） ---------- */
 function showResult() {
+  quiz._done = true; // 完走済み。途中離脱記録が二重に走らないようにする
   const total = quiz.list.length;
   const pct = Math.round((quiz.correct / total) * 100);
   const color = rankColor(quiz.rank);
