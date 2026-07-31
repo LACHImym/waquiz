@@ -65,13 +65,14 @@ create table if not exists results (
   created_at   timestamptz default now()
 );
 
--- ---- 👍 グッド（1人1問1回） ----
+-- ---- 🤣/♥ リアクション（1人1問・種類ごとに1回） ----
 create table if not exists goods (
   id           uuid primary key default gen_random_uuid(),
   question_id  uuid references questions(id) on delete cascade,
   user_handle  text not null,
+  kind         text not null default 'funny',           -- funny（🤣）/ heart（♥）
   created_at   timestamptz default now(),
-  unique (question_id, user_handle)
+  unique (question_id, user_handle, kind)
 );
 
 -- ---- ログインボーナス（1日1回の記録） ----

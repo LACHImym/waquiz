@@ -287,41 +287,42 @@ const Store = (() => {
     return cms.filter(c => c.author !== handle).map(c => ({ ...c, qbody: bodyMap[c.question_id] }));
   }
 
-  // 複数問題の🤣数をまとめて取得（一覧表示用）
-  async function goodCountsByQuestions(ids) {
+  // 複数問題のリアクション数をまとめて取得（一覧表示用）。kind: 'funny'（🤣）/ 'heart'（♥）
+  async function goodCountsByQuestions(ids, kind = 'funny') {
     if (!db || !ids || !ids.length) return {};
     let data;
-    try { data = await selectAll('goods', 'question_id', q => q.in('question_id', ids)); } catch { return {}; }
+    try { data = await selectAll('goods', 'question_id', q => q.in('question_id', ids).eq('kind', kind)); } catch { return {}; }
     const m = {}; data.forEach(g => { m[g.question_id] = (m[g.question_id] || 0) + 1; });
     return m;
   }
 
-  // ---- 👍 グッド ----
-  async function goodCount(questionId) {
+  // ---- 🤣/♥ リアクション（kind で種類を分ける） ----
+  async function goodCount(questionId, kind = 'funny') {
     if (!db) return 0;
     const { count, error } = await db.from('goods')
-      .select('*', { count: 'exact', head: true }).eq('question_id', questionId);
+      .select('*', { count: 'exact', head: true }).eq('question_id', questionId).eq('kind', kind);
     if (error) return 0; // テーブル未作成でも 0 で返し、ボタンを止めない
     return count || 0;
   }
-  async function hasGood(questionId, user) {
+  async function hasGood(questionId, user, kind = 'funny') {
     if (!user || !db) return false;
     const { data, error } = await db.from('goods')
-      .select('id').eq('question_id', questionId).eq('user_handle', Misskey.handleOf(user)).limit(1);
+      .select('id').eq('question_id', questionId).eq('user_handle', Misskey.handleOf(user)).eq('kind', kind).limit(1);
     if (error) return false;
     return !!(data && data.length);
   }
   // 押す/取り消しをトグル。新しい状態(boolean)を返す
-  async function toggleGood(questionId, user) {
+  async function toggleGood(questionId, user, kind = 'funny') {
     must();
     const handle = Misskey.handleOf(user);
-    const on = await hasGood(questionId, user);
+    const on = await hasGood(questionId, user, kind);
     if (on) {
-      const { error } = await db.from('goods').delete().eq('question_id', questionId).eq('user_handle', handle);
+      const { error } = await db.from('goods').delete()
+        .eq('question_id', questionId).eq('user_handle', handle).eq('kind', kind);
       if (error) throw error;
       return false;
     } else {
-      const { error } = await db.from('goods').insert({ question_id: questionId, user_handle: handle });
+      const { error } = await db.from('goods').insert({ question_id: questionId, user_handle: handle, kind });
       if (error) throw error;
       return true;
     }
@@ -340,7 +341,7 @@ const Store = (() => {
   async function funnyRanking(limit = 5) {
     must();
     const [gds, qs] = await Promise.all([
-      selectAll('goods', 'question_id'),
+      selectAll('goods', 'question_id', q => q.eq('kind', 'funny')),
       selectAll('questions', 'id, body, rank, scheduled_date, created_by_name, created_by'),
     ]);
     const counts = {};
@@ -363,7 +364,7 @@ const Store = (() => {
       selectAll('answers', 'user_handle, user_name, is_correct'),
       selectAll('comments', 'author, author_name, question_id'),
       selectAll('logins', 'user_handle, user_name, login_date'),
-      selectAll('goods', 'user_handle, question_id'),
+      selectAll('goods', 'user_handle, question_id', q => q.eq('kind', 'funny')),
     ]);
     const qs = { data: qsD }, ans = { data: ansD }, cms = { data: cmsD }, lgs = { data: lgsD }, gds = { data: gdsD };
 

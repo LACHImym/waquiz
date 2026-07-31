@@ -466,8 +466,8 @@ function answerQuiz(i, grid, q) {
     h('div', { class: 'explain-head' }, i === correct ? '正解！' : '不正解'),
     h('p', {}, q.explanation ? q.explanation : '（解説はまだありません）'),
   ]));
-  // 👍 いいねボタン（この問題への評価）
-  reveal.appendChild(goodButton(q.id));
+  // 🤣/♥ リアクション（この問題への評価）
+  reveal.appendChild(reactionBar(q.id));
 
   reveal.appendChild(h('div', { class: 'quiz-actions' }, [
     h('button', { class: 'btn btn-primary btn-block', onclick: () => nextQuiz() }, isLast ? '結果を見る →' : '次の問題へ →'),
@@ -490,29 +490,37 @@ function nextQuiz() {
   renderQuiz();
 }
 
-// 🤣 いいねボタン（良い問題への評価。押すと即座に数が増える）
-function goodButton(questionId) {
+// 🤣（面白い）と ♥（好き）の2つのリアクションを並べたバー
+function reactionBar(questionId) {
+  return h('div', { class: 'reaction-bar' }, [
+    reactionButton(questionId, 'funny', CONFIG.goodEmoji),
+    reactionButton(questionId, 'heart', CONFIG.heartEmoji),
+  ]);
+}
+
+// リアクションボタン（押すと即座に数が増える）。kind: 'funny'（🤣）/ 'heart'（♥）
+function reactionButton(questionId, kind, emoji) {
   const label = h('span', { class: 'good-count' }, '…');
-  const btn = h('button', { class: 'good-btn', onclick: onClick }, [h('span', {}, CONFIG.goodEmoji), label]);
+  const btn = h('button', { class: `good-btn good-${kind}`, onclick: onClick }, [h('span', {}, emoji), label]);
   let count = 0, on = false, busy = false;
   if (Store.isConfigured()) {
-    Store.goodCount(questionId).then(c => { count = c; label.textContent = c; }).catch(() => { label.textContent = '0'; });
-    Store.hasGood(questionId, user).then(v => { on = v; btn.classList.toggle('on', on); }).catch(() => {});
+    Store.goodCount(questionId, kind).then(c => { count = c; label.textContent = c; }).catch(() => { label.textContent = '0'; });
+    Store.hasGood(questionId, user, kind).then(v => { on = v; btn.classList.toggle('on', on); }).catch(() => {});
   } else { label.textContent = ''; }
 
   async function onClick() {
-    if (!user) return requireLogin(`${CONFIG.goodEmoji}はログインすると押せます`);
+    if (!user) return requireLogin(`${emoji}はログインすると押せます`);
     if (busy) return; busy = true;
     // 押した瞬間に反映（楽観的更新）
     const wentOn = !on;
     on = wentOn; count += wentOn ? 1 : -1; label.textContent = count; btn.classList.toggle('on', on);
     try {
-      const serverOn = await Store.toggleGood(questionId, user);
+      const serverOn = await Store.toggleGood(questionId, user, kind);
       if (serverOn !== on) { on = serverOn; btn.classList.toggle('on', on); } // サーバーとズレたら合わせる
     } catch (e) {
       // 失敗：見た目を元に戻して原因を案内
       on = !wentOn; count += wentOn ? -1 : 1; label.textContent = count; btn.classList.toggle('on', on);
-      toast(`${CONFIG.goodEmoji}を保存できませんでした。DBの設定（supabase/migrate_all.sql）を実行してください。`, 'error');
+      toast(`${emoji}を保存できませんでした。DBの設定（supabase/migrate_all.sql）を実行してください。`, 'error');
     }
     busy = false;
   }
@@ -650,10 +658,14 @@ async function renderManage(app) {
 
   slot.innerHTML = '';
   if (!list.length) { slot.appendChild(h('p', { class: 'muted center' }, 'まだ問題がありません。「新規作成」から作れます。')); return; }
-  // 各問題の🤣数をまとめて取得して見出しに表示
-  const goods = await Store.goodCountsByQuestions(list.map(q => q.id)).catch(() => ({}));
+  // 各問題の🤣/♥数をまとめて取得して見出しに表示
+  const ids = list.map(q => q.id);
+  const [goods, hearts] = await Promise.all([
+    Store.goodCountsByQuestions(ids, 'funny').catch(() => ({})),
+    Store.goodCountsByQuestions(ids, 'heart').catch(() => ({})),
+  ]);
   const acc = h('div', { class: 'acc-list' });
-  list.forEach(q => acc.appendChild(accRow(q, { good: goods[q.id] || 0 })));
+  list.forEach(q => acc.appendChild(accRow(q, { good: goods[q.id] || 0, heart: hearts[q.id] || 0 })));
   slot.appendChild(acc);
 }
 
@@ -679,7 +691,8 @@ function accRow(q, opts = {}) {
         ` Q. ${q.body}`,
         opts.showAuthor ? h('span', { class: 'acc-author' }, `作：${esc(q.created_by_name || q.created_by || '不明')}`) : null,
       ]),
-      typeof opts.good === 'number' ? h('span', { class: 'acc-good' }, `${CONFIG.goodEmoji}${opts.good}`) : null,
+      typeof opts.good === 'number' ? h('span', { class: 'acc-good' },
+        `${CONFIG.goodEmoji}${opts.good}` + (typeof opts.heart === 'number' ? `　${CONFIG.heartEmoji}${opts.heart}` : '')) : null,
     ]),
     body,
   ]);

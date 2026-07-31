@@ -444,9 +444,13 @@ textarea.input { resize: vertical; }
 }
 
 /* ---- 👍 いいねボタン ---- */
-.good-btn { display: inline-flex; align-items: center; gap: 8px; background: var(--paper); border: 3px solid var(--ink); color: var(--ink); font-family: var(--disp); font-weight: 900; font-size: 14px; padding: 8px 16px; cursor: pointer; margin: 14px 0 0; }
+.reaction-bar { display: flex; gap: 10px; margin: 14px 0 0; flex-wrap: wrap; }
+.good-btn { display: inline-flex; align-items: center; gap: 8px; background: var(--paper); border: 3px solid var(--ink); color: var(--ink); font-family: var(--disp); font-weight: 900; font-size: 14px; padding: 8px 16px; cursor: pointer; }
 .good-btn:hover { background: var(--paper-2); }
-.good-btn.on { background: var(--yellow); border-color: var(--ink); }
+.good-btn.good-funny.on { background: var(--yellow); border-color: var(--ink); }
+.good-btn.good-heart .good-count, .good-btn.good-heart span:first-child { color: #d64550; }
+.good-btn.good-heart.on { background: #d64550; border-color: #d64550; color: var(--paper); }
+.good-btn.good-heart.on .good-count, .good-btn.good-heart.on span:first-child { color: var(--paper); }
 .good-count { min-width: 14px; text-align: center; }
 
 /* ---- ログインボーナス（トップ） ---- */

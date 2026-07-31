@@ -78,4 +78,11 @@ create policy "insert goods" on goods for insert with check (true);
 drop policy if exists "delete goods" on goods;
 create policy "delete goods" on goods for delete using (true);
 
+-- ♥ ハート反応：goods に種類(kind)を追加（既存データは 🤣＝funny 扱い）
+alter table goods add column if not exists kind text not null default 'funny';
+-- 1問1ユーザーにつき、種類ごとに1回まで（🤣と♥は別々に押せる）
+alter table goods drop constraint if exists goods_question_id_user_handle_key;
+alter table goods drop constraint if exists goods_question_id_user_handle_kind_key;
+alter table goods add constraint goods_question_id_user_handle_kind_key unique (question_id, user_handle, kind);
+
 -- ===== ここまで =====
