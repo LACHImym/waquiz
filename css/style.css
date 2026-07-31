@@ -322,6 +322,9 @@ textarea.input { resize: vertical; }
 .result-actions .btn { min-width: 150px; }
 .share-btn { border-width: 3px; }
 
+/* ---- トップの「作問する」 ---- */
+.home-create { margin-top: 22px; }
+
 /* ---- 作問一覧（アコーディオン） ---- */
 .newq-btn { margin-bottom: 16px; }
 .acc-list { display: flex; flex-direction: column; gap: 10px; }

@@ -351,6 +351,12 @@ function renderHome(app) {
   });
   app.appendChild(blocks);
 
+  // 作問する（ログイン必須。ゲストはログインへ誘導）
+  app.appendChild(h('div', { class: 'home-create' },
+    h('button', { class: 'btn btn-ink btn-block',
+      onclick: () => user ? switchView('create') : requireLogin('作問するにはログインが必要です') },
+      '＋ 作問する')));
+
   // NEW バッジ：前回訪問以降に作られた問題があるランクに付ける（初回ログインは付けない）
   if (user && newSinceTs && Store.isConfigured()) {
     Store.newestByRank().then(m => {
