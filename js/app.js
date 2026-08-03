@@ -911,10 +911,12 @@ function shareNewQuestion(p, isEdit = false) {
   const lead = isEdit
     ? `「${CONFIG.appName}」の問題をブラッシュアップしました！【${cat}】`
     : `「${CONFIG.appName}」に新しい問題を作りました！【${cat}】`;
+  // 保存時は先頭＝正解なので、シェア文では順番をシャッフルして答えがバレないようにする
+  const shuffled = shuffleIdx(p.choices.length).map(idx => p.choices[idx]);
   const text =
     `${lead}\n\n` +
     `Q. ${p.body}\n` +
-    p.choices.map((c, i) => `${i + 1}. ${c}`).join('\n') + '\n\n' +
+    shuffled.map((c, i) => `${i + 1}. ${c}`).join('\n') + '\n\n' +
     `答えはこちらで挑戦してみて↓\n` +
     (location.href.startsWith('http') ? `${location.origin + location.pathname}\n` : '') +
     `#${CONFIG.shareHashtag}`;
