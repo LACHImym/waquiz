@@ -305,6 +305,9 @@ textarea.input { resize: vertical; }
 .explain-head { font-family: var(--disp); font-weight: 900; font-size: 14px; letter-spacing: .04em; margin-bottom: 6px; }
 .explain p { font-size: 14px; line-height: 1.5; white-space: pre-wrap; }
 .explain-body { font-size: 14px; line-height: 1.5; white-space: pre-wrap; margin-bottom: 8px; }
+.explain-link { display: inline-block; margin-top: 10px; font-family: var(--disp); font-weight: 900; font-size: 13px;
+  color: var(--blue); text-decoration: none; border-bottom: 2px solid var(--blue); padding-bottom: 1px; word-break: break-all; }
+.explain-link:hover { opacity: .75; }
 .quiz-actions { margin-top: 16px; }
 
 /* ---- クレジット ---- */

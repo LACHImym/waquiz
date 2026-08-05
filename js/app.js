@@ -465,6 +465,7 @@ function answerQuiz(i, grid, q) {
   reveal.appendChild(h('div', { class: 'explain' }, [
     h('div', { class: 'explain-head' }, i === correct ? '正解！' : '不正解'),
     h('p', {}, q.explanation ? q.explanation : '（解説はまだありません）'),
+    q.link_url ? h('a', { class: 'explain-link', href: q.link_url, target: '_blank', rel: 'noopener' }, '🔗 参考リンクを開く') : null,
   ]));
   // 🤣/♥ リアクション（この問題への評価）
   reveal.appendChild(reactionBar(q.id));
@@ -718,6 +719,7 @@ async function toggleAcc(row, body, q) {
   // 解答解説
   body.appendChild(h('h3', { class: 'section-title' }, '// 解答解説'));
   body.appendChild(h('p', { class: 'explain-body' }, full.explanation || '（解説はまだありません）'));
+  if (full.link_url) body.appendChild(h('a', { class: 'explain-link', href: full.link_url, target: '_blank', rel: 'noopener' }, '🔗 参考リンクを開く'));
   // 編集・削除（作った本人のみ）
   if (isOwner(full)) {
     const delBtn = h('button', { class: 'btn btn-danger btn-sm' }, '🗑 削除する');
