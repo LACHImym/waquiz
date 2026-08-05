@@ -641,10 +641,7 @@ async function renderManage(app) {
   app.appendChild(h('button', { class: 'btn btn-ink btn-block newq-btn', onclick: () => switchView('create') }, '＋ 新規作成'));
   app.appendChild(h('p', { class: 'hint' }, '自分が作った問題だけが表示されます。'));
 
-  const chips = h('div', { class: 'rank-chips' },
-    [chipFilter('', 'すべて', 'ink', manageFilter, k => { manageFilter = k; switchView('manage'); })]
-      .concat(CONFIG.ranks.map(r => chipFilter(r.key, r.label, r.color, manageFilter, k => { manageFilter = k; switchView('manage'); }))));
-  app.appendChild(chips);
+  app.appendChild(categoryChips(manageFilter, k => { manageFilter = k; switchView('manage'); }));
 
   const slot = h('div', {}, h('p', { class: 'muted center' }, '読み込み中…'));
   app.appendChild(slot);
@@ -652,8 +649,9 @@ async function renderManage(app) {
   if (!Store.isConfigured()) { slot.innerHTML = ''; slot.appendChild(h('p', { class: 'muted center' }, 'Supabase を設定すると一覧が表示されます。')); return; }
   let list;
   try {
-    list = await Store.listQuestions(manageFilter || undefined);
-    list = list.filter(q => isOwner(q)); // 常に自分の問題のみ（オーナーも）
+    list = await Store.listQuestions();
+    list = list.filter(q => isOwner(q));       // 常に自分の問題のみ（オーナーも）
+    list = filterByCategory(list, manageFilter);
   }
   catch (e) { slot.innerHTML = ''; slot.appendChild(errorBox(e)); return; }
 
@@ -665,9 +663,14 @@ async function renderManage(app) {
     Store.goodCountsByQuestions(ids, 'funny').catch(() => ({})),
     Store.goodCountsByQuestions(ids, 'heart').catch(() => ({})),
   ]);
-  const acc = h('div', { class: 'acc-list' });
-  list.forEach(q => acc.appendChild(accRow(q, { good: goods[q.id] || 0, heart: hearts[q.id] || 0 })));
-  slot.appendChild(acc);
+  const rowOpts = q => ({ good: goods[q.id] || 0, heart: hearts[q.id] || 0 });
+  if (manageFilter === 'daily') {
+    appendGroupedByDate(slot, list, rowOpts);   // 本日の問題は日付ごとにまとめる
+  } else {
+    const acc = h('div', { class: 'acc-list' });
+    list.forEach(q => acc.appendChild(accRow(q, rowOpts(q))));
+    slot.appendChild(acc);
+  }
 }
 
 // フィルタチップ（共通）
@@ -677,6 +680,34 @@ function chipFilter(key, label, color, active, onPick) {
     style: active === key ? `background:${COLOR[color] || COLOR.ink};border-color:${COLOR[color] || COLOR.ink};color:${color === 'yellow' ? '#1c1c1a' : '#f7f3e8'}` : '',
     onclick: () => onPick(key),
   }, label);
+}
+
+// カテゴリのチップ列（すべて／本日の問題／入門・中級・上級）
+function categoryChips(active, onPick) {
+  return h('div', { class: 'rank-chips' }, [
+    chipFilter('', 'すべて', 'ink', active, onPick),
+    chipFilter('daily', CONFIG.daily.label, CONFIG.daily.color, active, onPick),
+    ...CONFIG.ranks.map(r => chipFilter(r.key, r.label, r.color, active, onPick)),
+  ]);
+}
+
+// カテゴリでフィルタ。本日の問題は scheduled_date で判定し、入門編には混ぜない。
+function filterByCategory(list, filter) {
+  if (!filter) return list;                                        // すべて
+  if (filter === 'daily') return list.filter(q => q.scheduled_date);
+  return list.filter(q => q.rank === filter && !q.scheduled_date); // 通常の難易度（本日の問題は除外）
+}
+
+// 本日の問題を「日付ごと」にまとめて描画する
+function appendGroupedByDate(container, list, rowOpts) {
+  const groups = {};
+  list.forEach(q => { (groups[q.scheduled_date] = groups[q.scheduled_date] || []).push(q); });
+  Object.keys(groups).sort().reverse().forEach(date => {
+    container.appendChild(h('div', { class: 'date-group-head' }, `📅 ${fmtYmdJp(date)}`));
+    const acc = h('div', { class: 'acc-list' });
+    groups[date].forEach(q => acc.appendChild(accRow(q, rowOpts(q))));
+    container.appendChild(acc);
+  });
 }
 
 function accRow(q, opts = {}) {
@@ -1098,25 +1129,27 @@ async function renderOwnerPage(app) {
   renderHeader({ title: '👑 全問題の閲覧' });
   app.appendChild(h('p', { class: 'hint' }, '👑 オーナー表示：コミュニティ全員が作った問題を閲覧できます。'));
 
-  const chips = h('div', { class: 'rank-chips' },
-    [chipFilter('', 'すべて', 'ink', ownerFilter, k => { ownerFilter = k; switchView('owner'); })]
-      .concat(CONFIG.ranks.map(r => chipFilter(r.key, r.label, r.color, ownerFilter, k => { ownerFilter = k; switchView('owner'); }))));
-  app.appendChild(chips);
+  app.appendChild(categoryChips(ownerFilter, k => { ownerFilter = k; switchView('owner'); }));
 
   const slot = h('div', {}, h('p', { class: 'muted center' }, '読み込み中…'));
   app.appendChild(slot);
   if (!Store.isConfigured()) { slot.innerHTML = ''; return; }
 
   let list;
-  try { list = await Store.listQuestions(ownerFilter || undefined); }
+  try { list = await Store.listQuestions(); }
   catch (e) { slot.innerHTML = ''; slot.appendChild(errorBox(e)); return; }
+  list = filterByCategory(list, ownerFilter);
   slot.innerHTML = '';
 
   slot.appendChild(h('p', { class: 'muted', style: 'font-size:12px;margin-bottom:10px' }, `全 ${list.length} 問`));
   if (!list.length) { slot.appendChild(h('p', { class: 'muted center' }, 'まだ問題がありません。')); return; }
-  const acc = h('div', { class: 'acc-list' });
-  list.forEach(q => acc.appendChild(accRow(q, { showAuthor: true }))); // 作問者タグ付き
-  slot.appendChild(acc);
+  if (ownerFilter === 'daily') {
+    appendGroupedByDate(slot, list, () => ({ showAuthor: true }));  // 本日の問題は日付ごと
+  } else {
+    const acc = h('div', { class: 'acc-list' });
+    list.forEach(q => acc.appendChild(accRow(q, { showAuthor: true }))); // 作問者タグ付き
+    slot.appendChild(acc);
+  }
 }
 
 /* ---------- オーナー用ランキング（各ページ・全員分） ---------- */

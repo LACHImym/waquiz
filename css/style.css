@@ -331,6 +331,9 @@ textarea.input { resize: vertical; }
 /* ---- 作問一覧（アコーディオン） ---- */
 .newq-btn { margin-bottom: 16px; }
 .acc-list { display: flex; flex-direction: column; gap: 10px; }
+.date-group-head { font-family: var(--disp); font-weight: 900; font-size: 14px; letter-spacing: .04em;
+  margin: 18px 0 8px; padding-bottom: 5px; border-bottom: 3px solid var(--ink); }
+.date-group-head:first-child { margin-top: 0; }
 .acc-item { border: 3px solid var(--ink); background: var(--paper); }
 .acc-head { display: flex; align-items: center; gap: 0; width: 100%; background: none; border: none; cursor: pointer; padding: 0; text-align: left; }
 .acc-bar { width: 12px; align-self: stretch; flex: none; min-height: 52px; }
