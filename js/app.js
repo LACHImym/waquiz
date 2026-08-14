@@ -932,11 +932,115 @@ function renderCreateDone(payload, isEdit = false) {
     h('div', { class: 'result-actions', style: 'margin-top:18px' }, [
       h('button', { class: 'btn btn-primary', onclick: () => shareNewQuestion(payload, isEdit) },
         isEdit ? '⤴ 更新したことをシェア' : '⤴ 作問したことをシェア'),
+      h('button', { class: 'btn btn-ink', onclick: () => shareQuestionImage(payload) }, '🖼 画像で共有'),
       h('button', { class: 'btn', onclick: () => switchView('create') }, 'もう1問つくる'),
       h('button', { class: 'btn btn-ghost', onclick: () => switchView('manage') }, '一覧へ'),
     ]),
     h('p', { class: 'hint' }, '※ シェアには正解は含まれません。安心して投稿してください。'),
+    h('p', { class: 'hint' }, '「画像で共有」は問題カードの画像を作ります（スマホは共有先を選択、パソコンは保存）。'),
   ]));
+}
+
+/* ---------- 問題カードを画像化してシェア ---------- */
+// 問題文＋選択肢（答えは伏せたまま）をカード画像にする。スクショ代わりに使える。
+function questionCardCanvas(p) {
+  const W = 1080, PAD = 72, S = 2;               // S=拡大率（きれいに描くため）
+  const cat = p.isDaily ? `${CONFIG.daily.label}・${fmtYmdJp(p.scheduledDate)}` : rankLabel(p.rank);
+  const accent = p.isDaily ? COLOR.ink : (COLOR[rankOf(p.rank).color] || COLOR.ink);
+  const shuffled = shuffleIdx(p.choices.length).map(i => p.choices[i]); // 正解の位置を隠す
+
+  const cv = document.createElement('canvas');
+  const g = cv.getContext('2d');
+  const F = (sz, w = 900) => `${w} ${sz * S}px "Noto Sans JP", system-ui, sans-serif`;
+
+  // 折り返し計算（描画せず行配列だけ返す）
+  const wrap = (text, font, maxW) => {
+    g.font = font;
+    const out = [];
+    String(text).split('\n').forEach(para => {
+      let line = '';
+      for (const ch of para) {
+        if (g.measureText(line + ch).width > maxW && line) { out.push(line); line = ch; }
+        else line += ch;
+      }
+      out.push(line);
+    });
+    return out;
+  };
+
+  const innerW = (W - PAD * 2) * S;
+  const qLines = wrap('Q. ' + p.body, F(40), innerW);
+  const chLines = shuffled.map((c, i) => wrap(`${i + 1}. ${c}`, F(32, 500), innerW - 32 * S));
+
+  // 高さを先に計算してからキャンバスを確定
+  let H = PAD + 34 + 30 + 26;                       // 上余白＋カテゴリ帯＋間隔
+  H += qLines.length * 56 + 34;                     // 問題文
+  chLines.forEach(ls => { H += ls.length * 46 + 26; });  // 選択肢
+  H += 30 + 40 + PAD;                               // 区切り＋フッター＋下余白
+
+  cv.width = W * S; cv.height = H * S;
+
+  // 背景（紙色）＋外枠
+  g.fillStyle = '#f7f3e8'; g.fillRect(0, 0, cv.width, cv.height);
+  g.strokeStyle = '#1c1c1a'; g.lineWidth = 8 * S;
+  g.strokeRect(4 * S, 4 * S, cv.width - 8 * S, cv.height - 8 * S);
+
+  let y = PAD * S;
+  // カテゴリのタグ
+  g.font = F(26); g.textBaseline = 'top';
+  const tagW = g.measureText(cat).width + 40 * S, tagH = 46 * S;
+  g.fillStyle = accent; g.fillRect(PAD * S, y, tagW, tagH);
+  g.fillStyle = (accent === COLOR.yellow) ? '#1c1c1a' : '#f7f3e8';
+  g.fillText(cat, PAD * S + 20 * S, y + 10 * S);
+  y += tagH + 30 * S;
+
+  // 問題文
+  g.fillStyle = '#1c1c1a'; g.font = F(40);
+  qLines.forEach(l => { g.fillText(l, PAD * S, y); y += 56 * S; });
+  y += 34 * S;
+
+  // 選択肢
+  chLines.forEach(ls => {
+    g.fillStyle = accent; g.fillRect(PAD * S, y + 6 * S, 8 * S, (ls.length * 46 - 12) * S);
+    g.fillStyle = '#1c1c1a'; g.font = F(32, 500);
+    ls.forEach(l => { g.fillText(l, (PAD + 24) * S, y); y += 46 * S; });
+    y += 26 * S;
+  });
+
+  // フッター
+  y += 10 * S;
+  g.strokeStyle = '#1c1c1a'; g.lineWidth = 3 * S;
+  g.beginPath(); g.moveTo(PAD * S, y); g.lineTo((W - PAD) * S, y); g.stroke();
+  y += 22 * S;
+  g.fillStyle = '#1c1c1a'; g.font = F(26, 900);
+  g.fillText(CONFIG.appName, PAD * S, y);
+  g.font = F(24, 400); g.fillStyle = '#5b5b55';
+  const cta = '答えはアプリで！';
+  g.fillText(cta, (W - PAD) * S - g.measureText(cta).width, y + 2 * S);
+  return cv;
+}
+
+// 画像を保存／共有（スマホは共有シート、PCはダウンロード）
+async function shareQuestionImage(p) {
+  let blob;
+  try {
+    const cv = questionCardCanvas(p);
+    blob = await new Promise(res => cv.toBlob(res, 'image/png'));
+    if (!blob) throw new Error('画像を作れませんでした');
+  } catch (e) { return toast('画像の作成に失敗しました', 'error'); }
+
+  const file = new File([blob], 'waquiz.png', { type: 'image/png' });
+  // スマホ：共有シートからMisskeyアプリなどへ直接渡せる
+  if (navigator.canShare && navigator.canShare({ files: [file] })) {
+    try { await navigator.share({ files: [file] }); return; }
+    catch (e) { if (e && e.name === 'AbortError') return; }  // ユーザーが閉じただけ
+  }
+  // PC：ダウンロードして、投稿画面に自分で添付してもらう
+  const url = URL.createObjectURL(blob);
+  const a = h('a', { href: url, download: 'waquiz.png' });
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 10000);
+  toast('画像を保存しました。投稿に添付してください', 'success');
 }
 
 function shareNewQuestion(p, isEdit = false) {
