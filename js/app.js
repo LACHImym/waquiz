@@ -1643,7 +1643,7 @@ async function renderMyPage(app) {
 function shareReviewQuestion(q) {
   const cat = q.scheduled_date ? CONFIG.daily.label : rankLabel(q.rank);
   const url = q.link_url || (location.href.startsWith('http') ? location.origin + location.pathname : '');
-  const text = `【こんな問題あったよ】\n${q.body}\n（${cat}）\n${url}`;
+  const text = `【こんな問題あったよ】\n${q.body}\n（${cat}）\n${url}\n#${CONFIG.shareHashtag}`;
   Misskey.share(text);
 }
 
