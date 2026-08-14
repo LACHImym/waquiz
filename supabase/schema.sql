@@ -85,6 +85,14 @@ create table if not exists logins (
   unique (user_handle, login_date)
 );
 
+-- ---- ユーザーのアイコン（ランキング・コメントの表示用） ----
+create table if not exists profiles (
+  user_handle  text primary key,                        -- @user@host
+  user_name    text,
+  avatar_url   text,
+  updated_at   timestamptz default now()
+);
+
 create index if not exists idx_questions_rank on questions(rank);
 create index if not exists idx_comments_qid   on comments(question_id);
 create index if not exists idx_history_qid     on history(question_id);
@@ -106,6 +114,7 @@ alter table answers   enable row level security;
 alter table results   enable row level security;
 alter table logins    enable row level security;
 alter table goods     enable row level security;
+alter table profiles  enable row level security;
 
 -- 読み取り：誰でも可
 create policy "read questions" on questions for select using (true);
@@ -126,6 +135,9 @@ create policy "insert logins"    on logins    for insert with check (true);
 create policy "read goods"       on goods     for select using (true);
 create policy "insert goods"     on goods     for insert with check (true);
 create policy "delete goods"     on goods     for delete using (true);
+create policy "read profiles"    on profiles  for select using (true);
+create policy "insert profiles"  on profiles  for insert with check (true);
+create policy "update profiles"  on profiles  for update using (true) with check (true);
 
 -- 削除：anon（＝このアプリ）から可
 -- ※「本人のみ削除可」はアプリ側で制御しています（認証がMisskey側のため）

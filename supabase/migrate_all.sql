@@ -85,4 +85,20 @@ alter table goods drop constraint if exists goods_question_id_user_handle_key;
 alter table goods drop constraint if exists goods_question_id_user_handle_kind_key;
 alter table goods add constraint goods_question_id_user_handle_kind_key unique (question_id, user_handle, kind);
 
+-- ユーザーのアイコン（ランキングやコメントに顔を出すため）
+-- ログインしたときに、その人の名前とアイコンURLを保存します。
+create table if not exists profiles (
+  user_handle text primary key,
+  user_name   text,
+  avatar_url  text,
+  updated_at  timestamptz default now()
+);
+alter table profiles enable row level security;
+drop policy if exists "read profiles" on profiles;
+create policy "read profiles" on profiles for select using (true);
+drop policy if exists "insert profiles" on profiles;
+create policy "insert profiles" on profiles for insert with check (true);
+drop policy if exists "update profiles" on profiles;
+create policy "update profiles" on profiles for update using (true) with check (true);
+
 -- ===== ここまで =====

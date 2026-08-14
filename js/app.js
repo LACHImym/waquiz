@@ -45,6 +45,30 @@ const rankColor = key => COLOR[colorKeyOf(key)] || COLOR.ink;
 const onAccent = key => colorKeyOf(key) === 'yellow' ? '#231815' : '#ffffff';
 const LETTERS = '1234';
 const WEEK_JP = ['日', '月', '火', '水', '木', '金', '土'];
+/* ---------- ユーザーアイコン ----------
+ * ランキングやコメントの丸いアイコン。profiles に保存された画像を使い、
+ * 無い人は頭文字を表示する（画像が用意できるまでのつなぎ）。 */
+let profiles = {};   // { '@user@host': { name, avatar } }
+const AVATAR_TINT = ['#e4007f', '#2ea7e0', '#171c61', '#f0a500', '#7a5cc0', '#159a63'];
+function avatarEl(handle, name, cls = '') {
+  const p = profiles[handle] || {};
+  const url = p.avatar || (user && Misskey.handleOf(user) === handle ? user.avatarUrl : '');
+  const cn = ('avatar ' + cls).trim();
+  if (url) return h('img', { class: cn, src: url, alt: '', loading: 'lazy',
+    onerror: function () { this.replaceWith(avatarFallback(handle, name, cls)); } });
+  return avatarFallback(handle, name, cls);
+}
+function avatarFallback(handle, name, cls = '') {
+  const label = String(name || (handle || '').replace(/^@/, '') || '?').trim();
+  // ハンドルから色を決める（同じ人はいつも同じ色になる）
+  let sum = 0; for (const ch of String(handle || '')) sum += ch.charCodeAt(0);
+  return h('span', {
+    class: ('avatar avatar-fb ' + cls).trim(),
+    style: `background:${AVATAR_TINT[sum % AVATAR_TINT.length]}`,
+    title: label,
+  }, [...label][0].toUpperCase());
+}
+
 // 日付を n 日ずらす（'2026-08-24' → '2026-08-23'）
 const shiftYmdApp = (s, delta) => {
   const [y, m, d] = s.split('-').map(Number);
@@ -115,6 +139,11 @@ async function boot() {
     try { localStorage.setItem('ocq_lastseen', new Date().toISOString()); } catch {}
   }
   if (!Store.isConfigured()) renderSetupNotice();
+  // 自分のアイコンを保存 → 全員ぶんのアイコンを読み込む（ランキング・コメント用）
+  if (Store.isConfigured()) {
+    if (user) Store.saveProfile(user);
+    try { profiles = await Store.allProfiles(); } catch {}
+  }
   updateFooterPool();
   loginBonus();
   refreshNewComments();
@@ -1014,12 +1043,15 @@ function commentsBlock(qid, comments, formFirst = false) {
 }
 function renderComment(c) {
   return h('div', { class: 'comment' }, [
-    h('div', { class: 'comment-head' }, [
-      h('span', { class: 'comment-kind kind-' + c.kind }, c.kind === 'supplement' ? '補足' : 'コメント'),
-      h('span', { class: 'comment-author' }, esc(c.author_name || c.author)),
-      h('span', { class: 'comment-date muted' }, fmtDate(c.created_at)),
+    avatarEl(c.author, c.author_name),
+    h('div', { class: 'comment-main' }, [
+      h('div', { class: 'comment-head' }, [
+        h('span', { class: 'comment-author' }, esc(c.author_name || c.author)),
+        h('span', { class: 'comment-date' }, fmtDate(c.created_at)),
+        c.kind === 'supplement' ? h('span', { class: 'comment-kind kind-supplement' }, '補足') : null,
+      ]),
+      h('p', { class: 'comment-body' }, linkify(c.body)),
     ]),
-    h('p', { class: 'comment-body' }, linkify(c.body)),
   ]);
 }
 
@@ -1276,14 +1308,19 @@ async function renderNewComments(app) {
   else slot.appendChild(h('div', { class: 'nc-list' }, list.map(c => {
     const isNew = c.created_at > seenBefore;
     return h('div', { class: 'nc-item' + (isNew ? ' nc-new' : '') }, [
-      h('p', { class: 'nc-q muted' }, `Q. ${c.qbody || '（削除された問題）'}`),
-      h('div', { class: 'comment-head' }, [
-        isNew ? h('span', { class: 'nc-badge-inline' }, 'NEW') : null,
-        h('span', { class: 'comment-kind kind-' + c.kind }, c.kind === 'supplement' ? '補足' : 'コメント'),
-        h('span', { class: 'comment-author' }, esc(c.author_name || c.author)),
-        h('span', { class: 'comment-date muted' }, fmtDate(c.created_at)),
+      h('p', { class: 'nc-q' }, `Q. ${c.qbody || '（削除された問題）'}`),
+      h('div', { class: 'comment' }, [
+        avatarEl(c.author, c.author_name),
+        h('div', { class: 'comment-main' }, [
+          h('div', { class: 'comment-head' }, [
+            isNew ? h('span', { class: 'nc-badge-inline' }, 'NEW') : null,
+            h('span', { class: 'comment-author' }, esc(c.author_name || c.author)),
+            h('span', { class: 'comment-date' }, fmtDate(c.created_at)),
+            c.kind === 'supplement' ? h('span', { class: 'comment-kind kind-supplement' }, '補足') : null,
+          ]),
+          h('p', { class: 'comment-body' }, linkify(c.body)),
+        ]),
       ]),
-      h('p', { class: 'comment-body' }, linkify(c.body)),
     ]);
   })));
 
@@ -1475,14 +1512,15 @@ async function renderOwnerRanking(app, kind) {
       if (!total.length) { slot.appendChild(h('p', { class: 'muted' }, 'まだデータがありません。')); }
       else {
         const myHandle = Misskey.handleOf(user);
-        slot.appendChild(h('ol', { class: 'rank-list' }, total.map((r, i) => h('li', { class: 'rank-row' + (r.handle === myHandle ? ' me' : '') }, [
+        slot.appendChild(h('div', { class: 'rank-panel' }, total.map((r, i) => h('div', { class: 'rank-row' + (r.handle === myHandle ? ' is-me' : '') }, [
           h('span', { class: 'rank-pos' }, String(i + 1)),
-          h('div', { class: 'rank-txt' }, [
-            h('div', { class: 'rank-name' }, r.name || r.handle),
-            h('div', { class: 'rank-handle muted' }, r.handle),
-            h('div', { class: 'rank-bd muted' }, breakdownText(r.breakdown)),
+          avatarEl(r.handle, r.name, 'avatar-sm'),
+          h('div', { class: 'rank-name', style: 'white-space:normal' }, [
+            h('div', {}, r.name || r.handle),
+            h('div', { style: 'font-size:10px;color:var(--muted)' }, r.handle),
+            h('div', { style: 'font-size:10px;color:var(--muted)' }, breakdownText(r.breakdown)),
           ]),
-          h('span', { class: 'rank-score' }, `${r.points}pt`),
+          h('span', { class: 'rank-val' }, `${r.points}pt`),
         ]))));
       }
     } else if (kind === 'correct') {
@@ -1511,15 +1549,16 @@ async function renderOwnerRanking(app, kind) {
 function rankListFull(list, scoreFn) {
   if (!list || !list.length) return h('p', { class: 'muted' }, 'まだデータがありません。');
   const myHandle = user ? Misskey.handleOf(user) : null;
-  return h('ol', { class: 'rank-list' }, list.map((r, i) => {
+  return h('div', { class: 'rank-panel' }, list.map((r, i) => {
     const isMe = r.handle === myHandle;
-    return h('li', { class: 'rank-row' + (isMe ? ' me' : '') }, [
+    return h('div', { class: 'rank-row' + (isMe ? ' is-me' : '') }, [
       h('span', { class: 'rank-pos' }, String(i + 1)),
-      h('div', { class: 'rank-txt' }, [
-        h('div', { class: 'rank-name' }, (r.name || r.handle) + (isMe ? '（あなた）' : '')),
-        h('div', { class: 'rank-handle muted' }, r.handle),
+      avatarEl(r.handle, r.name, 'avatar-sm'),
+      h('div', { class: 'rank-name', style: 'white-space:normal' }, [
+        h('div', {}, (r.name || r.handle) + (isMe ? '（あなた）' : '')),
+        h('div', { style: 'font-size:10px;color:var(--muted)' }, r.handle),
       ]),
-      h('span', { class: 'rank-score' }, scoreFn(r)),
+      h('span', { class: 'rank-val' }, scoreFn(r)),
     ]);
   }));
 }
@@ -1540,19 +1579,20 @@ function windowRankingList(list, scoreFn) {
   const myHandle = user ? Misskey.handleOf(user) : null;
   const w = rankingWindow(list, myHandle);
   const items = [];
-  if (w.topCut) items.push(h('li', { class: 'rank-ellipsis muted' }, '…'));
+  if (w.topCut) items.push(h('div', { class: 'rank-ellipsis muted' }, '…'));
   w.rows.forEach(({ r, pos }) => {
     const isMe = r.handle === myHandle;
-    items.push(h('li', { class: 'rank-row' + (isMe ? ' me' : '') }, [
+    items.push(h('div', { class: 'rank-row' + (isMe ? ' is-me' : '') }, [
       h('span', { class: 'rank-pos' }, String(pos)),
-      h('span', { class: 'rank-name' }, (r.name || r.handle) + (isMe ? '（あなた）' : '')),
-      h('span', { class: 'rank-score' }, scoreFn(r)),
+      avatarEl(r.handle, r.name, 'avatar-sm'),
+      h('span', { class: 'rank-name' }, isMe ? 'あなた' : (r.name || r.handle)),
+      h('span', { class: 'rank-val' }, scoreFn(r)),
     ]));
   });
-  if (w.botCut) items.push(h('li', { class: 'rank-ellipsis muted' }, '…'));
-  const ol = h('ol', { class: 'rank-list' }, items);
-  if (w.meMissing) return h('div', {}, [ol, h('p', { class: 'hint' }, '参加するとランキングに載ります。')]);
-  return ol;
+  if (w.botCut) items.push(h('div', { class: 'rank-ellipsis muted' }, '…'));
+  const box = h('div', { class: 'rank-panel' }, items);
+  if (w.meMissing) return h('div', {}, [box, h('p', { class: 'hint' }, '参加するとランキングに載ります。')]);
+  return box;
 }
 // 自分の総合ポイント内訳
 function myPoints(total) {

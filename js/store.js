@@ -481,6 +481,34 @@ const Store = (() => {
     return best;
   }
 
+  // ---- ユーザーのアイコン（profiles） ----
+  // ログイン時に自分の名前とアイコンURLを保存する。テーブルが無くても落とさない。
+  async function saveProfile(user) {
+    if (!user || !db) return;
+    try {
+      await db.from('profiles').upsert({
+        user_handle: Misskey.handleOf(user),
+        user_name: user.name,
+        avatar_url: user.avatarUrl || null,
+        updated_at: new Date().toISOString(),
+      }, { onConflict: 'user_handle' });
+    } catch (e) { /* テーブル未作成でも動作を止めない */ }
+  }
+
+  // 全員ぶんのアイコンを取得。{ '@user@host': {name, avatar} } の形で返す。
+  let _profileCache = null;
+  async function allProfiles(force = false) {
+    if (!db) return {};
+    if (_profileCache && !force) return _profileCache;
+    let rows = [];
+    try { rows = await selectAll('profiles', 'user_handle, user_name, avatar_url'); }
+    catch (e) { return {}; }
+    const m = {};
+    rows.forEach(r => { m[r.user_handle] = { name: r.user_name, avatar: r.avatar_url }; });
+    _profileCache = m;
+    return m;
+  }
+
   // スタンプカード用：この人がログインした日（新しい順）をすべて返す
   async function loginDays(user) {
     if (!user || !db) return [];
@@ -554,7 +582,7 @@ const Store = (() => {
     recordAnswer, recordAnswersBatch, recordResult, listMyResults, listRecentAnswers, ranking, totalRanking, funnyRanking,
     goodCount, hasGood, toggleGood, goodCountsByQuestions,
     commentsOnMyQuestions,
-    recordLogin, getStreak, loginPointsForDay, loginDays,
+    recordLogin, getStreak, loginPointsForDay, loginDays, saveProfile, allProfiles,
     listComments, addComment, listHistory,
   };
 })();
