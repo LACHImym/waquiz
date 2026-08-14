@@ -433,7 +433,7 @@ textarea.input { resize: vertical; min-height: 92px; }
 .modal-title svg { width: 17px; height: 19px; }
 .stamp-lead { background: var(--navy); color: #fff; text-align: center; font-family: var(--disp); font-weight: 700; font-size: 14px; padding: 8px; border-radius: 3px; margin-bottom: 18px; }
 
-.stamp-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px 6px; }
+.stamp-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; }
 .stamp-cell { position: relative; aspect-ratio: 1; display: grid; place-items: center; }
 .stamp-num {
   width: 38px; height: 38px; border-radius: 50%; background: var(--panel);
@@ -441,8 +441,9 @@ textarea.input { resize: vertical; min-height: 92px; }
   font-size: 14px; color: var(--muted); font-variant-numeric: tabular-nums;
 }
 .stamp-cell.is-bonus .stamp-num { background: var(--yellow); color: var(--ink); }
-.stamp-mark { position: absolute; inset: -2px; display: grid; place-items: center; }
-.stamp-mark svg { width: 100%; height: 100%; }
+.stamp-mark { position: absolute; inset: 0; display: grid; place-items: center; }
+/* 判子は縦横比がそれぞれ違うので、つぶさずに収める */
+.stamp-mark svg, .stamp-mark img { width: 100%; height: 100%; object-fit: contain; display: block; }
 /* 押した日は数字を薄くする（スタンプと重なって読めなくなるのを防ぐ） */
 .stamp-cell.is-stamped .stamp-num { opacity: .3; }
 

@@ -46,15 +46,12 @@ const ICONS = (() => {
   const correctMark = () => wrap('0 0 24 24', `<circle cx="12" cy="12" r="9" fill="none" stroke="#2ea7e0" stroke-width="2.6"/>`);
   const wrongMark  = () => wrap('0 0 24 24', `<path fill="none" stroke="#e4007f" stroke-width="2.8" stroke-linecap="round" d="M5 5l14 14M19 5L5 19"/>`);
 
-  // ログインスタンプ（押した日の判子・簡易版）
-  const stamp = () => wrap('0 0 100 100',
-    `<circle cx="50" cy="50" r="42" fill="none" stroke="#e4007f" stroke-width="6"/>
-     <path fill="none" stroke="#e4007f" stroke-width="6" stroke-linecap="round" d="M28 62c10-14 20-22 32-26M34 36c14 4 26 14 34 28"/>`);
-  // 5日ごとのボーナス判子
-  const stampBonus = () => wrap('0 0 100 100',
-    `<circle cx="50" cy="50" r="44" fill="none" stroke="#d0121b" stroke-width="5"/>
-     <text x="50" y="43" text-anchor="middle" font-size="30" font-weight="900" fill="#d0121b" font-family="'Noto Sans JP',sans-serif">検</text>
-     <text x="50" y="75" text-anchor="middle" font-size="30" font-weight="900" fill="#d0121b" font-family="'Noto Sans JP',sans-serif">定</text>`);
+  // ログインスタンプ（押した日の判子）
+  // ※ 2つの SVG はどちらも内部で .cls-1 というクラスを使っているため、
+  //    ページに直接埋め込むと色が混ざる。img で読み込んで独立させている。
+  const stamp = () => `<img src="assets/stamp.svg" alt="" aria-hidden="true">`;
+  // ボーナスの判子（連続2日目・3日目と、5日ごと）
+  const stampBonus = () => `<img src="assets/stamp-bonus.svg" alt="" aria-hidden="true">`;
 
   return { heart, laugh, star, megaphone, pen, flag, share, link, correctMark, wrongMark, stamp, stampBonus };
 })();
