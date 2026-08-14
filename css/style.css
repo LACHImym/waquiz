@@ -302,7 +302,8 @@ h3 { font-family: var(--disp); font-weight: 700; font-size: 15px; margin: 0 0 6p
 .link-btn { background: none; border: 0; padding: 0; cursor: pointer; color: var(--muted); font-size: 13px; font-family: var(--disp); font-weight: 700; }
 
 /* ---------------- ランキング ---------------- */
-.rank-panel { background: var(--panel); border-radius: var(--radius); padding: 6px 14px; }
+/* 成績リスト（.score-list）と同じ見た目にそろえる */
+.rank-panel { background: var(--paper); border-radius: var(--radius); padding: 4px 14px; box-shadow: var(--shadow); }
 .rank-row { display: flex; align-items: center; gap: 10px; padding: 10px 2px; border-bottom: 1px solid rgba(0,0,0,.08); font-size: 14px; }
 .rank-row:last-child { border-bottom: 0; }
 .rank-pos { width: 20px; font-family: var(--disp); font-weight: 700; text-align: right; flex: none; font-variant-numeric: tabular-nums; }
@@ -314,8 +315,6 @@ h3 { font-family: var(--disp); font-weight: 700; font-size: 15px; margin: 0 0 6p
 .rank-delta { font-family: var(--disp); font-weight: 900; font-size: 14px; margin: 4px 0 10px; }
 .rank-delta.up { color: var(--magenta); }
 .rank-delta.down { color: var(--muted); }
-.rank-two { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
-@media (max-width: 520px) { .rank-two { grid-template-columns: 1fr; } }
 .rank-cap { font-size: 10px; color: var(--muted); line-height: 1.5; margin: 0 0 6px; }
 
 /* ---------------- マイページ ---------------- */

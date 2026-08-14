@@ -1588,21 +1588,15 @@ async function renderMyPage(app) {
     ]);
   })));
 
-  // ---- ランキング（2列） ----
-  const two = h('div', { class: 'rank-two' });
-  const colA = h('div', {}, [
-    h('h3', { class: 'section-title', style: 'margin-top:0' }, '総合ランキング'),
-    h('p', { class: 'rank-cap' }, `ログイン(1) ログインボーナス(+5) コメント(2) 問題をつくる(10) イベントボーナス(+100) など`),
-    windowRankingList(total, r => `${r.points}pt`),
-  ]);
-  if (myPoints(total)) colA.appendChild(h('p', { class: 'rank-cap', style: 'margin-top:6px' }, myPointsBreakdown(total)));
-  const colB = h('div', {}, [
-    h('h3', { class: 'section-title', style: 'margin-top:0' }, '正答数ランキング'),
-    h('p', { class: 'rank-cap' }, '正答数の合計'),
-    windowRankingList(ranks, r => `${r.correct}問`),
-  ]);
-  two.appendChild(colA); two.appendChild(colB);
-  slot.appendChild(two);
+  // ---- ランキング（他のブロックと同じ幅で縦に並べる） ----
+  slot.appendChild(h('h3', { class: 'section-title' }, '総合ランキング'));
+  slot.appendChild(h('p', { class: 'rank-cap' }, 'ログイン(1) ログインボーナス(+5) コメント(2) 問題をつくる(10) イベントボーナス(+100) など'));
+  slot.appendChild(windowRankingList(total, r => `${r.points}pt`));
+  if (myPoints(total)) slot.appendChild(h('p', { class: 'rank-cap', style: 'margin-top:6px' }, myPointsBreakdown(total)));
+
+  slot.appendChild(h('h3', { class: 'section-title' }, '正答数ランキング'));
+  slot.appendChild(h('p', { class: 'rank-cap' }, '正答数の合計'));
+  slot.appendChild(windowRankingList(ranks, r => `${r.correct}問`));
 
   // ---- 直近に解いた10問の振り返り ----
   slot.appendChild(h('h3', { class: 'section-title' }, '履歴'));
