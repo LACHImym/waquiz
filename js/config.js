@@ -60,5 +60,6 @@ window.QUIZ_CONFIG = {
     commentReceived: 3,  // 自分の問題にコメントが付く
     goodGiven: 1,        // 👍を押す
     goodReceived: 5,     // 自分の問題が👍される
+    decisionBattle: 100, // WA王決定戦を完走（8/24〜8/31限定・実装時に使用）
   },
 };
