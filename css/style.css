@@ -453,11 +453,10 @@ textarea.input { resize: vertical; min-height: 92px; }
 
 /* 今日ぶん（最後の1つ）だけ、上からトンと押される演出をつける。
    傾きは親(.stamp-mark)に付いているので、ここでは拡大縮小だけを動かす。 */
-.stamp-cell.is-latest .stamp-mark img { animation: stamp-press .5s cubic-bezier(.2,1.5,.4,1) .25s both; }
+.stamp-cell.is-latest .stamp-mark img { animation: stamp-press .5s cubic-bezier(.2,.75,.3,1) .25s both; }
 @keyframes stamp-press {
   0%   { transform: scale(2.6); opacity: 0; }
-  55%  { transform: scale(.9);  opacity: 1; }
-  75%  { transform: scale(1.06); }
+  60%  { opacity: 1; }
   100% { transform: scale(1);   opacity: 1; }
 }
 /* 押した日は数字を薄くする（スタンプと重なって読めなくなるのを防ぐ） */
