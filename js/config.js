@@ -12,9 +12,8 @@ window.QUIZ_CONFIG = {
   supabaseAnonKey: 'sb_publishable_eANsHPV3coCJom_IKZaBBg_k9DMP4q9',
   // ▲▲▲ ここまで ▲▲▲
 
-  // アプリ名・タグライン（画面・シェア文に使われます）
+  // アプリ名（画面・シェア文に使われます）
   appName: 'WA検定',
-  tagline: 'オンラインコミュニティWAの４択クイズ',
 
   // 1回のクイズの出題数
   questionsPerQuiz: 5,

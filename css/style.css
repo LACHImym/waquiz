@@ -105,15 +105,17 @@ h3 { font-family: var(--disp); font-weight: 700; font-size: 15px; margin: 0 0 6p
 .home-hero {
   background: var(--paper);
   margin: -18px -16px 0;
-  padding: 22px 16px 26px;
-  display: flex; align-items: center; gap: 18px; flex-wrap: wrap;
+  padding: 18px 16px 22px;
+  display: flex; align-items: center; gap: 0; flex-wrap: wrap;
 }
-.home-logo { width: 190px; max-width: 46vw; height: auto; display: block; }
-.home-hero-txt { flex: 1; min-width: 180px; }
-/* ロゴ画像を置くと h1 は隠れる（ロゴが無い間だけ文字で表示） */
-.home-logo + .home-hero-txt .home-h1 { display: none; }
+/* HOMEバナー（横いっぱいに大きく出す） */
+.home-banner { width: 100%; height: auto; display: block; border-radius: var(--radius); }
+.home-hero-txt { flex: 1 1 100%; min-width: 0; }
+/* バナー画像を置くと h1 は隠れる（バナーが無い間だけ文字で表示） */
+.home-banner + .home-hero-txt .home-h1 { display: none; }
+/* バナーと連続ログインバナーの間を空ける（h1 は隠れているので直接指定する） */
+.home-banner + .home-hero-txt .streak-banner { margin-top: 14px; }
 .home-h1 { font-family: var(--disp); font-weight: 900; font-size: 20px; margin: 0 0 6px; }
-.home-tagline { font-size: 14px; line-height: 1.75; margin: 0 0 12px; }
 
 /* 連続ログイン中バナー */
 .streak-banner {

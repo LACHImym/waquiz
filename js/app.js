@@ -280,7 +280,7 @@ function renderHeader(ctx = {}) {
   // ロゴ画像がまだ無い場合は、アプリ名の文字を出す（画像を置けば自動で切り替わる）
   const fallback = h('span', { class: 'brand-text' }, ctx.title || CONFIG.appName);
   const logo = h('img', {
-    class: 'brand-logo', src: 'assets/logo.png', alt: CONFIG.appName,
+    class: 'brand-logo', src: 'assets/logo2.png', alt: CONFIG.appName,
     onerror: function () { this.remove(); fallback.hidden = false; },
     onload: function () { if (!ctx.title) fallback.hidden = true; },
   });
@@ -478,10 +478,10 @@ function renderSetupNotice() {
 function renderHome(app) {
   renderHeader({});
 
-  // --- ヒーロー（ロゴ＋タグライン＋連続ログイン） ---
+  // --- ヒーロー（HOMEバナー＋連続ログイン） ---
   const heroTxt = h('div', { class: 'home-hero-txt' }, [
+    // バナー画像が出ないときだけ、代わりにアプリ名を文字で出す
     h('h1', { class: 'home-h1' }, CONFIG.appName),
-    h('p', { class: 'home-tagline' }, CONFIG.tagline),
   ]);
   if (user) {
     const banner = h('div', { class: 'streak-banner' }, [
@@ -498,8 +498,8 @@ function renderHome(app) {
     }
   }
   app.appendChild(h('section', { class: 'home-hero' }, [
-    // ロゴ画像が無いときは要素ごと外す → CSS で h1（アプリ名）が代わりに出る
-    h('img', { class: 'home-logo', src: 'assets/logo.png', alt: CONFIG.appName,
+    // バナー画像が無いときは要素ごと外す → CSS で h1（アプリ名）が代わりに出る
+    h('img', { class: 'home-banner', src: 'assets/home-banner.png', alt: CONFIG.appName,
                onerror: function () { this.remove(); } }),
     heroTxt,
   ]));
