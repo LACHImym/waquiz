@@ -189,45 +189,49 @@ async function loginBonus() {
   localStorage.setItem(key, '1');
   const pts = Store.loginPointsForDay(s.current);
   toast(`ログインボーナス ＋${pts}pt`, 'success');
-  let days = [];
-  try { days = await Store.loginDays(user); } catch {}
-  showStampCard(days, s);
+  showStampCard(s);
   if (currentView === 'home') renderHome($('#app'));
 }
 
-/* ---------- ログインボーナスのスタンプカード（30日） ---------- */
-function showStampCard(loginDays, streak) {
-  const total = 30;
-  const set = new Set(loginDays);
-  // 直近30日ぶんのマスを作る（今日が最後になるように並べる）
-  const cells = [];
-  for (let i = total - 1; i >= 0; i--) {
-    const d = new Date(); d.setDate(d.getDate() - i);
-    cells.push(ymd(d));
-  }
+/* ---------- ログインボーナスのスタンプカード（30マス） ----------
+ * 連続ログイン日数ぶんを「1」から順番に押していく。
+ * 30を超えたらカードを1枚めくり、左上が「31」になって続きを押していく。 */
+const STAMP_CELLS = 30;
+
+// その日にボーナスが付くか？（config の配点と必ず一致させるため、点数から判定する）
+function isBonusDay(day) {
+  return Store.loginPointsForDay(day) > (CONFIG.points.login || 0);
+}
+
+function showStampCard(streak) {
+  const done = Math.max(0, (streak && streak.current) || 0);   // 連続何日目か＝押した数
+  const page = done > 0 ? Math.floor((done - 1) / STAMP_CELLS) : 0;
+  const base = page * STAMP_CELLS;          // このカードの開始（0 / 30 / 60 …）
+  const filled = done - base;               // このカードで押し終わった数
+
   openModal(box => {
     box.appendChild(h('h2', { class: 'modal-title' }, [
       h('span', { html: ICONS.flag('#171c61') }),
       document.createTextNode('ログインボーナス'),
     ]));
     box.appendChild(h('div', { class: 'stamp-lead' },
-      streak && streak.current >= 2 ? `${streak.current}日連続！ 明日も遊びにきてね` : '明日も遊びにきてね'));
+      done >= 2 ? `${done}日連続！ 明日も遊びにきてね` : '明日も遊びにきてね'));
 
     const grid = h('div', { class: 'stamp-grid' });
-    cells.forEach((date, i) => {
-      const n = i + 1;
-      const isBonus = n % 5 === 0;                 // 5日ごとは大きめボーナス
-      const stamped = set.has(date);
+    for (let i = 1; i <= STAMP_CELLS; i++) {
+      const day = base + i;                 // このマスが何日目か
+      const isBonus = isBonusDay(day);
+      const stamped = i <= filled;          // 1 から順に押していく
       // 押した日は、下の数字を薄くしてスタンプが読めるようにする
       const cell = h('div', { class: 'stamp-cell' + (isBonus ? ' is-bonus' : '') + (stamped ? ' is-stamped' : '') }, [
-        h('span', { class: 'stamp-num' }, String(n)),
+        h('span', { class: 'stamp-num' }, String(day)),
       ]);
       if (stamped) {
         cell.appendChild(h('span', { class: 'stamp-mark',
           html: isBonus ? ICONS.stampBonus() : ICONS.stamp() }));
       }
       grid.appendChild(cell);
-    });
+    }
     box.appendChild(grid);
   });
 }

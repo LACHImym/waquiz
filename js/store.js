@@ -547,14 +547,6 @@ const Store = (() => {
     return m;
   }
 
-  // スタンプカード用：この人がログインした日（新しい順）をすべて返す
-  async function loginDays(user) {
-    if (!user || !db) return [];
-    const rows = await selectAll('logins', 'login_date', q =>
-      q.eq('user_handle', Misskey.handleOf(user)).order('login_date', { ascending: false }));
-    return rows.map(r => r.login_date);
-  }
-
   async function getStreak(user, todayYmd) {
     if (!user || !db) return null;
     const handle = Misskey.handleOf(user);
@@ -656,7 +648,7 @@ const Store = (() => {
     funnyRanking, heartRanking, hardRanking,
     goodCount, hasGood, toggleGood, goodCountsByQuestions,
     commentsOnMyQuestions, myComments,
-    recordLogin, getStreak, loginPointsForDay, loginDays, saveProfile, saveProfileRow, allProfiles,
+    recordLogin, getStreak, loginPointsForDay, saveProfile, saveProfileRow, allProfiles,
     listComments, addComment, updateComment, deleteComment, listHistory,
   };
 })();
