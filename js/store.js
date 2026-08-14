@@ -1,6 +1,6 @@
 /* ============================================================
  *  データ層（Supabase）
- *  問題・コメント/補足・編集履歴の読み書きをまとめています。
+ *  問題・コメント・編集履歴の読み書きをまとめています。
  * ============================================================ */
 const Store = (() => {
   let db = null;
@@ -337,11 +337,11 @@ const Store = (() => {
     return pts;
   }
 
-  // 面白クイズランキング（🤣が多い問題 上位 n）
-  async function funnyRanking(limit = 5) {
+  // リアクションが多い問題 上位 n。kind: 'funny'（🤣うけるね）/ 'heart'（♥いいね）
+  async function reactionRanking(kind = 'funny', limit = 5) {
     must();
     const [gds, qs] = await Promise.all([
-      selectAll('goods', 'question_id', q => q.eq('kind', 'funny')),
+      selectAll('goods', 'question_id', q => q.eq('kind', kind)),
       selectAll('questions', 'id, body, rank, scheduled_date, created_by_name, created_by'),
     ]);
     const counts = {};
@@ -352,6 +352,32 @@ const Store = (() => {
       .map(([id, c]) => ({ q: qmap[id], count: c }))
       .filter(x => x.q && x.count > 0)
       .sort((a, b) => b.count - a.count)
+      .slice(0, limit);
+  }
+  // 面白クイズランキング（🤣が多い問題 上位 n）
+  const funnyRanking = (limit = 5) => reactionRanking('funny', limit);
+  // いいねランキング（♥が多い問題 上位 n）
+  const heartRanking = (limit = 5) => reactionRanking('heart', limit);
+
+  // 難問ランキング（正答率が低い問題 上位 n）
+  // 1〜2人しか解いていない問題が上位を占めないよう、minAnswers 回以上解かれた問題だけを対象にする。
+  async function hardRanking(limit = 5, minAnswers = 3) {
+    must();
+    const [ans, qs] = await Promise.all([
+      selectAll('answers', 'question_id, is_correct'),
+      selectAll('questions', 'id, body, rank, scheduled_date, created_by_name, created_by'),
+    ]);
+    const m = {};
+    ans.forEach(a => {
+      const x = m[a.question_id] || (m[a.question_id] = { total: 0, correct: 0 });
+      x.total++; if (a.is_correct) x.correct++;
+    });
+    const qmap = {};
+    qs.forEach(q => { qmap[q.id] = q; });
+    return Object.entries(m)
+      .filter(([id, x]) => qmap[id] && x.total >= minAnswers)
+      .map(([id, x]) => ({ q: qmap[id], total: x.total, correct: x.correct, rate: x.correct / x.total }))
+      .sort((a, b) => a.rate - b.rate || b.total - a.total)
       .slice(0, limit);
   }
 
@@ -495,6 +521,18 @@ const Store = (() => {
     } catch (e) { /* テーブル未作成でも動作を止めない */ }
   }
 
+  // Misskey から引いてきた他の人のアイコンを保存する（次から全員がすぐ見られる）
+  async function saveProfileRow(handle, name, avatarUrl) {
+    if (!handle || !db) return;
+    try {
+      await db.from('profiles').upsert({
+        user_handle: handle, user_name: name || null, avatar_url: avatarUrl || null,
+        updated_at: new Date().toISOString(),
+      }, { onConflict: 'user_handle' });
+      if (_profileCache) _profileCache[handle] = { name, avatar: avatarUrl };
+    } catch (e) { /* テーブル未作成でも動作を止めない */ }
+  }
+
   // 全員ぶんのアイコンを取得。{ '@user@host': {name, avatar} } の形で返す。
   let _profileCache = null;
   async function allProfiles(force = false) {
@@ -528,7 +566,7 @@ const Store = (() => {
     return { current: cur, longest: Math.max(longest, cur), totalDays: days.size };
   }
 
-  // ---- コメント / 補足 ----
+  // ---- コメント ----
   async function listComments(questionId) {
     must();
     const { data, error } = await db.from('comments')
@@ -538,11 +576,10 @@ const Store = (() => {
     return data;
   }
 
-  async function addComment(questionId, kind, body, user) {
+  async function addComment(questionId, body, user) {
     must();
     const row = {
       question_id: questionId,
-      kind, // 'comment' | 'supplement'
       body,
       author: Misskey.handleOf(user),
       author_name: user.name,
@@ -550,6 +587,42 @@ const Store = (() => {
     const { data, error } = await db.from('comments').insert(row).select().single();
     if (error) throw error;
     return data;
+  }
+
+  // 自分のコメントを書き直す（本人以外は書き換えられないようアプリ側で確認）
+  async function updateComment(id, body, user) {
+    must();
+    const { data, error } = await db.from('comments')
+      .update({ body }).eq('id', id).eq('author', Misskey.handleOf(user)).select();
+    if (error) throw error;
+    if (!data || !data.length) {
+      throw new Error('書き換えできませんでした。DBの設定（supabase/migrate_all.sql）を実行してください。');
+    }
+    return data[0];
+  }
+
+  async function deleteComment(id, user) {
+    must();
+    const { data, error } = await db.from('comments')
+      .delete().eq('id', id).eq('author', Misskey.handleOf(user)).select();
+    if (error) throw error;
+    if (!data || !data.length) {
+      throw new Error('削除できませんでした。DBの設定（supabase/migrate_all.sql）を実行してください。');
+    }
+    return data;
+  }
+
+  // 自分が書いたコメント（新しい順・問題文つき）
+  async function myComments(user) {
+    if (!user || !db) return [];
+    const handle = Misskey.handleOf(user);
+    const cms = await selectAll('comments', '*', q =>
+      q.eq('author', handle).order('created_at', { ascending: false }));
+    if (!cms.length) return [];
+    const ids = [...new Set(cms.map(c => c.question_id))];
+    const qs = await selectAll('questions', 'id, body', q => q.in('id', ids));
+    const bodyMap = {}; qs.forEach(q => { bodyMap[q.id] = q.body; });
+    return cms.map(c => ({ ...c, qbody: bodyMap[c.question_id] }));
   }
 
   // ---- 履歴 ----
@@ -579,10 +652,11 @@ const Store = (() => {
     listQuestions, listMyQuestions, getQuestion, randomQuestion, sampleQuestions, countByRank,
     sampleDaily, countDaily, newestByRank,
     createQuestion, updateQuestion, deleteQuestion,
-    recordAnswer, recordAnswersBatch, recordResult, listMyResults, listRecentAnswers, ranking, totalRanking, funnyRanking,
+    recordAnswer, recordAnswersBatch, recordResult, listMyResults, listRecentAnswers, ranking, totalRanking,
+    funnyRanking, heartRanking, hardRanking,
     goodCount, hasGood, toggleGood, goodCountsByQuestions,
-    commentsOnMyQuestions,
-    recordLogin, getStreak, loginPointsForDay, loginDays, saveProfile, allProfiles,
-    listComments, addComment, listHistory,
+    commentsOnMyQuestions, myComments,
+    recordLogin, getStreak, loginPointsForDay, loginDays, saveProfile, saveProfileRow, allProfiles,
+    listComments, addComment, updateComment, deleteComment, listHistory,
   };
 })();

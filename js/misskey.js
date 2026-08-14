@@ -96,6 +96,52 @@ const Misskey = (() => {
     return user;
   }
 
+  /* ---- 他のユーザーのアイコンを Misskey から取得 ----
+   * profiles テーブルに無い人（＝まだこのアプリにログインしていない人）でも、
+   * Misskey の公開APIから名前とアイコンを引いてこられる。
+   * 一度引いた結果は端末に保存して、次からは通信しない（7日間）。 */
+  const LS_AVATARS = 'ocq_avatars';
+  const AVATAR_TTL = 7 * 24 * 60 * 60 * 1000; // 7日
+
+  function avatarCache() {
+    try { return JSON.parse(localStorage.getItem(LS_AVATARS)) || {}; }
+    catch { return {}; }
+  }
+  function cacheAvatar(handle, rec) {
+    const all = avatarCache();
+    all[handle] = { ...rec, t: Date.now() };
+    try { localStorage.setItem(LS_AVATARS, JSON.stringify(all)); } catch {}
+  }
+
+  // '@user@host' → { username, host }
+  function parseHandle(handle) {
+    const m = /^@?([^@]+)@(.+)$/.exec(String(handle || '').trim());
+    return m ? { username: m[1], host: m[2] } : null;
+  }
+
+  // ハンドルから { name, avatar } を返す（取れなければ null）
+  async function lookupUser(handle) {
+    const hit = avatarCache()[handle];
+    if (hit && Date.now() - (hit.t || 0) < AVATAR_TTL) return hit.avatar ? hit : null;
+
+    const p = parseHandle(handle);
+    if (!p) return null;
+    let data;
+    try {
+      const res = await fetch(`https://${p.host}/api/users/show`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username: p.username }),
+      });
+      if (!res.ok) { cacheAvatar(handle, { avatar: '' }); return null; }
+      data = await res.json();
+    } catch { return null; }   // 通信エラーはキャッシュせず、次回また試す
+
+    const rec = { name: data.name || data.username || '', avatar: data.avatarUrl || '' };
+    cacheAvatar(handle, rec);
+    return rec.avatar ? rec : null;
+  }
+
   // シェア（Misskey の投稿画面をプリフィルして開く。トークン不要で確実）
   function share(text) {
     const u = getUser();
@@ -105,5 +151,5 @@ const Misskey = (() => {
     window.open(url.toString(), '_blank', 'noopener');
   }
 
-  return { getUser, isLoggedIn, logout, handleOf, login, handleCallback, share, serverHost };
+  return { getUser, isLoggedIn, logout, handleOf, login, handleCallback, share, serverHost, lookupUser };
 })();

@@ -83,6 +83,8 @@ a { color: var(--cyan); }
 .burger span { display: block; width: 26px; height: 3px; background: var(--ink); border-radius: 2px; }
 
 /* ---------------- レイアウト ---------------- */
+/* hidden を付けたら必ず隠れるように（.btn などの display 指定に負けないため） */
+[hidden] { display: none !important; }
 .app { max-width: var(--wrap); margin: 0 auto; padding: 18px 16px 90px; }
 .card { background: var(--paper); border-radius: var(--radius); padding: 18px 16px; box-shadow: var(--shadow); margin-bottom: 16px; }
 .center { text-align: center; }
@@ -381,7 +383,13 @@ textarea.input { resize: vertical; min-height: 92px; }
 .acc-q { flex: 1; font-size: 14px; line-height: 1.5; }
 .acc-author { display: block; font-size: 10px; color: var(--muted); margin-top: 2px; }
 .acc-daily-tag { font-size: 10px; color: var(--muted); margin-right: 4px; }
-.acc-good { flex: none; font-family: var(--disp); font-weight: 700; font-size: 12px; white-space: nowrap; color: var(--muted); }
+.acc-good {
+  flex: none; display: flex; align-items: center; gap: 3px;
+  font-family: var(--disp); font-weight: 700; font-size: 12px; white-space: nowrap; color: var(--muted);
+}
+.acc-good .acc-ico { width: 13px; height: 13px; display: block; }
+.acc-good .acc-ico + span { margin-right: 4px; }
+.acc-good .acc-ico svg { width: 100%; height: 100%; display: block; }
 .acc-body { padding: 0 14px 16px; }
 .acc-item.open .acc-tri { transform: rotate(90deg); }
 
@@ -403,6 +411,11 @@ textarea.input { resize: vertical; min-height: 92px; }
 .comment-date { font-size: 10px; color: var(--muted); }
 .comment-body { font-size: 14px; line-height: 1.7; margin: 2px 0 0; white-space: pre-wrap; word-break: break-word; }
 .comment-form { display: flex; flex-direction: column; gap: 8px; margin: 10px 0 4px; }
+.comment-form-btns { display: flex; gap: 8px; }
+.comment-open { margin: 10px 0 4px; }
+
+/* 作成日・更新日（小さく） */
+.date-line { font-size: 10px; color: var(--muted); text-align: right; margin-top: 14px; }
 
 /* ---------------- ログインボーナス（スタンプカード） ---------------- */
 .modal { position: fixed; inset: 0; z-index: 90; display: none; }
@@ -503,10 +516,20 @@ textarea.input { resize: vertical; min-height: 92px; }
 .nc-item.nc-new { border-left: 4px solid var(--magenta); }
 .nc-q { font-size: 12px; color: var(--muted); margin: 0 0 8px; }
 .nc-badge-inline { background: var(--magenta); color: #fff; border-radius: 20px; font-size: 9px; font-weight: 900; padding: 1px 7px; }
+.nc-actions { display: flex; gap: 8px; margin-top: 8px; }
+.nc-actions .btn-plain { padding: 5px 14px; font-size: 11px; }
+.nc-actions .nc-del { color: var(--magenta); }
+.nc-done { font-size: 12px; color: var(--cyan); margin: 8px 0 0; }
+.nc-more-wrap:not(:empty) { margin-top: 14px; }
 
-/* コメントの種別（コメント／補足） */
-.comment-kind { font-family: var(--disp); font-weight: 700; font-size: 10px; padding: 1px 7px; border-radius: 20px; background: var(--panel); color: var(--muted); }
-.comment-kind.kind-supplement { background: #def6ff; color: var(--cyan); }
+/* 受信／送信タブ */
+.nc-tabs { display: flex; gap: 8px; margin-bottom: 14px; }
+.nc-tab {
+  flex: 1; border: 0; cursor: pointer; background: var(--panel); color: var(--muted);
+  font-family: var(--disp); font-weight: 700; font-size: 13px;
+  padding: 10px 0; border-radius: var(--radius);
+}
+.nc-tab.active { background: var(--navy); color: #fff; }
 
 /* 作問完了 */
 .done-actions { display: flex; flex-direction: column; gap: 10px; margin-top: 18px; }

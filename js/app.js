@@ -50,13 +50,36 @@ const WEEK_JP = ['日', '月', '火', '水', '木', '金', '土'];
  * 無い人は頭文字を表示する（画像が用意できるまでのつなぎ）。 */
 let profiles = {};   // { '@user@host': { name, avatar } }
 const AVATAR_TINT = ['#e4007f', '#2ea7e0', '#171c61', '#f0a500', '#7a5cc0', '#159a63'];
+
+// まだアイコンを知らない人は Misskey に問い合わせる（1人につき1回だけ）
+const _avatarJobs = {};
+function resolveAvatar(handle) {
+  if (!handle) return Promise.resolve('');
+  if (_avatarJobs[handle]) return _avatarJobs[handle];
+  return _avatarJobs[handle] = Misskey.lookupUser(handle).then(rec => {
+    if (!rec || !rec.avatar) return '';
+    profiles[handle] = { ...(profiles[handle] || {}), name: rec.name, avatar: rec.avatar };
+    Store.saveProfileRow(handle, rec.name, rec.avatar);  // 次からは全員がすぐ見られる
+    return rec.avatar;
+  }).catch(() => '');
+}
+
+function avatarImg(url, cls, handle, name) {
+  return h('img', { class: cls, src: url, alt: '', loading: 'lazy',
+    onerror: function () { this.replaceWith(avatarFallback(handle, name, cls.replace(/^avatar\s*/, ''))); } });
+}
+
 function avatarEl(handle, name, cls = '') {
   const p = profiles[handle] || {};
   const url = p.avatar || (user && Misskey.handleOf(user) === handle ? user.avatarUrl : '');
   const cn = ('avatar ' + cls).trim();
-  if (url) return h('img', { class: cn, src: url, alt: '', loading: 'lazy',
-    onerror: function () { this.replaceWith(avatarFallback(handle, name, cls)); } });
-  return avatarFallback(handle, name, cls);
+  if (url) return avatarImg(url, cn, handle, name);
+  // 頭文字を出しておいて、アイコンが取れたら差し替える
+  const fb = avatarFallback(handle, name, cls);
+  resolveAvatar(handle).then(u => {
+    if (u && fb.isConnected) fb.replaceWith(avatarImg(u, cn, handle, name));
+  });
+  return fb;
 }
 function avatarFallback(handle, name, cls = '') {
   const label = String(name || (handle || '').replace(/^@/, '') || '?').trim();
@@ -301,6 +324,7 @@ function openMenu() {
   items.push(menuItem('トップ', () => switchView('home')));
   items.push(menuItem('マイページ', () => (user ? switchView('mypage') : requireLogin('マイページはログインすると使えます'))));
   items.push(menuItem('新着コメント', () => (user ? switchView('new-comments') : requireLogin('ログインすると使えます')), newCommentCount));
+  items.push(menuItem('ランキング', () => switchView('ranking')));
   items.push(menuItem('作った問題', () => (user ? switchView('manage') : requireLogin('ログインすると使えます'))));
   items.push(menuItem('作問する', () => (user ? switchView('create') : requireLogin('作問はログインすると使えます'))));
 
@@ -367,6 +391,7 @@ function switchView(view) {
   else if (view === 'owner-correct') renderOwnerRanking(app, 'correct');
   else if (view === 'owner-funny') renderOwnerRanking(app, 'funny');
   else if (view === 'new-comments') renderNewComments(app);
+  else if (view === 'ranking') renderRanking(app);
   else if (view === 'wao') renderWao(app);
 }
 
@@ -679,15 +704,13 @@ function answerQuiz(i, grid, q) {
   reveal.appendChild(creditLine(q));
   // ♥/🤣 リアクション（この問題への評価）＋コメント
   const bar = reactionBar(q.id);
-  bar.appendChild(h('button', { class: 'btn-plain', onclick: () => {
-    const el = $('#quiz-comments'); if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-  } }, 'コメントする'));
   reveal.appendChild(bar);
-  // コメント欄
+  // コメント欄（記入欄は「コメントする」を押してから出る）
   const cWrap = h('div', { id: 'quiz-comments' });
   reveal.appendChild(cWrap);
   Store.listComments(q.id).then(comments => {
-    cWrap.appendChild(commentsBlock(q.id, comments.slice().reverse(), true)); // 新しい順
+    const block = commentsBlock(q.id, comments.slice().reverse(), true); // 新しい順
+    cWrap.appendChild(block);
   }).catch(() => {});
 
   // 次の問題へ（右下の丸ボタン）
@@ -809,7 +832,7 @@ function showResult() {
       const posBefore = 1 + list.filter((r, i) => i !== meIdx && r.points > before).length;
       const delta = posBefore - posNow; // 正なら上昇
       const arrow = delta > 0 ? `↑ ${delta}ランクUP！` : delta < 0 ? `↓ ${-delta}ランクDOWN` : '→ 変わらず';
-      rankSlot.appendChild(h('h3', { class: 'section-title' }, '// 総合ランキング'));
+      rankSlot.appendChild(h('h3', { class: 'section-title' }, '総合ランキング'));
       rankSlot.appendChild(h('p', { class: `rank-delta ${delta > 0 ? 'up' : delta < 0 ? 'down' : ''}` }, `${posBefore}位 → ${posNow}位　${arrow}`));
       rankSlot.appendChild(windowRankingList(list, r => `${r.points}pt`));
     })();
@@ -863,7 +886,6 @@ async function renderManage(app) {
   if (!user) return requireLogin();
   renderHeader({ title: '作問' });
 
-  app.appendChild(h('button', { class: 'btn btn-ink btn-block newq-btn', onclick: () => switchView('create') }, '＋ 新規作成'));
   app.appendChild(h('p', { class: 'hint' }, '自分が作った問題だけが表示されます。'));
 
   app.appendChild(categoryChips(manageFilter, k => { manageFilter = k; switchView('manage'); }));
@@ -881,7 +903,7 @@ async function renderManage(app) {
   catch (e) { slot.innerHTML = ''; slot.appendChild(errorBox(e)); return; }
 
   slot.innerHTML = '';
-  if (!list.length) { slot.appendChild(h('p', { class: 'muted center' }, 'まだ問題がありません。「新規作成」から作れます。')); return; }
+  if (!list.length) { slot.appendChild(h('p', { class: 'muted center' }, 'まだ問題がありません。メニューの「作問する」から作れます。')); return; }
   // 各問題の🤣/♥数をまとめて取得して見出しに表示
   const ids = list.map(q => q.id);
   const [goods, hearts] = await Promise.all([
@@ -948,8 +970,12 @@ function accRow(q, opts = {}) {
         ` Q. ${q.body}`,
         opts.showAuthor ? h('span', { class: 'acc-author' }, `作：${esc(q.created_by_name || q.created_by || '不明')}`) : null,
       ]),
-      typeof opts.good === 'number' ? h('span', { class: 'acc-good' },
-        `${CONFIG.goodEmoji}${opts.good}` + (typeof opts.heart === 'number' ? `　${CONFIG.heartEmoji}${opts.heart}` : '')) : null,
+      typeof opts.good === 'number' ? h('span', { class: 'acc-good' }, [
+        h('span', { class: 'acc-ico', html: ICONS.laugh(true) }),
+        h('span', {}, String(opts.good)),
+        typeof opts.heart === 'number' ? h('span', { class: 'acc-ico', html: ICONS.heart(true) }) : null,
+        typeof opts.heart === 'number' ? h('span', {}, String(opts.heart)) : null,
+      ]) : null,
     ]),
     body,
   ]);
@@ -961,9 +987,9 @@ async function toggleAcc(row, body, q) {
   if (!open) { body.innerHTML = ''; return; }
   body.innerHTML = '';
   body.appendChild(h('p', { class: 'muted center' }, '読み込み中…'));
-  let full, comments, hist;
+  let full, comments;
   try {
-    [full, comments, hist] = await Promise.all([Store.getQuestion(q.id), Store.listComments(q.id), Store.listHistory(q.id)]);
+    [full, comments] = await Promise.all([Store.getQuestion(q.id), Store.listComments(q.id)]);
   } catch (e) { body.innerHTML = ''; body.appendChild(errorBox(e)); return; }
 
   body.innerHTML = '';
@@ -973,7 +999,7 @@ async function toggleAcc(row, body, q) {
       [h('span', { class: 'choice-index' }, LETTERS[i]), h('span', {}, c),
        i === full.correct_index ? h('span', { class: 'correct-tag' }, '正解') : null]))));
   // 解答解説
-  body.appendChild(h('h3', { class: 'section-title' }, '// 解答解説'));
+  body.appendChild(h('h3', { class: 'section-title' }, '解答解説'));
   body.appendChild(h('p', { class: 'explain-body' }, full.explanation || '（解説はまだありません）'));
   if (full.link_url) body.appendChild(h('a', { class: 'explain-link', href: full.link_url, target: '_blank', rel: 'noopener' }, '🔗 参考リンクを開く'));
   // 編集・削除（作った本人のみ）
@@ -991,55 +1017,79 @@ async function toggleAcc(row, body, q) {
     });
     body.appendChild(h('div', { class: 'detail-actions' }, [
       h('button', { class: 'btn btn-ink btn-sm', onclick: () => renderCreate($('#app'), full) }, '✎ 編集する'),
+      h('button', { class: 'btn btn-sm', onclick: () => shareReviewQuestion(full) },
+        [h('span', { html: ICONS.share('#231815') }), document.createTextNode('シェア')]),
       delBtn,
     ]));
   } else {
+    body.appendChild(h('div', { class: 'detail-actions' }, [
+      h('button', { class: 'btn btn-sm', onclick: () => shareReviewQuestion(full) },
+        [h('span', { html: ICONS.share('#231815') }), document.createTextNode('シェア')]),
+    ]));
     body.appendChild(h('p', { class: 'owner-note' }, `※ 編集・削除は作成者（${esc(full.created_by_name || full.created_by || '不明')}さん）のみ可能です`));
   }
-  // コメント・補足
-  body.appendChild(h('h3', { class: 'section-title' }, '// コメント・補足'));
+  // コメント
+  body.appendChild(h('h3', { class: 'section-title' }, 'コメント'));
   body.appendChild(commentsBlock(q.id, comments));
-  // 編集履歴
-  body.appendChild(h('h3', { class: 'section-title' }, '// 編集履歴'));
-  body.appendChild(h('ul', { class: 'history' },
-    (hist.length ? hist.map(x => h('li', {}, `${fmtDate(x.created_at)}　${x.action === 'create' ? '作成' : '修正'}：${esc(x.actor_name || x.actor)}`))
-                 : [h('li', { class: 'muted' }, '履歴はまだありません')])));
-  body.appendChild(creditLine(full));
+  // 作成日・更新日だけを小さく
+  body.appendChild(dateLine(full));
+}
+
+/* ---------- 作成日・更新日（小さく表示） ---------- */
+function dateLine(q) {
+  const changed = q.updated_at && fmtDay(q.updated_at) !== fmtDay(q.created_at);
+  return h('div', { class: 'date-line' },
+    `作成日 ${fmtDay(q.created_at)}` + (changed ? `　更新日 ${fmtDay(q.updated_at)}` : ''));
 }
 
 /* ---------- コメント欄 ----------
- * formFirst: true なら「記入欄 → みんなのコメント一覧」の順で表示 */
+ * 記入欄は最初は隠しておき、「コメントする」を押したときに出す。
+ * formFirst: true なら記入欄を一覧の上に置く（クイズ直後など）。
+ * 戻り値の要素には openForm() が生えていて、外のボタンからも開ける。 */
 function commentsBlock(qid, comments, formFirst = false) {
   const listEl = h('div', { class: 'comment-list' },
     comments.length ? comments.map(renderComment) : [h('p', { class: 'comment-empty muted' }, 'まだありません。')]);
 
-  let form;
-  if (user) {
-    const input = h('textarea', { class: 'input', rows: '2', placeholder: 'コメントや補足を書く…' });
-    const kindSel = h('select', { class: 'input input-inline' }, [
-      h('option', { value: 'comment' }, 'コメント'), h('option', { value: 'supplement' }, '補足'),
-    ]);
+  const formSlot = h('div', { class: 'comment-form-slot' });
+  const openBtn = h('button', { class: 'btn btn-primary btn-sm comment-open' }, 'コメントする');
+  let open = false;
+
+  function openForm() {
+    if (open) return;
+    if (!user) return requireLogin('コメントはログインすると書けます');
+    open = true;
+    openBtn.hidden = true;
+
+    const input = h('textarea', { class: 'input', rows: '2', placeholder: 'コメントを書く…' });
     const send = h('button', { class: 'btn btn-primary btn-sm' }, '送信');
+    const cancel = h('button', { class: 'btn btn-ghost btn-sm', onclick: closeForm }, 'やめる');
     send.addEventListener('click', async () => {
       const b = input.value.trim(); if (!b) return;
       send.disabled = true;
       try {
-        const c = await Store.addComment(qid, kindSel.value, b, user);
-        input.value = ''; send.disabled = false;
+        const c = await Store.addComment(qid, b, user);
         const empty = listEl.querySelector('.comment-empty');
         if (empty) empty.remove();
         // 新しいコメントは一覧の一番上に追加（新しい順で見えるように）
         formFirst ? listEl.prepend(renderComment(c)) : listEl.appendChild(renderComment(c));
+        closeForm();
+        toast('コメントを送信しました', 'success');
       } catch (e) { send.disabled = false; toast(e.message || '送信に失敗', 'error'); }
     });
-    form = h('div', { class: 'comment-form' }, [kindSel, input, send]);
-  } else {
-    form = h('p', { class: 'hint' }, '※ コメントはログインすると書けます。');
+    formSlot.appendChild(h('div', { class: 'comment-form' }, [input, h('div', { class: 'comment-form-btns' }, [send, cancel])]));
+    input.focus();
   }
+  function closeForm() {
+    open = false; formSlot.innerHTML = ''; openBtn.hidden = false;
+  }
+  openBtn.addEventListener('click', openForm);
 
-  return formFirst
-    ? h('div', {}, [form, h('p', { class: 'comment-list-label muted' }, 'みんなのコメント'), listEl])
-    : h('div', {}, [listEl, form]);
+  const opener = user ? openBtn : h('p', { class: 'hint' }, '※ コメントはログインすると書けます。');
+  const wrap = formFirst
+    ? h('div', {}, [opener, formSlot, h('p', { class: 'comment-list-label muted' }, 'みんなのコメント'), listEl])
+    : h('div', {}, [listEl, opener, formSlot]);
+  wrap.openForm = openForm;
+  return wrap;
 }
 function renderComment(c) {
   return h('div', { class: 'comment' }, [
@@ -1048,7 +1098,6 @@ function renderComment(c) {
       h('div', { class: 'comment-head' }, [
         h('span', { class: 'comment-author' }, esc(c.author_name || c.author)),
         h('span', { class: 'comment-date' }, fmtDate(c.created_at)),
-        c.kind === 'supplement' ? h('span', { class: 'comment-kind kind-supplement' }, '補足') : null,
       ]),
       h('p', { class: 'comment-body' }, linkify(c.body)),
     ]),
@@ -1288,45 +1337,201 @@ function shareNewQuestion(p, isEdit = false) {
   Misskey.share(text);
 }
 
-/* ---------- 新着コメント（自分の問題に付いたコメント） ---------- */
+/* ---------- 新着コメント（受信＝自分の問題に付いた／送信＝自分が書いた） ----------
+ * 最初は5件だけ出し、続きは「もっと見る」で5件ずつ増やす。
+ * 受信には「返信」、送信には「編集」「削除」を付ける。 */
+let ncTab = 'in';        // 'in'＝受信 / 'out'＝送信
+const NC_PAGE = 5;
+
 async function renderNewComments(app) {
   if (!user) return requireLogin();
   renderHeader({ title: '新着コメント' });
   const seenBefore = localStorage.getItem('ocq_comments_seen') || '';
 
+  // タブ
+  const tabs = h('div', { class: 'nc-tabs' });
   const slot = h('div', {}, h('p', { class: 'muted center' }, '読み込み中…'));
+  const mkTab = (key, label) => h('button', {
+    class: 'nc-tab' + (ncTab === key ? ' active' : ''),
+    onclick: () => { if (ncTab === key) return; ncTab = key; switchView('new-comments'); },
+  }, label);
+  tabs.appendChild(mkTab('in', '受信'));
+  tabs.appendChild(mkTab('out', '送信'));
+  app.appendChild(tabs);
   app.appendChild(slot);
+
   if (!Store.isConfigured()) { slot.innerHTML = ''; return; }
 
   let list;
-  try { list = await Store.commentsOnMyQuestions(user); }
-  catch (e) { slot.innerHTML = ''; slot.appendChild(errorBox(e)); return; }
+  try {
+    list = ncTab === 'in' ? await Store.commentsOnMyQuestions(user) : await Store.myComments(user);
+  } catch (e) { slot.innerHTML = ''; slot.appendChild(errorBox(e)); return; }
   slot.innerHTML = '';
 
-  slot.appendChild(h('p', { class: 'hint', style: 'margin-bottom:10px' }, '自分が作った問題に付いたコメント・補足です。'));
-  if (!list.length) { slot.appendChild(h('p', { class: 'muted center' }, 'まだコメントはありません。')); }
-  else slot.appendChild(h('div', { class: 'nc-list' }, list.map(c => {
-    const isNew = c.created_at > seenBefore;
-    return h('div', { class: 'nc-item' + (isNew ? ' nc-new' : '') }, [
-      h('p', { class: 'nc-q' }, `Q. ${c.qbody || '（削除された問題）'}`),
-      h('div', { class: 'comment' }, [
-        avatarEl(c.author, c.author_name),
-        h('div', { class: 'comment-main' }, [
-          h('div', { class: 'comment-head' }, [
-            isNew ? h('span', { class: 'nc-badge-inline' }, 'NEW') : null,
-            h('span', { class: 'comment-author' }, esc(c.author_name || c.author)),
-            h('span', { class: 'comment-date' }, fmtDate(c.created_at)),
-            c.kind === 'supplement' ? h('span', { class: 'comment-kind kind-supplement' }, '補足') : null,
-          ]),
-          h('p', { class: 'comment-body' }, linkify(c.body)),
-        ]),
-      ]),
-    ]);
-  })));
+  slot.appendChild(h('p', { class: 'hint', style: 'margin-bottom:10px' },
+    ncTab === 'in' ? '自分が作った問題に付いたコメントです。' : '自分が書いたコメントです。'));
 
-  // 見たことにする → バッジを消す
-  localStorage.setItem('ocq_comments_seen', new Date().toISOString());
-  newCommentCount = 0; updateBurgerBadge();
+  if (!list.length) {
+    slot.appendChild(h('p', { class: 'muted center' },
+      ncTab === 'in' ? 'まだコメントはありません。' : 'まだコメントを書いていません。'));
+  } else {
+    const listEl = h('div', { class: 'nc-list' });
+    slot.appendChild(listEl);
+    let shown = 0;
+    const moreWrap = h('div', { class: 'nc-more-wrap' });
+    slot.appendChild(moreWrap);
+
+    const showMore = () => {
+      list.slice(shown, shown + NC_PAGE).forEach(c => listEl.appendChild(ncItem(c, seenBefore)));
+      shown = Math.min(shown + NC_PAGE, list.length);
+      moreWrap.innerHTML = '';
+      if (shown < list.length) {
+        moreWrap.appendChild(h('button', { class: 'btn btn-ghost btn-block nc-more', onclick: showMore },
+          `もっと見る（残り${list.length - shown}件）`));
+      }
+    };
+    showMore();
+  }
+
+  // 受信を見たら、バッジを消す
+  if (ncTab === 'in') {
+    localStorage.setItem('ocq_comments_seen', new Date().toISOString());
+    newCommentCount = 0; updateBurgerBadge();
+  }
+}
+
+// 新着コメントの1件（受信／送信でボタンが変わる）
+function ncItem(c, seenBefore) {
+  const isNew = ncTab === 'in' && c.created_at > seenBefore;
+  const bodyEl = h('p', { class: 'comment-body' }, linkify(c.body));
+  const actions = h('div', { class: 'nc-actions' });
+  const slot = h('div', { class: 'nc-slot' });
+
+  const item = h('div', { class: 'nc-item' + (isNew ? ' nc-new' : '') }, [
+    h('p', { class: 'nc-q' }, `Q. ${c.qbody || '（削除された問題）'}`),
+    h('div', { class: 'comment' }, [
+      avatarEl(c.author, c.author_name),
+      h('div', { class: 'comment-main' }, [
+        h('div', { class: 'comment-head' }, [
+          isNew ? h('span', { class: 'nc-badge-inline' }, 'NEW') : null,
+          h('span', { class: 'comment-author' }, esc(c.author_name || c.author)),
+          h('span', { class: 'comment-date' }, fmtDate(c.created_at)),
+        ]),
+        bodyEl,
+      ]),
+    ]),
+    actions, slot,
+  ]);
+
+  // 問題が消えているものは操作できない
+  if (!c.qbody) return item;
+
+  if (ncTab === 'in') {
+    actions.appendChild(h('button', { class: 'btn-plain', onclick: () => openReply(c, slot) }, '返信'));
+  } else {
+    actions.appendChild(h('button', { class: 'btn-plain', onclick: () => openEdit(c, slot, bodyEl) }, '編集'));
+    actions.appendChild(h('button', { class: 'btn-plain nc-del', onclick: () => removeComment(c, item) }, '削除'));
+  }
+  return item;
+}
+
+// 返信＝同じ問題に「@相手 …」でコメントを書く
+function openReply(c, slot) {
+  if (slot.dataset.open) { slot.innerHTML = ''; delete slot.dataset.open; return; }
+  slot.dataset.open = '1';
+  slot.innerHTML = '';
+  const to = (c.author_name || c.author || '').trim();
+  const input = h('textarea', { class: 'input', rows: '2', placeholder: '返信を書く…' }, `@${to} `);
+  const send = h('button', { class: 'btn btn-primary btn-sm' }, '返信する');
+  const cancel = h('button', { class: 'btn btn-ghost btn-sm', onclick: () => { slot.innerHTML = ''; delete slot.dataset.open; } }, 'やめる');
+  send.addEventListener('click', async () => {
+    const b = input.value.trim(); if (!b) return;
+    send.disabled = true;
+    try {
+      await Store.addComment(c.question_id, b, user);
+      slot.innerHTML = ''; delete slot.dataset.open;
+      slot.appendChild(h('p', { class: 'nc-done' }, '返信しました'));
+      toast('返信を送信しました', 'success');
+    } catch (e) { send.disabled = false; toast(e.message || '返信に失敗しました', 'error'); }
+  });
+  slot.appendChild(h('div', { class: 'comment-form' }, [input, h('div', { class: 'comment-form-btns' }, [send, cancel])]));
+  input.focus();
+}
+
+// 編集＝自分のコメントを書き直す
+function openEdit(c, slot, bodyEl) {
+  if (slot.dataset.open) { slot.innerHTML = ''; delete slot.dataset.open; return; }
+  slot.dataset.open = '1';
+  slot.innerHTML = '';
+  const input = h('textarea', { class: 'input', rows: '2' }, c.body);
+  const save = h('button', { class: 'btn btn-primary btn-sm' }, '保存');
+  const cancel = h('button', { class: 'btn btn-ghost btn-sm', onclick: () => { slot.innerHTML = ''; delete slot.dataset.open; } }, 'やめる');
+  save.addEventListener('click', async () => {
+    const b = input.value.trim(); if (!b) return;
+    save.disabled = true;
+    try {
+      const updated = await Store.updateComment(c.id, b, user);
+      c.body = updated.body;
+      bodyEl.innerHTML = '';
+      linkify(c.body).forEach(n => bodyEl.appendChild(typeof n === 'string' ? document.createTextNode(n) : n));
+      slot.innerHTML = ''; delete slot.dataset.open;
+      toast('コメントを更新しました', 'success');
+    } catch (e) { save.disabled = false; toast(e.message || '更新に失敗しました', 'error'); }
+  });
+  slot.appendChild(h('div', { class: 'comment-form' }, [input, h('div', { class: 'comment-form-btns' }, [save, cancel])]));
+  input.focus();
+}
+
+async function removeComment(c, item) {
+  if (!confirm('このコメントを削除します。よろしいですか？')) return;
+  try {
+    await Store.deleteComment(c.id, user);
+    item.remove();
+    toast('コメントを削除しました', 'success');
+  } catch (e) { toast(e.message || '削除に失敗しました', 'error'); }
+}
+
+/* ---------- ランキング（問題のランキング3種） ---------- */
+async function renderRanking(app) {
+  renderHeader({ title: 'ランキング' });
+  app.appendChild(h('h1', {}, 'ランキング'));
+
+  const slot = h('div', {}, h('p', { class: 'muted center', style: 'margin-top:16px' }, '読み込み中…'));
+  app.appendChild(slot);
+  if (!Store.isConfigured()) { slot.innerHTML = ''; return; }
+
+  let hearts, funny, hard;
+  try {
+    [hearts, funny, hard] = await Promise.all([
+      Store.heartRanking(5).catch(() => []),
+      Store.funnyRanking(5).catch(() => []),
+      Store.hardRanking(5).catch(() => []),
+    ]);
+  } catch (e) { slot.innerHTML = ''; slot.appendChild(errorBox(e)); return; }
+  slot.innerHTML = '';
+
+  // 問題のランキングを1ブロック描く
+  const block = (title, cap, rows, empty, valOf) => {
+    slot.appendChild(h('h3', { class: 'section-title' }, title));
+    slot.appendChild(h('p', { class: 'rank-cap' }, cap));
+    if (!rows || !rows.length) { slot.appendChild(h('p', { class: 'muted' }, empty)); return; }
+    slot.appendChild(h('div', { class: 'rank-panel' }, rows.map((x, i) =>
+      h('div', { class: 'rank-row' }, [
+        h('span', { class: 'rank-pos' }, String(i + 1)),
+        h('div', { class: 'rank-name', style: 'white-space:normal' }, [
+          h('div', {}, `Q. ${x.q.body}`),
+          h('div', { style: 'font-size:11px;color:var(--muted)' }, genreLabel(x.q)),
+        ]),
+        h('span', { class: 'rank-val' }, valOf(x)),
+      ]))));
+  };
+
+  block('いいねランキング', '♥ が多い問題 上位5', hearts,
+    'まだ「いいね」が付いた問題がありません。', x => String(x.count));
+  block('面白クイズランキング', 'うけるねが多い問題 上位5', funny,
+    'まだ「うけるね」が付いた問題がありません。', x => String(x.count));
+  block('難問ランキング', '正答率が低い問題 上位5（3回以上解かれた問題が対象）', hard,
+    'まだ集計できる問題がありません。', x => `${Math.round(x.rate * 100)}%`);
 }
 
 /* ---------- マイページ ---------- */
@@ -1347,13 +1552,12 @@ async function renderMyPage(app) {
   app.appendChild(slot);
 
   if (!Store.isConfigured()) { slot.innerHTML = ''; return; }
-  let results, recent, ranks, streak, total, funny;
+  let results, recent, ranks, streak, total;
   try {
-    [results, recent, ranks, streak, total, funny] = await Promise.all([
+    [results, recent, ranks, streak, total] = await Promise.all([
       Store.listMyResults(user, 5), Store.listRecentAnswers(user, 10), Store.ranking(),
       Store.getStreak(user, todayYMD()).catch(() => null),
       Store.totalRanking().catch(() => []),
-      Store.funnyRanking(5).catch(() => []),
     ]);
   } catch (e) {
     slot.innerHTML = '';
@@ -1399,20 +1603,6 @@ async function renderMyPage(app) {
   ]);
   two.appendChild(colA); two.appendChild(colB);
   slot.appendChild(two);
-
-  // ---- 面白クイズランキング（🤣が多い問題 上位5） ----
-  slot.appendChild(h('h3', { class: 'section-title' }, '面白クイズランキング'));
-  slot.appendChild(h('p', { class: 'rank-cap' }, 'うけるねが多い問題 上位5'));
-  if (!funny || !funny.length) slot.appendChild(h('p', { class: 'muted' }, 'まだ「うけるね」が付いた問題がありません。'));
-  else slot.appendChild(h('div', { class: 'rank-panel' }, funny.map((x, i) =>
-    h('div', { class: 'rank-row' }, [
-      h('span', { class: 'rank-pos' }, String(i + 1)),
-      h('div', { class: 'rank-name', style: 'white-space:normal' }, [
-        h('div', {}, `Q. ${x.q.body}`),
-        h('div', { style: 'font-size:11px;color:var(--muted)' }, genreLabel(x.q)),
-      ]),
-      h('span', { class: 'rank-val' }, `${x.count}`),
-    ]))));
 
   // ---- 直近に解いた10問の振り返り ----
   slot.appendChild(h('h3', { class: 'section-title' }, '履歴'));
@@ -1600,7 +1790,7 @@ function myPoints(total) {
   return me ? me.points : 0;
 }
 function breakdownLabels() {
-  return { login: 'ログイン', solve: '解答', correct: '正解', create: '作問', comment: 'コメント', commentReceived: '被コメント', goodGiven: `${CONFIG.goodEmoji}した`, goodReceived: `${CONFIG.goodEmoji}された` };
+  return { login: 'ログイン', solve: '解答', correct: '正解', create: '作問', comment: 'コメント', commentReceived: '被コメント', goodGiven: 'うけるねした', goodReceived: 'うけるねされた' };
 }
 function breakdownText(bd) {
   const L = breakdownLabels();

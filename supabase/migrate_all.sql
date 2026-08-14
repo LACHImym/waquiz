@@ -101,4 +101,9 @@ create policy "insert profiles" on profiles for insert with check (true);
 drop policy if exists "update profiles" on profiles;
 create policy "update profiles" on profiles for update using (true) with check (true);
 
+-- コメントの編集を許可（「新着コメント → 送信」から自分のコメントを書き直せるように）
+-- ※「自分のコメントだけ」の判定はアプリ側で行っています（認証が Misskey 側のため）
+drop policy if exists "update comments" on comments;
+create policy "update comments" on comments for update using (true) with check (true);
+
 -- ===== ここまで =====

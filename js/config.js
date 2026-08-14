@@ -14,14 +14,10 @@ window.QUIZ_CONFIG = {
 
   // アプリ名・タグライン（画面・シェア文に使われます）
   appName: 'みんなで WA 検定',
-  tagline: 'みんなで作ってみんなで解く4択クイズ',
+  tagline: 'オンラインコミュニティWAの４択クイズ',
 
   // 1回のクイズの出題数
   questionsPerQuiz: 5,
-
-  // リアクションボタンの絵文字（🤣＝面白い、♥＝好き）
-  goodEmoji: '🤣',
-  heartEmoji: '♥',
 
   // ログインに使う Misskey サーバー。
   // lockMisskeyHost を true にすると、このサーバー専用になります
@@ -33,9 +29,9 @@ window.QUIZ_CONFIG = {
   // color は 'yellow' / 'magenta' / 'cyan' / 'navy' から選択。
   // desc＝ホームの説明、guide＝作問時のガイドライン、stars＝難易度の星の数
   ranks: [
-    { key: 'beginner',     label: '入門編', color: 'yellow',  stars: 1, desc: '入会したての人へ',   guide: '公式・準公式に関するもの' },
-    { key: 'intermediate', label: '中級編', color: 'magenta', stars: 2, desc: '慣れてきた人へ',     guide: 'メンバー複数名が参加しておりAERUや配信アーカイブなどで情報が後からでも見返せるもの' },
-    { key: 'mania',        label: '上級編', color: 'cyan',    stars: 3, desc: '沼にハマりたい人へ', guide: '特定のメンバーに関するもの' },
+    { key: 'beginner',     label: '入門編', color: 'yellow',  stars: 1, desc: 'まずは腕試し', guide: '公式・準公式に関するもの' },
+    { key: 'intermediate', label: '中級編', color: 'magenta', stars: 2, desc: '慣れてきたら', guide: 'メンバー複数名が参加しておりAERUや配信アーカイブなどで情報が後からでも見返せるもの' },
+    { key: 'mania',        label: '上級編', color: 'cyan',    stars: 3, desc: 'ようこそ沼へ', guide: '特定のメンバーに関するもの' },
   ],
 
   // 本日の問題（その日限りのお題）。ストックがこの数「以下」だとグレーアウト。
@@ -68,7 +64,7 @@ window.QUIZ_CONFIG = {
     solve: 1,            // クイズを1問解く
     correct: 1,          // 正解ボーナス（正解した1問につき追加）
     create: 10,          // 作問（1問作る）
-    comment: 2,          // コメント・補足を書く
+    comment: 2,          // コメントを書く
     commentReceived: 3,  // 自分の問題にコメントが付く
     goodGiven: 1,        // 👍を押す
     goodReceived: 5,     // 自分の問題が👍される

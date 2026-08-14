@@ -22,11 +22,10 @@ create table if not exists questions (
   updated_at      timestamptz default now()
 );
 
--- ---- コメント / 補足 ----
+-- ---- コメント ----
 create table if not exists comments (
   id           uuid primary key default gen_random_uuid(),
   question_id  uuid references questions(id) on delete cascade,
-  kind         text not null default 'comment',        -- comment / supplement
   body         text not null,
   author       text not null,                           -- @user@host
   author_name  text,
@@ -127,6 +126,7 @@ create policy "read results"   on results   for select using (true);
 create policy "insert questions" on questions for insert with check (true);
 create policy "update questions" on questions for update using (true) with check (true);
 create policy "insert comments"  on comments  for insert with check (true);
+create policy "update comments"  on comments  for update using (true) with check (true);
 create policy "insert history"   on history   for insert with check (true);
 create policy "insert answers"   on answers   for insert with check (true);
 create policy "insert results"   on results   for insert with check (true);
