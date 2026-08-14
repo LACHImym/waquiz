@@ -126,6 +126,10 @@ h3 { font-family: var(--disp); font-weight: 700; font-size: 15px; margin: 0 0 6p
 }
 .streak-banner .sub { margin-left: auto; font-size: 10px; font-weight: 500; opacity: .9; }
 .streak-banner .ico { width: 15px; height: 17px; flex: none; }
+/* 押すとスタンプカードが開く */
+.streak-banner.is-tappable { cursor: pointer; }
+.streak-banner.is-tappable:hover { filter: brightness(1.08); }
+.streak-banner .go { flex: none; font-size: 17px; font-weight: 900; line-height: 1; margin-left: 8px; opacity: .9; }
 
 /* WA王決定戦バナー */
 .wao-banner {
@@ -444,6 +448,8 @@ textarea.input { resize: vertical; min-height: 92px; }
 .stamp-mark { position: absolute; inset: 0; display: grid; place-items: center; }
 /* 判子は縦横比がそれぞれ違うので、つぶさずに収める */
 .stamp-mark svg, .stamp-mark img { width: 100%; height: 100%; object-fit: contain; display: block; }
+/* 顔の判子は「検定」の判子より一回り小さく扱う */
+.stamp-cell:not(.is-bonus) .stamp-mark img { width: 84%; height: 84%; }
 /* 押した日は数字を薄くする（スタンプと重なって読めなくなるのを防ぐ） */
 .stamp-cell.is-stamped .stamp-num { opacity: .3; }
 

@@ -203,6 +203,20 @@ function isBonusDay(day) {
   return Store.loginPointsForDay(day) > (CONFIG.points.login || 0);
 }
 
+// 連続ログインのバナーを押したら、いつでもスタンプカードを開けるようにする
+function makeStampOpener(banner, streak) {
+  banner.classList.add('is-tappable');
+  banner.setAttribute('role', 'button');
+  banner.setAttribute('tabindex', '0');
+  banner.setAttribute('title', 'スタンプカードを見る');
+  banner.appendChild(h('span', { class: 'go' }, '›'));
+  const open = () => showStampCard(streak);
+  banner.addEventListener('click', open);
+  banner.addEventListener('keydown', e => {
+    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); open(); }
+  });
+}
+
 function showStampCard(streak) {
   const done = Math.max(0, (streak && streak.current) || 0);   // 連続何日目か＝押した数
   const page = done > 0 ? Math.floor((done - 1) / STAMP_CELLS) : 0;
@@ -499,6 +513,7 @@ function renderHome(app) {
         if (!s || !s.current) { banner.remove(); return; }
         $('#streak-txt').textContent = `${s.current}日 連続ログイン中！`;
         banner.appendChild(h('span', { class: 'sub' }, `最長${s.longest}日 / 累計${s.totalDays}日`));
+        makeStampOpener(banner, s);
       }).catch(() => banner.remove());
     }
   }
@@ -1572,13 +1587,15 @@ async function renderMyPage(app) {
   }
   slot.innerHTML = '';
 
-  // ---- 連続ログイン ----
+  // ---- 連続ログイン（押すとスタンプカードが開く） ----
   if (streak && streak.current) {
-    slot.appendChild(h('div', { class: 'streak-banner' }, [
+    const banner = h('div', { class: 'streak-banner' }, [
       h('span', { class: 'ico', html: ICONS.flag('#fff') }),
       h('span', {}, `${streak.current}日 連続ログイン中！`),
       h('span', { class: 'sub' }, `最長${streak.longest}日 / 累計${streak.totalDays}日`),
-    ]));
+    ]);
+    makeStampOpener(banner, streak);
+    slot.appendChild(banner);
   }
 
   // ---- 過去の成績 ----
