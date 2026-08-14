@@ -36,13 +36,30 @@ const linkify = text => {
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c =>
   ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const rankOf = key => CONFIG.ranks.find(r => r.key === key) || CONFIG.ranks[0];
-const COLOR = { yellow: '#f2c94e', red: '#d8261c', blue: '#1f4cd6', ink: '#1c1c1a' };
+// ブランドカラー（CSS の変数と同じ値）
+const COLOR = { yellow: '#ffd902', magenta: '#e4007f', cyan: '#2ea7e0', navy: '#171c61', ink: '#231815' };
 // 'daily' は特別カテゴリ。ランクと同じ関数で扱えるようにする。
 const colorKeyOf = key => key === 'daily' ? CONFIG.daily.color : rankOf(key).color;
 const rankLabel = key => key === 'daily' ? CONFIG.daily.label : rankOf(key).label;
 const rankColor = key => COLOR[colorKeyOf(key)] || COLOR.ink;
-const onAccent = key => colorKeyOf(key) === 'yellow' ? '#1c1c1a' : '#f7f3e8';
+const onAccent = key => colorKeyOf(key) === 'yellow' ? '#231815' : '#ffffff';
 const LETTERS = '1234';
+const WEEK_JP = ['日', '月', '火', '水', '木', '金', '土'];
+// 日付を n 日ずらす（'2026-08-24' → '2026-08-23'）
+const shiftYmdApp = (s, delta) => {
+  const [y, m, d] = s.split('-').map(Number);
+  const dt = new Date(y, m - 1, d); dt.setDate(dt.getDate() + delta);
+  return ymd(dt);
+};
+// 「8/14(金)」の形式
+const fmtMdW = s => {
+  if (!s) return '';
+  const [y, m, d] = s.split('-').map(Number);
+  return `${m}/${d}(${WEEK_JP[new Date(y, m - 1, d).getDay()]})`;
+};
+// 問題のジャンル表示（通常＝難易度名／本日の問題＝「8/14(金)の問題」）
+const genreLabel = q => q.scheduled_date ? `${fmtMdW(q.scheduled_date)}の問題` : rankLabel(q.rank);
+const genreColorKey = q => q.scheduled_date ? CONFIG.daily.color : colorKeyOf(q.rank);
 // 日付ユーティリティ（ブラウザのローカル日付＝日本時間）
 const pad2 = n => String(n).padStart(2, '0');
 const ymd = d => `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
@@ -118,12 +135,65 @@ async function loginBonus() {
   const key = 'ocq_bonus_' + todayYMD();
   if (localStorage.getItem(key)) return;
   localStorage.setItem(key, '1');
-  const streakTxt = s.current >= 2 ? `🔥 ${s.current}日連続ログイン中！` : '🔥 ログインボーナス！';
   const pts = Store.loginPointsForDay(s.current);
-  const msg = `${streakTxt}（＋${pts}pt）`;
-  toast(msg, 'success');
-  sessionStorage.setItem('ocq_bonus_home', msg); // トップ画面にも表示
+  toast(`ログインボーナス ＋${pts}pt`, 'success');
+  let days = [];
+  try { days = await Store.loginDays(user); } catch {}
+  showStampCard(days, s);
   if (currentView === 'home') renderHome($('#app'));
+}
+
+/* ---------- ログインボーナスのスタンプカード（30日） ---------- */
+function showStampCard(loginDays, streak) {
+  const total = 30;
+  const set = new Set(loginDays);
+  // 直近30日ぶんのマスを作る（今日が最後になるように並べる）
+  const cells = [];
+  for (let i = total - 1; i >= 0; i--) {
+    const d = new Date(); d.setDate(d.getDate() - i);
+    cells.push(ymd(d));
+  }
+  openModal(box => {
+    box.appendChild(h('h2', { class: 'modal-title' }, [
+      h('span', { html: ICONS.flag('#171c61') }),
+      document.createTextNode('ログインボーナス'),
+    ]));
+    box.appendChild(h('div', { class: 'stamp-lead' },
+      streak && streak.current >= 2 ? `${streak.current}日連続！ 明日も遊びにきてね` : '明日も遊びにきてね'));
+
+    const grid = h('div', { class: 'stamp-grid' });
+    cells.forEach((date, i) => {
+      const n = i + 1;
+      const isBonus = n % 5 === 0;                 // 5日ごとは大きめボーナス
+      const stamped = set.has(date);
+      const cell = h('div', { class: 'stamp-cell' + (isBonus ? ' is-bonus' : '') }, [
+        h('span', { class: 'stamp-num' }, String(n)),
+      ]);
+      if (stamped) {
+        cell.appendChild(h('span', { class: 'stamp-mark',
+          html: isBonus ? ICONS.stampBonus() : ICONS.stamp() }));
+      }
+      grid.appendChild(cell);
+    });
+    box.appendChild(grid);
+  });
+}
+
+/* ---------- モーダル ---------- */
+function openModal(build) {
+  const m = $('#modal');
+  m.innerHTML = '';
+  m.classList.add('open');
+  const box = h('div', { class: 'modal-box' });
+  box.appendChild(h('button', { class: 'modal-x', title: '閉じる', 'aria-label': '閉じる', onclick: closeModal }, '✕'));
+  build(box);
+  m.appendChild(h('div', { class: 'modal-veil', onclick: closeModal }));
+  m.appendChild(box);
+}
+function closeModal() {
+  const m = $('#modal');
+  m.classList.remove('open');
+  m.innerHTML = '';
 }
 
 /* ---------- 新着コメントの検知（バッジ用） ---------- */
@@ -135,12 +205,8 @@ function refreshNewComments() {
     updateBurgerBadge();
   }).catch(() => {});
 }
-function updateBurgerBadge() {
-  const el = $('#burger-badge');
-  if (!el) return;
-  el.textContent = newCommentCount > 0 ? String(newCommentCount) : '';
-  el.classList.toggle('hidden', !(newCommentCount > 0));
-}
+// 新着コメントの数はハンバーガーメニューの項目に出す（メニューを開いたときに反映）
+function updateBurgerBadge() { /* メニュー内のバッジで表示するため、ここでは何もしない */ }
 
 /* ---------- フッターの出題プール表示 ---------- */
 function updateFooterPool() {
@@ -156,28 +222,30 @@ function updateFooterPool() {
 function renderHeader(ctx = {}) {
   const header = $('#header');
   header.innerHTML = '';
-  header.style.borderBottomColor = ctx.color || COLOR.ink;
+  const inner = h('div', { class: 'header-in' });
 
-  const title = ctx.title
-    ? h('button', { class: 'screen-title', style: ctx.color ? `color:${ctx.color}` : '', onclick: () => switchView('home') }, ctx.title)
-    : h('button', { class: 'brand', onclick: () => switchView('home') }, [
-        h('span', { class: 'brand-mark' }, '◯△□'),
-        h('span', { class: 'brand-name' }, CONFIG.appName),
-      ]);
-  header.appendChild(title);
+  // 左：ロゴ（トップでは大きく出すのでヘッダーは小さめ）
+  // ロゴ画像がまだ無い場合は、アプリ名の文字を出す（画像を置けば自動で切り替わる）
+  const fallback = h('span', { class: 'brand-text' }, ctx.title || CONFIG.appName);
+  const logo = h('img', {
+    class: 'brand-logo', src: 'assets/logo.png', alt: CONFIG.appName,
+    onerror: function () { this.remove(); fallback.hidden = false; },
+    onload: function () { if (!ctx.title) fallback.hidden = true; },
+  });
+  fallback.hidden = false;
+  inner.appendChild(h('button', { class: 'brand', onclick: () => switchView('home') }, [logo, fallback]));
 
-  // 右上：アカウントアイコン＋ハンバーガー
-  const acct = h('div', { class: 'acct' });
+  // 右：アカウントアイコン＋ハンバーガー
+  const right = h('div', { class: 'header-right' });
   if (user) {
-    acct.appendChild(user.avatarUrl
-      ? h('img', { class: 'acct-icon', src: user.avatarUrl, alt: user.name, title: user.name })
-      : h('span', { class: 'acct-icon acct-blank', title: user.name }));
+    right.appendChild(user.avatarUrl
+      ? h('img', { class: 'avatar', src: user.avatarUrl, alt: user.name, title: user.name })
+      : h('span', { class: 'avatar', title: user.name }));
   }
-  acct.appendChild(h('button', { class: 'burger', title: 'メニュー', onclick: openMenu }, [
-    document.createTextNode('☰'),
-    h('span', { id: 'burger-badge', class: 'burger-badge' + (newCommentCount > 0 ? '' : ' hidden') }, newCommentCount > 0 ? String(newCommentCount) : ''),
-  ]));
-  header.appendChild(acct);
+  right.appendChild(h('button', { class: 'burger', title: 'メニュー', 'aria-label': 'メニュー', onclick: openMenu },
+    [h('span', {}), h('span', {}), h('span', {})]));
+  inner.appendChild(right);
+  header.appendChild(inner);
 }
 
 /* ---------- ハンバーガーメニュー ---------- */
@@ -190,7 +258,7 @@ function openMenu() {
   // ログイン情報
   if (user) {
     items.push(h('div', { class: 'menu-user' }, [
-      user.avatarUrl ? h('img', { class: 'menu-avatar', src: user.avatarUrl, alt: '' }) : h('span', { class: 'menu-avatar acct-blank' }),
+      user.avatarUrl ? h('img', { class: 'avatar avatar-lg', src: user.avatarUrl, alt: '' }) : h('span', { class: 'avatar avatar-lg' }),
       h('div', { class: 'menu-user-txt' }, [
         h('div', { class: 'menu-user-name' }, user.name),
         h('div', { class: 'menu-user-handle' }, Misskey.handleOf(user)),
@@ -270,6 +338,61 @@ function switchView(view) {
   else if (view === 'owner-correct') renderOwnerRanking(app, 'correct');
   else if (view === 'owner-funny') renderOwnerRanking(app, 'funny');
   else if (view === 'new-comments') renderNewComments(app);
+  else if (view === 'wao') renderWao(app);
+}
+
+/* ---------- WA王決定戦（1週間限定・ルール説明ページ） ---------- */
+// 「はじめる」を押すと最終確認 → 本番。ここは入口の2段構えの1段目。
+function renderWao(app) {
+  const w = CONFIG.waking || {};
+  if (!waoOpen()) { toast('WA王決定戦は準備中です', 'info'); return switchView('home'); }
+  if (!user) return requireLogin('WA王決定戦はログインすると挑戦できます');
+  renderHeader({ title: w.label });
+
+  app.appendChild(h('div', { class: 'wao-hero' },
+    h('img', { src: 'assets/wao-banner.png', alt: w.label })));
+
+  app.appendChild(h('p', { class: 'wao-period' }, `${fmtMdW(w.start)} 〜 ${fmtMdW(w.end)} 限定`));
+
+  const rules = h('div', { class: 'wao-rules' }, [
+    h('h2', {}, 'ルール'),
+    h('ul', {}, [
+      h('li', {}, [h('b', {}, '1回だけ'), h('span', {}, '挑戦できるのは、お一人さま1回きりです。')]),
+      h('li', {}, [h('b', {}, '中断不可'), h('span', {}, '途中でやめると、そこで終了になります。やり直しはできません。')]),
+      h('li', {}, [h('b', {}, '全問'), h('span', {}, `${fmtMdW(shiftYmdApp(w.cutoff, -1))}までに作られた問題から、全問をランダムな順番で出題します。`)]),
+      h('li', {}, [h('b', {}, '所要時間'), h('span', {}, `およそ ${w.minutes} 分かかります。時間に余裕のあるときにどうぞ。`)]),
+      h('li', {}, [h('b', {}, '結果'), h('span', {}, '点数・順位はその場では出ません。WA王は後日発表します。')]),
+      h('li', {}, [h('b', {}, '同点のとき'), h('span', {}, '正解数が同じ場合は、みんなが間違えた難しい問題を当てた人が上位になります。')]),
+    ]),
+  ]);
+  app.appendChild(rules);
+
+  app.appendChild(h('div', { class: 'wao-warn' },
+    '準備はいいですか？「挑戦する」を押すと本番がはじまります。' +
+    '途中で画面を閉じたり戻ったりすると、そこで終了になるのでご注意ください。'));
+
+  app.appendChild(h('button', { class: 'btn btn-primary btn-lg btn-block', onclick: confirmWaoStart }, '挑戦する'));
+  app.appendChild(h('div', { style: 'margin-top:14px;text-align:center' },
+    h('button', { class: 'btn btn-ghost', onclick: () => switchView('home') }, '← トップへ戻る')));
+}
+
+// 2段目：最終確認のポップアップ
+function confirmWaoStart() {
+  openModal(box => {
+    box.appendChild(h('h2', { class: 'modal-title' }, '本当にはじめますか？'));
+    box.appendChild(h('p', { class: 'hint', style: 'font-size:13px;text-align:center' },
+      '挑戦できるのは1回きりです。中断・再挑戦はできません。'));
+    box.appendChild(h('div', { style: 'display:flex;gap:10px;margin-top:18px' }, [
+      h('button', { class: 'btn btn-ghost', style: 'flex:1', onclick: closeModal }, 'やめておく'),
+      h('button', { class: 'btn btn-primary', style: 'flex:1', onclick: () => { closeModal(); startWao(); } }, 'はじめる'),
+    ]));
+  });
+}
+
+function startWao() {
+  // ※ 本番の出題ロジックは公開前に実装します（config.waking.enabled が false の間は入れません）
+  toast('WA王決定戦は現在準備中です', 'info');
+  switchView('home');
 }
 
 function requireLogin(msg) {
@@ -300,73 +423,127 @@ function renderSetupNotice() {
 /* ---------- トップ（本日の問題＋3難易度） ---------- */
 function renderHome(app) {
   renderHeader({});
-  app.appendChild(h('section', { class: 'home-hero' }, [
-    h('h1', { class: 'home-title' }, CONFIG.appName),
+
+  // --- ヒーロー（ロゴ＋タグライン＋連続ログイン） ---
+  const heroTxt = h('div', { class: 'home-hero-txt' }, [
+    h('h1', { class: 'home-h1' }, CONFIG.appName),
     h('p', { class: 'home-tagline' }, CONFIG.tagline),
+  ]);
+  if (user) {
+    const banner = h('div', { class: 'streak-banner' }, [
+      h('span', { class: 'ico', html: ICONS.flag('#fff') }),
+      h('span', { id: 'streak-txt' }, 'ログイン中！'),
+    ]);
+    heroTxt.appendChild(banner);
+    if (Store.isConfigured()) {
+      Store.getStreak(user, todayYMD()).then(s => {
+        if (!s || !s.current) { banner.remove(); return; }
+        $('#streak-txt').textContent = `${s.current}日 連続ログイン中！`;
+        banner.appendChild(h('span', { class: 'sub' }, `最長${s.longest}日 / 累計${s.totalDays}日`));
+      }).catch(() => banner.remove());
+    }
+  }
+  app.appendChild(h('section', { class: 'home-hero' }, [
+    // ロゴ画像が無いときは要素ごと外す → CSS で h1（アプリ名）が代わりに出る
+    h('img', { class: 'home-logo', src: 'assets/logo.png', alt: CONFIG.appName,
+               onerror: function () { this.remove(); } }),
+    heroTxt,
   ]));
 
-  const bonusMsg = sessionStorage.getItem('ocq_bonus_home');
-  if (user && bonusMsg) app.appendChild(h('div', { class: 'home-bonus' }, bonusMsg));
+  // --- WA王決定戦バナー（期間外は準備中でグレーアウト） ---
+  app.appendChild(waoBanner());
 
-  const blocks = h('div', { class: 'rank-blocks' });
+  // --- 本日の問題＋3難易度（2×2） ---
+  const grid = h('div', { class: 'rank-grid' });
+  const cards = {};
 
-  // --- 本日の問題（一番上） ---
-  const dLocked = !user; // ゲストは不可（ログイン誘導）
-  const dLabel = h('span', { class: 'rank-block-label' }, [CONFIG.daily.label, dLocked ? h('span', { class: 'lock' }, ' 🔒') : null]);
-  const dBlock = h('button', { class: `rank-block clr-${CONFIG.daily.color}` + (dLocked ? ' locked' : '') }, [dLabel]);
-  const dDesc = h('p', { class: 'rank-block-desc' }, CONFIG.daily.desc);
-  const dWrap = h('div', { class: 'rank-block-wrap' }, [dBlock, dDesc]);
-  blocks.appendChild(dWrap);
+  // 本日の問題
+  const dLocked = !user;
+  const dCard = h('button', { class: `rank-card c-${CONFIG.daily.color}` + (dLocked ? ' is-locked' : '') }, [
+    h('span', { class: 'mega', html: ICONS.megaphone('#fff') }),
+    h('span', { class: 'name' }, [CONFIG.daily.label, dLocked ? h('span', { class: 'lock' }, ' 🔒') : null]),
+    h('span', { class: 'desc' }, CONFIG.daily.desc),
+  ]);
+  const dDesc = dCard.querySelector('.desc');
+  grid.appendChild(dCard);
 
-  // 本日の問題は在庫を確認して出し分け
   if (dLocked) {
-    dBlock.onclick = () => requireLogin('本日の問題はログインすると挑戦できます');
+    dCard.onclick = () => requireLogin('本日の問題はログインすると挑戦できます');
   } else if (Store.isConfigured()) {
-    dBlock.disabled = true;
+    dCard.disabled = true;
     Store.countDaily(todayYMD()).then(cnt => {
+      dCard.disabled = false;
       if (cnt <= CONFIG.daily.minStock) {
-        dWrap.classList.add('daily-empty');
+        dCard.classList.add('daily-empty');
         dDesc.textContent = '問題が揃っていません';
-        dBlock.onclick = () => toast('本日の問題はまだ準備中です（4問以上で公開）', 'info');
-        dBlock.disabled = false;
+        dCard.onclick = () => toast('本日の問題はまだ準備中です（4問以上で公開）', 'info');
       } else {
-        dBlock.disabled = false;
-        dBlock.onclick = () => startQuiz('daily');
+        dCard.onclick = () => startQuiz('daily');
       }
-    }).catch(() => { dBlock.disabled = false; });
+    }).catch(() => { dCard.disabled = false; });
   }
 
-  // --- 3難易度 ---
-  const rankBlocks = {};
+  // 3難易度（星つき）
   CONFIG.ranks.forEach(r => {
     const locked = !user && r.key !== 'beginner';
-    const block = h('button', {
-      class: `rank-block clr-${r.color}` + (locked ? ' locked' : ''),
+    const starColor = r.color === 'yellow' ? '#231815' : '#fff';
+    const card = h('button', {
+      class: `rank-card c-${r.color}` + (locked ? ' is-locked' : ''),
       onclick: () => locked ? requireLogin('中級・上級はログインすると挑戦できます') : startQuiz(r.key),
     }, [
-      h('span', { class: 'rank-block-label' }, [r.label, locked ? h('span', { class: 'lock' }, ' 🔒') : null]),
+      h('span', { class: 'stars', html: Array.from({ length: r.stars || 1 }, () => ICONS.star(starColor)).join('') }),
+      h('span', { class: 'name' }, [r.label, locked ? h('span', { class: 'lock' }, ' 🔒') : null]),
+      h('span', { class: 'desc' }, r.desc),
     ]);
-    rankBlocks[r.key] = block;
-    blocks.appendChild(h('div', { class: 'rank-block-wrap' }, [block, h('p', { class: 'rank-block-desc' }, r.desc)]));
+    cards[r.key] = card;
+    grid.appendChild(card);
   });
-  app.appendChild(blocks);
+  app.appendChild(grid);
 
-  // 作問する（ログイン必須。ゲストはログインへ誘導）
-  app.appendChild(h('div', { class: 'home-create' },
-    h('button', { class: 'btn btn-ink btn-block',
-      onclick: () => user ? switchView('create') : requireLogin('作問するにはログインが必要です') },
-      '＋ 作問する')));
+  // --- 問題をつくる（黒バー） ---
+  app.appendChild(h('button', {
+    class: 'create-bar',
+    onclick: () => user ? switchView('create') : requireLogin('作問するにはログインが必要です'),
+  }, [
+    h('span', { class: 'plus' }, '＋'),
+    h('span', {}, '問題をつくる'),
+    h('span', { class: 'note' }, 'ボーナス・ポイント GET'),
+    h('span', { class: 'pen', html: ICONS.pen('#fff') }),
+  ]));
 
   // NEW バッジ：前回訪問以降に作られた問題があるランクに付ける（初回ログインは付けない）
   if (user && newSinceTs && Store.isConfigured()) {
     Store.newestByRank().then(m => {
       CONFIG.ranks.forEach(r => {
-        if (m[r.key] && m[r.key] > newSinceTs && rankBlocks[r.key]) {
-          rankBlocks[r.key].appendChild(h('span', { class: 'new-badge' }, 'NEW'));
+        if (m[r.key] && m[r.key] > newSinceTs && cards[r.key]) {
+          cards[r.key].appendChild(h('span', { class: 'new-badge' }, 'NEW'));
         }
       });
     }).catch(() => {});
   }
+}
+
+/* ---------- WA王決定戦バナー ---------- */
+// 期間内（config.waking.enabled かつ start〜end）だけ入れる。
+// それ以外は「準備中」でグレーアウトし、押しても入れない。
+function waoOpen() {
+  const w = CONFIG.waking || {};
+  if (!w.enabled) return false;
+  const t = todayYMD();
+  return (!w.start || t >= w.start) && (!w.end || t <= w.end);
+}
+function waoBanner() {
+  const open = waoOpen();
+  const btn = h('button', {
+    class: 'wao-banner' + (open ? '' : ' is-locked'),
+    disabled: open ? undefined : 'disabled',
+    title: open ? CONFIG.waking.label : '準備中です',
+    onclick: () => open ? switchView('wao') : null,
+  }, [
+    h('img', { src: 'assets/wao-banner.png', alt: (CONFIG.waking && CONFIG.waking.label) || 'WA王決定戦' }),
+    open ? h('span', { class: 'go' }, '›') : h('span', { class: 'wao-lock' }, '準備中'),
+  ]);
+  return btn;
 }
 
 /* ---------- クイズ開始（全5問） ---------- */
@@ -434,6 +611,8 @@ function renderQuiz() {
 
   quiz.answered = false;
   const card = h('section', { class: 'card quiz-card' }, [
+    // 出題ジャンル（入門編／8/14(金)の問題 など）
+    h('div', {}, h('span', { class: `cat-tag c-${genreColorKey(q)}` }, genreLabel(q))),
     h('h2', { class: 'q-title' }, [h('span', { class: 'q-mark' }, 'Q.'), ' ', q.body]),
     grid,
     h('div', { id: 'reveal' }),
@@ -465,23 +644,28 @@ function answerQuiz(i, grid, q) {
   reveal.appendChild(h('div', { class: 'explain' }, [
     h('div', { class: 'explain-head' }, i === correct ? '正解！' : '不正解'),
     h('p', {}, q.explanation ? q.explanation : '（解説はまだありません）'),
-    q.link_url ? h('a', { class: 'explain-link', href: q.link_url, target: '_blank', rel: 'noopener' }, '🔗 参考リンクを開く') : null,
+    q.link_url ? h('a', { class: 'explain-link', href: q.link_url, target: '_blank', rel: 'noopener' },
+      [h('span', { html: ICONS.link() }), document.createTextNode('リンク')]) : null,
   ]));
-  // 🤣/♥ リアクション（この問題への評価）
-  reveal.appendChild(reactionBar(q.id));
-
-  reveal.appendChild(h('div', { class: 'quiz-actions' }, [
-    h('button', { class: 'btn btn-primary btn-block', onclick: () => nextQuiz() }, isLast ? '結果を見る →' : '次の問題へ →'),
-  ]));
-  // コメント：記入欄 → みんなのコメント（次へボタンの下）
-  const cWrap = h('div', { class: 'quiz-comments' });
+  reveal.appendChild(creditLine(q));
+  // ♥/🤣 リアクション（この問題への評価）＋コメント
+  const bar = reactionBar(q.id);
+  bar.appendChild(h('button', { class: 'btn-plain', onclick: () => {
+    const el = $('#quiz-comments'); if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  } }, 'コメントする'));
+  reveal.appendChild(bar);
+  // コメント欄
+  const cWrap = h('div', { id: 'quiz-comments' });
   reveal.appendChild(cWrap);
   Store.listComments(q.id).then(comments => {
-    cWrap.appendChild(h('h3', { class: 'section-title' }, '// コメント'));
     cWrap.appendChild(commentsBlock(q.id, comments.slice().reverse(), true)); // 新しい順
   }).catch(() => {});
 
-  reveal.appendChild(creditLine(q));
+  // 次の問題へ（右下の丸ボタン）
+  reveal.appendChild(h('div', { class: 'quiz-next' }, [
+    h('span', {}, isLast ? '結果を見る' : '次の問題へ'),
+    h('button', { class: 'next-circle', title: isLast ? '結果を見る' : '次の問題へ', onclick: () => nextQuiz() }, '›'),
+  ]));
   reveal.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 }
 
@@ -491,37 +675,47 @@ function nextQuiz() {
   renderQuiz();
 }
 
-// 🤣（面白い）と ♥（好き）の2つのリアクションを並べたバー
-function reactionBar(questionId) {
-  return h('div', { class: 'reaction-bar' }, [
-    reactionButton(questionId, 'funny', CONFIG.goodEmoji),
-    reactionButton(questionId, 'heart', CONFIG.heartEmoji),
+// ♥（いいね）と 🤣（うけるね）の2つのリアクションを並べたバー
+function reactionBar(questionId, small = false) {
+  return h('div', { class: 'react-row' + (small ? ' rv-btns' : '') }, [
+    reactionButton(questionId, 'heart', small),
+    reactionButton(questionId, 'funny', small),
   ]);
 }
 
-// リアクションボタン（押すと即座に数が増える）。kind: 'funny'（🤣）/ 'heart'（♥）
-function reactionButton(questionId, kind, emoji) {
-  const label = h('span', { class: 'good-count' }, '…');
-  const btn = h('button', { class: `good-btn good-${kind}`, onclick: onClick }, [h('span', {}, emoji), label]);
+// リアクションボタン（押すと即座に数が増える）。kind: 'heart'（♥）/ 'funny'（🤣うけるね）
+function reactionButton(questionId, kind, small = false) {
+  const isHeart = kind === 'heart';
+  const name = isHeart ? 'いいね' : 'うけるね';
+  const label = h('span', { class: 'react-count' }, '…');
+  const ico = h('span', { class: 'react-ico', html: isHeart ? ICONS.heart(false) : ICONS.laugh(false) });
+  const btn = h('button', {
+    class: `react-btn ${isHeart ? 'r-heart' : 'r-laugh'}`, title: name, onclick: onClick,
+  }, [ico, label]);
+
   let count = 0, on = false, busy = false;
+  const paint = () => {
+    btn.classList.toggle('is-on', on);
+    ico.innerHTML = isHeart ? ICONS.heart(on) : ICONS.laugh(on);
+  };
   if (Store.isConfigured()) {
     Store.goodCount(questionId, kind).then(c => { count = c; label.textContent = c; }).catch(() => { label.textContent = '0'; });
-    Store.hasGood(questionId, user, kind).then(v => { on = v; btn.classList.toggle('on', on); }).catch(() => {});
+    Store.hasGood(questionId, user, kind).then(v => { on = v; paint(); }).catch(() => {});
   } else { label.textContent = ''; }
 
   async function onClick() {
-    if (!user) return requireLogin(`${emoji}はログインすると押せます`);
+    if (!user) return requireLogin(`${name}はログインすると押せます`);
     if (busy) return; busy = true;
     // 押した瞬間に反映（楽観的更新）
     const wentOn = !on;
-    on = wentOn; count += wentOn ? 1 : -1; label.textContent = count; btn.classList.toggle('on', on);
+    on = wentOn; count += wentOn ? 1 : -1; label.textContent = count; paint();
     try {
       const serverOn = await Store.toggleGood(questionId, user, kind);
-      if (serverOn !== on) { on = serverOn; btn.classList.toggle('on', on); } // サーバーとズレたら合わせる
+      if (serverOn !== on) { on = serverOn; paint(); } // サーバーとズレたら合わせる
     } catch (e) {
       // 失敗：見た目を元に戻して原因を案内
-      on = !wentOn; count += wentOn ? -1 : 1; label.textContent = count; btn.classList.toggle('on', on);
-      toast(`${emoji}を保存できませんでした。DBの設定（supabase/migrate_all.sql）を実行してください。`, 'error');
+      on = !wentOn; count += wentOn ? -1 : 1; label.textContent = count; paint();
+      toast(`${name}を保存できませんでした。DBの設定（supabase/migrate_all.sql）を実行してください。`, 'error');
     }
     busy = false;
   }
@@ -539,11 +733,10 @@ function showResult() {
 
   const app = $('#app'); app.innerHTML = '';
   const R = 54, C = 2 * Math.PI * R;
-  const ring = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
   const svg = `
     <svg class="donut" viewBox="0 0 140 140">
-      <circle cx="70" cy="70" r="${R}" fill="none" stroke="#e6e0d0" stroke-width="16"/>
-      <circle id="ring" cx="70" cy="70" r="${R}" fill="none" stroke="${color}" stroke-width="16"
+      <circle cx="70" cy="70" r="${R}" fill="none" stroke="#dcdddd" stroke-width="18"/>
+      <circle id="ring" cx="70" cy="70" r="${R}" fill="none" stroke="${color}" stroke-width="18"
         stroke-linecap="butt" transform="rotate(-90 70 70)"
         stroke-dasharray="${C}" stroke-dashoffset="${C}" style="transition:stroke-dashoffset 1s ease"/>
     </svg>`;
@@ -555,12 +748,15 @@ function showResult() {
 
   const rankSlot = h('div', { class: 'result-rank' });
   app.appendChild(h('section', { class: 'result-wrap' }, [
+    h('div', { style: 'text-align:left' },
+      h('span', { class: `cat-tag c-${colorKeyOf(quiz.rank)}` }, rankLabel(quiz.rank))),
     donutWrap,
     h('p', { class: 'result-line' }, oneLiner(pct)),
     h('div', { class: 'result-actions' }, [
-      h('button', { class: `btn clr-${rankOf(quiz.rank).color} share-btn`, onclick: () => shareResult(pct) }, '⤴ シェア'),
-      h('button', { class: 'btn', onclick: () => startQuiz(quiz.rank) }, '再挑戦する'),
-      user ? h('button', { class: 'btn btn-ghost', onclick: () => switchView('mypage') }, 'マイページへ') : null,
+      h('button', { class: 'btn btn-primary', onclick: () => shareResult(pct) },
+        [h('span', { html: ICONS.share('#fff') }), document.createTextNode('シェア')]),
+      h('button', { class: 'btn', onclick: () => startQuiz(quiz.rank) }, '再挑戦'),
+      user ? h('button', { class: 'btn', onclick: () => switchView('mypage') }, 'マイページ') : null,
     ]),
     rankSlot,
   ]));
@@ -850,7 +1046,7 @@ function renderCreate(app, editing = null) {
     radio.addEventListener('change', onCatChange);
     return h('label', { class: 'cat-item' }, [
       h('span', { class: 'radio-wrap' }, [radio, h('span', { class: 'radio-dot' })]),
-      h('span', { class: `cat-chip clr-${c.color}` }, c.label),
+      h('span', { class: 'cat-name', style: `color:${COLOR[c.color] || COLOR.ink}` }, c.label),
       h('span', { class: 'cat-guide' }, c.guide),
     ]);
   }));
@@ -1101,11 +1297,12 @@ async function renderMyPage(app) {
   if (!user) return requireLogin('マイページはログインすると使えます');
   renderHeader({ title: 'マイページ' });
 
-  app.appendChild(h('div', { class: 'menu-user mypage-user' }, [
-    user.avatarUrl ? h('img', { class: 'menu-avatar', src: user.avatarUrl, alt: '' }) : h('span', { class: 'menu-avatar acct-blank' }),
-    h('div', { class: 'menu-user-txt' }, [
-      h('div', { class: 'menu-user-name' }, user.name + (isOwnerAccount() ? ' 👑' : '')),
-      h('div', { class: 'menu-user-handle' }, Misskey.handleOf(user)),
+  app.appendChild(h('h1', {}, 'マイページ'));
+  app.appendChild(h('div', { class: 'me-row' }, [
+    user.avatarUrl ? h('img', { class: 'avatar avatar-lg', src: user.avatarUrl, alt: '' }) : h('span', { class: 'avatar avatar-lg' }),
+    h('div', {}, [
+      h('div', { class: 'me-name' }, user.name + (isOwnerAccount() ? ' 👑' : '')),
+      h('div', { class: 'me-handle' }, Misskey.handleOf(user)),
     ]),
   ]));
 
@@ -1130,64 +1327,66 @@ async function renderMyPage(app) {
   slot.innerHTML = '';
 
   // ---- 連続ログイン ----
-  if (streak) {
-    slot.appendChild(h('div', { class: 'streak-box' }, [
-      h('div', { class: 'streak-flame' }, '🔥'),
-      h('div', {}, [
-        h('div', { class: 'streak-cur' }, `${streak.current}日連続ログイン中`),
-        h('div', { class: 'streak-sub muted' }, `最長 ${streak.longest}日 ・ 累計 ${streak.totalDays}日`),
-      ]),
+  if (streak && streak.current) {
+    slot.appendChild(h('div', { class: 'streak-banner' }, [
+      h('span', { class: 'ico', html: ICONS.flag('#fff') }),
+      h('span', {}, `${streak.current}日 連続ログイン中！`),
+      h('span', { class: 'sub' }, `最長${streak.longest}日 / 累計${streak.totalDays}日`),
     ]));
   }
 
   // ---- 過去の成績 ----
-  slot.appendChild(h('h3', { class: 'section-title' }, '// 過去の成績'));
+  slot.appendChild(h('h3', { class: 'section-title' }, '過去の成績'));
   if (!results.length) slot.appendChild(h('p', { class: 'muted' }, 'まだ記録がありません。クイズに挑戦してみよう！'));
-  else slot.appendChild(h('ul', { class: 'score-list' }, results.map(r => {
+  else slot.appendChild(h('div', { class: 'score-list' }, results.map(r => {
     const pct = r.total ? Math.round(r.correct / r.total * 100) : 0;
-    return h('li', { class: 'score-row' }, [
-      h('span', { class: 'score-rank', style: `background:${rankColor(r.rank)};color:${rankOf(r.rank).color === 'yellow' ? '#1c1c1a' : '#f7f3e8'}` }, rankLabel(r.rank)),
-      h('span', { class: 'score-val' }, `${r.correct}/${r.total}問（${pct}%）`),
-      h('span', { class: 'score-date muted' }, fmtDay(r.created_at)),
+    return h('div', { class: 'score-row' }, [
+      h('span', { class: `cat-tag sm c-${colorKeyOf(r.rank)}` }, rankLabel(r.rank)),
+      h('span', { class: 'score-main' }, `${r.correct}/${r.total}問（${pct}%）`),
+      h('span', { class: 'score-date' }, fmtDay(r.created_at)),
     ]);
   })));
 
-  // ---- 総合ランキング（自分と前後2名） ----
-  slot.appendChild(h('h3', { class: 'section-title' }, '// 総合ランキング'));
-  slot.appendChild(h('p', { class: 'hint', style: 'margin-bottom:8px' }, `ログイン・作問・解答・コメント・${CONFIG.goodEmoji}などの合計ポイント。自分と前後2名を表示。`));
-  slot.appendChild(windowRankingList(total, r => `${r.points}pt`));
-  if (myPoints(total)) slot.appendChild(h('p', { class: 'points-breakdown muted' }, myPointsBreakdown(total)));
-
-  // ---- 正答数ランキング（自分と前後2名） ----
-  slot.appendChild(h('h3', { class: 'section-title' }, '// 正答数ランキング'));
-  slot.appendChild(h('p', { class: 'hint', style: 'margin-bottom:8px' }, '正解数の合計。自分と前後2名を表示。'));
-  slot.appendChild(windowRankingList(ranks, r => `${r.correct}問正解`));
+  // ---- ランキング（2列） ----
+  const two = h('div', { class: 'rank-two' });
+  const colA = h('div', {}, [
+    h('h3', { class: 'section-title', style: 'margin-top:0' }, '総合ランキング'),
+    h('p', { class: 'rank-cap' }, `ログイン(1) ログインボーナス(+5) コメント(2) 問題をつくる(10) イベントボーナス(+100) など`),
+    windowRankingList(total, r => `${r.points}pt`),
+  ]);
+  if (myPoints(total)) colA.appendChild(h('p', { class: 'rank-cap', style: 'margin-top:6px' }, myPointsBreakdown(total)));
+  const colB = h('div', {}, [
+    h('h3', { class: 'section-title', style: 'margin-top:0' }, '正答数ランキング'),
+    h('p', { class: 'rank-cap' }, '正答数の合計'),
+    windowRankingList(ranks, r => `${r.correct}問`),
+  ]);
+  two.appendChild(colA); two.appendChild(colB);
+  slot.appendChild(two);
 
   // ---- 面白クイズランキング（🤣が多い問題 上位5） ----
-  slot.appendChild(h('h3', { class: 'section-title' }, `// 面白クイズランキング`));
-  slot.appendChild(h('p', { class: 'hint', style: 'margin-bottom:8px' }, `${CONFIG.goodEmoji}が多い問題 上位5。`));
-  if (!funny || !funny.length) slot.appendChild(h('p', { class: 'muted' }, `まだ${CONFIG.goodEmoji}が付いた問題がありません。`));
-  else slot.appendChild(h('ol', { class: 'funny-list' }, funny.map((x, i) => {
-    const isDaily = !!x.q.scheduled_date;
-    return h('li', { class: 'funny-row' }, [
-      h('span', { class: 'funny-pos' }, String(i + 1)),
-      h('div', { class: 'funny-txt' }, [
-        h('p', { class: 'funny-q' }, `Q. ${x.q.body}`),
-        h('p', { class: 'funny-meta muted' }, `${isDaily ? CONFIG.daily.label : rankLabel(x.q.rank)}`),
+  slot.appendChild(h('h3', { class: 'section-title' }, '面白クイズランキング'));
+  slot.appendChild(h('p', { class: 'rank-cap' }, 'うけるねが多い問題 上位5'));
+  if (!funny || !funny.length) slot.appendChild(h('p', { class: 'muted' }, 'まだ「うけるね」が付いた問題がありません。'));
+  else slot.appendChild(h('div', { class: 'rank-panel' }, funny.map((x, i) =>
+    h('div', { class: 'rank-row' }, [
+      h('span', { class: 'rank-pos' }, String(i + 1)),
+      h('div', { class: 'rank-name', style: 'white-space:normal' }, [
+        h('div', {}, `Q. ${x.q.body}`),
+        h('div', { style: 'font-size:11px;color:var(--muted)' }, genreLabel(x.q)),
       ]),
-      h('span', { class: 'funny-count' }, `${CONFIG.goodEmoji}${x.count}`),
-    ]);
-  })));
+      h('span', { class: 'rank-val' }, `${x.count}`),
+    ]))));
 
   // ---- 直近に解いた10問の振り返り ----
-  slot.appendChild(h('h3', { class: 'section-title' }, '// 直近に解いた10問の振り返り'));
+  slot.appendChild(h('h3', { class: 'section-title' }, '履歴'));
+  slot.appendChild(h('p', { class: 'rank-cap' }, '直近に解いた10問の振り返り。'));
   if (!recent.length) slot.appendChild(h('p', { class: 'muted' }, 'まだ解答がありません。'));
-  else slot.appendChild(h('div', { class: 'review-list' }, recent.map(a => {
+  else slot.appendChild(h('div', {}, recent.map(a => {
     const q = a.questions;
-    const cSlot = h('div', { class: 'review-cslot' });
+    const cSlot = h('div', {});
     let cOpen = false;
     const cBtn = q ? h('button', {
-      class: 'icon-btn', title: 'この問題にコメントする',
+      class: 'btn-plain', title: 'この問題にコメントする',
       onclick: async () => {
         cOpen = !cOpen;
         if (!cOpen) { cSlot.innerHTML = ''; return; }
@@ -1199,20 +1398,22 @@ async function renderMyPage(app) {
           cSlot.appendChild(commentsBlock(a.question_id, cs.slice().reverse(), true));
         } catch (e) { cSlot.innerHTML = ''; cSlot.appendChild(h('p', { class: 'muted' }, '読み込みに失敗しました')); }
       },
-    }, '💬') : null;
-    const linkBtn = (q && q.link_url) ? h('a', { class: 'icon-btn', href: q.link_url, target: '_blank', rel: 'noopener', title: '参考リンクを開く' }, '🔗') : null;
-    const shareBtn = q ? h('button', { class: 'icon-btn', title: 'この問題をシェア', onclick: () => shareReviewQuestion(q) }, '⤴') : null;
-    return h('div', { class: 'review-row-wrap' }, [
-      h('div', { class: 'review-row' }, [
-        h('span', { class: 'review-mark ' + (a.is_correct ? 'ok' : 'ng') }, a.is_correct ? '○' : '×'),
-        h('div', { class: 'review-txt' }, [
-          h('p', { class: 'review-q' }, q ? q.body : '（削除された問題）'),
-          q ? h('p', { class: 'review-a muted' }, `正解：${q.choices[q.correct_index]}`) : null,
-          h('p', { class: 'review-date muted' }, fmtDate(a.created_at)),
-        ]),
-        h('div', { class: 'review-btns' }, [linkBtn, shareBtn, cBtn]),
+    }, 'コメントする') : null;
+    const linkBtn = (q && q.link_url)
+      ? h('a', { class: 'btn-plain', href: q.link_url, target: '_blank', rel: 'noopener', title: '参考リンクを開く' }, 'リンク') : null;
+    const shareBtn = q ? h('button', { class: 'btn-plain', title: 'この問題をシェア', onclick: () => shareReviewQuestion(q) }, 'シェア') : null;
+
+    const btns = q ? reactionBar(a.question_id, true) : h('div', { class: 'rv-btns' });
+    [linkBtn, cBtn, shareBtn].forEach(b => { if (b) btns.appendChild(b); });
+
+    return h('div', { class: 'rv-item' }, [
+      h('span', { class: 'rv-mark', html: a.is_correct ? ICONS.correctMark() : ICONS.wrongMark() }),
+      h('div', { class: 'rv-body' }, [
+        h('p', { class: 'rv-q' }, q ? q.body : '（削除された問題）'),
+        q ? h('p', { class: 'rv-a' }, `正解：${q.choices[q.correct_index]}　${fmtDay(a.created_at)}`) : null,
+        btns,
+        cSlot,
       ]),
-      cSlot,
     ]);
   })));
 }
@@ -1292,15 +1493,15 @@ async function renderOwnerRanking(app, kind) {
     } else {
       const funny = await Store.funnyRanking(50);
       slot.innerHTML = '';
-      slot.appendChild(h('p', { class: 'hint', style: 'margin-bottom:10px' }, `${CONFIG.goodEmoji}が多く押された問題（全員）。`));
-      if (!funny.length) slot.appendChild(h('p', { class: 'muted' }, `まだ${CONFIG.goodEmoji}が付いた問題がありません。`));
-      else slot.appendChild(h('ol', { class: 'funny-list' }, funny.map((x, i) => h('li', { class: 'funny-row' }, [
-        h('span', { class: 'funny-pos' }, String(i + 1)),
-        h('div', { class: 'funny-txt' }, [
-          h('p', { class: 'funny-q' }, `Q. ${x.q.body}`),
-          h('p', { class: 'funny-meta muted' }, `${x.q.scheduled_date ? CONFIG.daily.label : rankLabel(x.q.rank)}`),
+      slot.appendChild(h('p', { class: 'rank-cap' }, '「うけるね」が多く押された問題（全員）。'));
+      if (!funny.length) slot.appendChild(h('p', { class: 'muted' }, 'まだ「うけるね」が付いた問題がありません。'));
+      else slot.appendChild(h('div', { class: 'rank-panel' }, funny.map((x, i) => h('div', { class: 'rank-row' }, [
+        h('span', { class: 'rank-pos' }, String(i + 1)),
+        h('div', { class: 'rank-name', style: 'white-space:normal' }, [
+          h('div', {}, `Q. ${x.q.body}`),
+          h('div', { style: 'font-size:11px;color:var(--muted)' }, genreLabel(x.q)),
         ]),
-        h('span', { class: 'funny-count' }, `${CONFIG.goodEmoji}${x.count}`),
+        h('span', { class: 'rank-val' }, `${x.count}`),
       ]))));
     }
   } catch (e) { slot.innerHTML = ''; slot.appendChild(errorBox(e)); }

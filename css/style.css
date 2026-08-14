@@ -1,507 +1,505 @@
 /* ============================================================
- *  オンラインコミュニティは クイズ
- *  デザインシステム：Schule（Bauhaus）
- *  クリーム地・赤/黄/青・Archivo+Karla・角丸なし・幾何マーク
+ *  みんなで WA 検定 — スタイル（2026-08 デザイン刷新版）
+ *  配色はロゴのブランドカラー（マゼンタ／イエロー／シアン／紺）に統一。
  * ============================================================ */
+
 :root {
-  --paper:   #f7f3e8;
-  --paper-2: #ede5cf;
-  --ink:     #1c1c1a;
-  --red:     #d8261c;
-  --yellow:  #f2c94e;
-  --blue:    #1f4cd6;
-  --line:    rgba(28,28,26,0.15);
-  --disp: 'Archivo', 'Noto Sans JP', sans-serif;
-  --body: 'Karla', 'Noto Sans JP', sans-serif;
+  /* ブランドカラー */
+  --magenta: #e4007f;
+  --yellow:  #ffd902;
+  --cyan:    #2ea7e0;
+  --navy:    #171c61;
+
+  /* ベース */
+  --paper:  #ffffff;   /* カード */
+  --bg:     #efefef;   /* 背景・ヘッダー */
+  --panel:  #dcdddd;   /* グレーのパネル・ボタン */
+  --line:   #c9caca;   /* 罫線 */
+  --muted:  #727171;   /* 補助テキスト */
+  --ink:    #231815;   /* 本文 */
+  --black:  #000000;
+
+  --radius: 8px;
+  --shadow: 0 2px 4px rgba(0,0,0,.16);
+  --shadow-lg: 0 3px 8px rgba(0,0,0,.2);
+
+  --disp: 'Noto Sans JP', system-ui, sans-serif;
+  --body: 'Noto Sans JP', system-ui, sans-serif;
+
+  --wrap: 620px;
 }
-* { box-sizing: border-box; margin: 0; padding: 0; }
-html, body { width: 100%; min-height: 100vh; }
-body {
-  background: var(--paper);
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0; padding: 0;
+  background: var(--bg);
   color: var(--ink);
   font-family: var(--body);
-  line-height: 1.5;
+  font-size: 15px;
+  line-height: 1.7;
   -webkit-font-smoothing: antialiased;
 }
 
-/* ---- 見出し・共通 ---- */
-h1, h2, h3 { font-family: var(--disp); font-weight: 900; text-transform: uppercase; line-height: 0.98; letter-spacing: -0.03em; }
-h1 { font-size: 28px; margin-bottom: 6px; }
-h2 { font-size: 21px; }
-.muted { opacity: 0.6; }
-.center { text-align: center; }
-.hint { font-family: var(--body); font-size: 12px; opacity: 0.6; margin-top: 6px; letter-spacing: .02em; }
+a { color: var(--cyan); }
 
-/* 「//」付きセクション見出し */
-.section-title {
-  font-family: var(--disp); font-weight: 900; font-size: 12px;
-  letter-spacing: 0.18em; text-transform: uppercase;
-  margin: 24px 0 10px; padding-bottom: 8px; border-bottom: 3px solid var(--ink);
-}
-
-/* ---- ヘッダー ---- */
+/* ---------------- ヘッダー ---------------- */
 .header {
-  display: flex; align-items: center; justify-content: space-between; gap: 12px;
-  padding: 16px 20px; background: var(--paper);
-  border-bottom: 3px solid var(--ink); position: sticky; top: 0; z-index: 20;
+  position: sticky; top: 0; z-index: 40;
+  background: var(--bg);
+  border-bottom: 1px solid var(--line);
 }
-.brand { display: flex; align-items: baseline; gap: 10px; background: none; border: none; padding: 0; cursor: pointer; }
-.brand-mark { font-size: 15px; letter-spacing: 0.1em; color: var(--red); }
-.brand-name { font-family: var(--disp); font-weight: 900; font-size: 15px; letter-spacing: -0.02em; text-transform: uppercase; color: var(--ink); }
-.screen-title { font-family: var(--disp); font-weight: 900; font-size: 20px; letter-spacing: -0.01em; background: none; border: none; padding: 0; cursor: pointer; color: var(--ink); }
-.acct { display: flex; align-items: center; gap: 8px; }
-.acct-icon { width: 34px; height: 34px; border-radius: 50%; object-fit: cover; border: 2px solid var(--ink); background: #8a8f9e; display: inline-block; cursor: pointer; padding: 0; }
-.acct-blank { background: #8a8f9e; }
-.nav { display: flex; gap: 6px; margin-left: auto; flex-wrap: wrap; }
-.nav-btn {
-  font-family: var(--disp); font-weight: 900; font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase;
-  background: transparent; color: var(--ink); border: 2px solid transparent;
-  padding: 8px 12px; cursor: pointer;
+.header-in {
+  max-width: var(--wrap); margin: 0 auto;
+  padding: 10px 16px;
+  display: flex; align-items: center; gap: 12px;
+  min-height: 62px;
 }
-.nav-btn:hover { border-color: var(--ink); }
-.nav-btn.active { background: var(--ink); color: var(--paper); }
-.nav-btn.locked { opacity: .35; }
-.nav-btn.locked:hover { border-color: transparent; }
-.nav-btn .lock { margin-left: 4px; font-size: 10px; }
-.guest-tag { font-family: var(--disp); font-weight: 900; font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase; border: 2px solid var(--ink); padding: 3px 8px; }
-.user-box { display: flex; align-items: center; gap: 8px; }
-.avatar { width: 26px; height: 26px; object-fit: cover; border: 2px solid var(--ink); }
-.user-name { font-family: var(--disp); font-weight: 700; font-size: 12px; letter-spacing: 0.02em; max-width: 120px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.link-btn { font-family: var(--disp); font-weight: 700; font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase; background: none; border: none; color: var(--ink); cursor: pointer; opacity: .6; }
-.link-btn:hover { opacity: 1; }
-
-/* ---- レイアウト ---- */
-.app { max-width: 560px; margin: 0 auto; padding: 22px 18px 60px; }
-.card { background: var(--paper); border: 3px solid var(--ink); padding: 22px; margin-bottom: 16px; }
-
-/* ---- 通知バー ---- */
-#notice { max-width: 560px; margin: 0 auto; padding: 0 18px; }
-.setup-notice {
-  background: var(--yellow); color: var(--ink); border: 3px solid var(--ink);
-  padding: 14px 16px; margin-top: 16px; font-size: 13px; line-height: 1.5;
+.brand { display: flex; align-items: center; gap: 10px; background: none; border: 0; padding: 0; cursor: pointer; }
+.brand-logo { height: 46px; width: auto; display: block; }
+.brand-text { font-family: var(--disp); font-weight: 900; font-size: 15px; color: var(--ink); letter-spacing: .02em; }
+.screen-title {
+  font-family: var(--disp); font-weight: 900; font-size: 17px;
+  background: none; border: 0; padding: 0; cursor: pointer; color: var(--ink);
 }
-.setup-notice strong { font-family: var(--disp); font-weight: 900; text-transform: uppercase; letter-spacing: .04em; }
-.setup-notice code { background: var(--ink); color: var(--paper); padding: 1px 6px; font-size: 12px; }
-
-/* ---- ボタン（角丸なしの色ブロック） ---- */
-.btn {
-  font-family: var(--disp); font-weight: 900; font-size: 12px; letter-spacing: 0.14em; text-transform: uppercase;
-  background: var(--paper); color: var(--ink); border: 3px solid var(--ink);
-  padding: 13px 18px; cursor: pointer; transition: opacity .12s ease, transform .08s ease;
+.header-right { margin-left: auto; display: flex; align-items: center; gap: 12px; }
+.avatar {
+  width: 34px; height: 34px; border-radius: 50%;
+  background: var(--panel); object-fit: cover; display: block; flex: none;
 }
-.btn:hover { opacity: .9; }
-.btn:active { transform: translateY(1px); }
-.btn:disabled { opacity: .4; cursor: default; }
-.btn-primary { background: var(--red); color: var(--paper); border-color: var(--red); }
-.btn-ink { background: var(--ink); color: var(--paper); }
-.btn-danger { background: var(--paper); color: var(--red); border-color: var(--red); }
-.btn-ghost { background: transparent; }
-.btn-block { display: block; width: 100%; margin-top: 12px; }
-.btn-sm { padding: 9px 12px; font-size: 11px; }
+.avatar-lg { width: 44px; height: 44px; }
+.avatar-sm { width: 26px; height: 26px; }
 
-/* ---- 入力 ---- */
-.input {
-  width: 100%; background: var(--paper); border: 3px solid var(--ink); color: var(--ink);
-  padding: 12px 13px; font-size: 15px; font-family: var(--body); margin-bottom: 4px;
-}
-.input:focus { outline: none; border-color: var(--blue); }
-textarea.input { resize: vertical; }
-.input-inline { width: auto; }
-.field-label { display: block; font-family: var(--disp); font-weight: 900; font-size: 10px; letter-spacing: 0.18em; text-transform: uppercase; margin: 16px 0 6px; }
+/* ハンバーガー */
+.burger { background: none; border: 0; cursor: pointer; padding: 6px; display: grid; gap: 5px; }
+.burger span { display: block; width: 26px; height: 3px; background: var(--ink); border-radius: 2px; }
 
-/* ---- ログイン ---- */
-.login-card { max-width: 440px; margin: 32px auto; }
-.server-tag { display: flex; align-items: center; gap: 10px; border: 3px solid var(--ink); background: var(--paper-2); padding: 11px 14px; margin: 16px 0 14px; }
-.server-tag-label { font-family: var(--disp); font-weight: 900; font-size: 9px; letter-spacing: 0.16em; text-transform: uppercase; background: var(--ink); color: var(--paper); padding: 3px 8px; flex: none; }
-.server-tag-host { font-family: var(--disp); font-weight: 900; font-size: 15px; letter-spacing: -0.01em; word-break: break-all; }
+/* ---------------- レイアウト ---------------- */
+.app { max-width: var(--wrap); margin: 0 auto; padding: 18px 16px 90px; }
+.card { background: var(--paper); border-radius: var(--radius); padding: 18px 16px; box-shadow: var(--shadow); margin-bottom: 16px; }
+.center { text-align: center; }
+.muted { color: var(--muted); }
+.hint { color: var(--muted); font-size: 12px; line-height: 1.6; margin: 6px 0; }
 
-/* ---- ランクチップ（フィルタ） ---- */
-.rank-chips { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 18px; }
-.chip {
-  font-family: var(--disp); font-weight: 900; font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase;
-  background: var(--paper); border: 3px solid var(--ink); color: var(--ink); padding: 8px 14px; cursor: pointer;
-}
-.chip.active { background: var(--ink); color: var(--paper); }
-.chip.locked { opacity: .35; }
-.chip .lock { margin-left: 5px; font-size: 10px; }
-.guest-note { font-family: var(--body); font-size: 12px; letter-spacing: .02em; background: var(--paper-2); border-left: 4px solid var(--yellow); padding: 8px 12px; margin-bottom: 14px; }
+h1 { font-family: var(--disp); font-weight: 900; font-size: 20px; margin: 0 0 10px; }
+h2 { font-family: var(--disp); font-weight: 900; font-size: 17px; margin: 0 0 8px; }
+h3 { font-family: var(--disp); font-weight: 700; font-size: 15px; margin: 0 0 6px; }
 
-/* ---- ランクバッジ（色ブロック＋幾何マーク） ---- */
-.rank-badge {
-  display: inline-flex; align-items: center; gap: 7px;
-  font-family: var(--disp); font-weight: 900; font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase;
-  padding: 5px 11px; border: 3px solid var(--ink);
-}
-.rank-badge::before { content: ''; width: 12px; height: 12px; flex: none; }
-.rank-beginner    { background: var(--blue);   color: var(--paper); border-color: var(--blue); }
-.rank-beginner::before   { background: var(--paper); border-radius: 50%; }           /* 円 */
-.rank-intermediate { background: var(--yellow); color: var(--ink); }
-.rank-intermediate::before { background: var(--ink); clip-path: polygon(50% 0, 100% 100%, 0 100%); } /* 三角 */
-.rank-mania       { background: var(--red);    color: var(--paper); border-color: var(--red); }
-.rank-mania::before      { background: var(--paper); }                                /* 四角 */
-
-/* ---- 問題カード ---- */
-.question-card { background: var(--yellow); border-color: var(--ink); }
-.q-meta { margin-bottom: 14px; }
-.q-body { font-family: var(--disp); font-weight: 900; text-transform: none; letter-spacing: -0.01em; line-height: 1.15; font-size: 20px; margin: 4px 0 20px; white-space: pre-wrap; }
-
-/* 選択肢（レターバッジ付き・角丸なし） */
-.choices { display: flex; flex-direction: column; gap: 8px; }
-.choice {
-  display: flex; align-items: center; gap: 12px; text-align: left; width: 100%;
-  background: var(--paper); border: 3px solid var(--ink); color: var(--ink);
-  padding: 14px; font-family: var(--body); font-weight: 500; font-size: 15px; cursor: pointer;
-  transition: background .12s ease, color .12s ease, border-color .12s ease;
-}
-.choice:hover:not(:disabled) { background: var(--ink); color: var(--paper); }
-.choice:hover:not(:disabled) .choice-index { background: var(--paper); color: var(--ink); }
-.choice:disabled, .choice.static { cursor: default; }
-.choice-index {
-  flex: none; width: 28px; height: 28px; background: var(--ink); color: var(--paper);
-  display: grid; place-items: center; font-family: var(--disp); font-weight: 900; font-size: 14px;
-}
-.choice.correct { background: var(--blue); color: var(--paper); border-color: var(--blue); }
-.choice.correct .choice-index { background: var(--paper); color: var(--blue); }
-.choice.wrong { background: var(--paper); border-color: var(--red); color: var(--red); }
-.choice.wrong .choice-index { background: var(--red); color: var(--paper); }
-.correct-tag { margin-left: auto; font-family: var(--disp); font-weight: 900; font-size: 11px; letter-spacing: 0.1em; }
-
-/* ---- 結果 ---- */
-.result-card { text-align: center; border-width: 3px; }
-.result-head { font-family: var(--disp); font-weight: 900; font-size: 26px; text-transform: uppercase; letter-spacing: -0.02em; margin-bottom: 6px; }
-.result-head.ok { color: var(--blue); }
-.result-head.ng { color: var(--red); }
-.result-actions { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; margin-top: 18px; }
-
-/* ---- クレジット ---- */
-.credit { display: flex; flex-wrap: wrap; gap: 4px 16px; font-family: var(--body); font-size: 11px; letter-spacing: .03em; opacity: .7; margin-top: 20px; padding-top: 12px; border-top: 1px solid var(--line); }
-
-/* ---- 作問 ---- */
-.create-choices { display: flex; flex-direction: column; gap: 8px; }
-.create-choice-row { display: flex; align-items: center; gap: 10px; }
-.create-choice-row .input { margin-bottom: 0; }
-.radio-wrap { position: relative; display: inline-flex; cursor: pointer; flex: none; }
-.radio-wrap input { position: absolute; opacity: 0; }
-.radio-dot { width: 24px; height: 24px; border: 3px solid var(--ink); display: inline-block; background: var(--paper); }
-.radio-wrap input:checked + .radio-dot { background: var(--blue); border-color: var(--blue); box-shadow: inset 0 0 0 4px var(--paper); }
-
-/* ---- 一覧 ---- */
-.list-bar { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
-.list-bar .muted { font-family: var(--disp); font-weight: 700; font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; opacity: .6; }
-.q-grid { display: grid; gap: 10px; }
-.q-card-mini { text-align: left; background: var(--paper); border: 3px solid var(--ink); color: var(--ink); padding: 14px; cursor: pointer; transition: background .12s ease; }
-.q-card-mini:hover { background: var(--paper-2); }
-.q-mini-body { font-family: var(--disp); font-weight: 900; font-size: 15px; line-height: 1.1; margin: 10px 0 8px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
-.q-mini-foot { font-family: var(--body); font-size: 10px; letter-spacing: .04em; text-transform: uppercase; opacity: .6; }
-
-/* ---- 空状態 ---- */
-.empty { text-align: center; padding: 8px; }
-.empty .empty-mark { font-size: 30px; letter-spacing: .1em; display: block; margin-bottom: 10px; }
-
-/* ---- モーダル ---- */
-.modal { position: fixed; inset: 0; background: rgba(28,28,26,0.55); display: none; z-index: 50; padding: 18px; overflow-y: auto; }
-.modal.open { display: flex; align-items: flex-start; justify-content: center; }
-.modal-box { background: var(--paper); border: 3px solid var(--ink); max-width: 560px; width: 100%; margin: 24px auto; position: relative; }
-.modal-close { position: absolute; top: 8px; right: 10px; background: var(--ink); color: var(--paper); border: none; width: 30px; height: 30px; font-size: 20px; cursor: pointer; line-height: 1; }
-.modal-content { padding: 26px 22px; }
-.detail-actions { margin: 16px 0; }
-
-/* ---- コメント ---- */
-.comment-list { display: flex; flex-direction: column; gap: 10px; }
-.comment { background: var(--paper-2); border: 2px solid var(--ink); padding: 11px 12px; }
-.comment-head { display: flex; align-items: center; gap: 8px; font-size: 11px; flex-wrap: wrap; }
-.comment-kind { font-family: var(--disp); font-weight: 900; font-size: 9px; letter-spacing: 0.12em; text-transform: uppercase; padding: 2px 7px; border: 2px solid var(--ink); }
-.kind-comment { background: var(--blue); color: var(--paper); border-color: var(--blue); }
-.kind-supplement { background: var(--yellow); color: var(--ink); }
-.comment-author { font-family: var(--disp); font-weight: 700; letter-spacing: .02em; }
-.comment-date { font-size: 10px; opacity: .55; }
-.comment-body { margin-top: 6px; white-space: pre-wrap; font-size: 14px; }
-.comment-form { display: flex; flex-direction: column; gap: 8px; margin-top: 12px; }
-.comment-form .input-inline { align-self: flex-start; }
-
-/* ---- 履歴 ---- */
-.history { list-style: none; font-family: var(--body); font-size: 12px; letter-spacing: .02em; }
-.history li { padding: 7px 0; border-bottom: 1px solid var(--line); }
-
-/* ---- エラー ---- */
-.error-box { border-color: var(--red); background: var(--paper); }
-
-/* ---- トースト ---- */
-.toasts { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); z-index: 100; display: flex; flex-direction: column; gap: 8px; align-items: center; width: max-content; max-width: 90vw; }
-.toast { font-family: var(--disp); font-weight: 900; font-size: 12px; letter-spacing: 0.06em; text-transform: uppercase; background: var(--ink); color: var(--paper); border: 3px solid var(--ink); padding: 12px 18px; opacity: 0; transform: translateY(10px); transition: all .28s ease; }
-.toast.show { opacity: 1; transform: translateY(0); }
-.toast-success { background: var(--blue); border-color: var(--blue); }
-.toast-error { background: var(--red); border-color: var(--red); }
-
-/* ---- フッター ---- */
-.site-foot { display: flex; flex-direction: column; gap: 8px; align-items: center; text-align: center; padding: 22px 18px 30px; border-top: 3px solid var(--ink); }
-.site-foot-tag { font-family: var(--disp); font-weight: 700; font-size: 10px; letter-spacing: 0.2em; text-transform: uppercase; opacity: .5; }
-.site-foot-pool { font-family: var(--body); font-weight: 500; font-size: 12px; letter-spacing: .03em; opacity: .8; }
-.site-foot-pool:empty { display: none; }
-.footer-create { margin-bottom: 6px; min-width: 160px; }
-.owner-note { font-size: 12px; opacity: .6; margin: 12px 0; }
-.quiz-comments { margin-top: 8px; }
-.quiz-comments .comment-form { margin-top: 0; }
-.comment-list-label { font-family: var(--disp); font-weight: 900; font-size: 11px; letter-spacing: .1em; margin: 14px 0 8px; }
-.detail-actions { display: flex; gap: 8px; flex-wrap: wrap; }
-
-/* ---- レスポンシブ ---- */
-@media (max-width: 560px) {
-  .header { gap: 10px 12px; }
-  .nav { width: 100%; order: 3; margin-left: 0; }
-  .user-box { margin-left: auto; }
-  h1 { font-size: 24px; }
+/* セクション見出し（マイページ等） */
+.section-title {
+  font-family: var(--disp); font-weight: 900; font-size: 15px;
+  margin: 22px 0 8px; color: var(--ink);
 }
 
-/* ============================================================
- *  新デザイン（みんなで WA 検定）追加スタイル
- * ============================================================ */
+/* ---------------- ホーム ---------------- */
+.home-hero {
+  background: var(--paper);
+  margin: -18px -16px 0;
+  padding: 22px 16px 26px;
+  display: flex; align-items: center; gap: 18px; flex-wrap: wrap;
+}
+.home-logo { width: 190px; max-width: 46vw; height: auto; display: block; }
+.home-hero-txt { flex: 1; min-width: 180px; }
+/* ロゴ画像を置くと h1 は隠れる（ロゴが無い間だけ文字で表示） */
+.home-logo + .home-hero-txt .home-h1 { display: none; }
+.home-h1 { font-family: var(--disp); font-weight: 900; font-size: 20px; margin: 0 0 6px; }
+.home-tagline { font-size: 14px; line-height: 1.75; margin: 0 0 12px; }
 
-/* ---- カラーブロック ---- */
-.clr-yellow { background: var(--yellow); color: var(--ink); border-color: var(--yellow); }
-.clr-red    { background: var(--red);    color: var(--paper); border-color: var(--red); }
-.clr-blue   { background: var(--blue);   color: var(--paper); border-color: var(--blue); }
+/* 連続ログイン中バナー */
+.streak-banner {
+  display: flex; align-items: center; gap: 8px;
+  background: var(--magenta); color: #fff;
+  font-family: var(--disp); font-weight: 900; font-size: 15px;
+  padding: 9px 16px; border-radius: 3px;
+}
+.streak-banner .sub { margin-left: auto; font-size: 10px; font-weight: 500; opacity: .9; }
+.streak-banner .ico { width: 15px; height: 17px; flex: none; }
 
-/* ---- トップ（3難易度） ---- */
-.home-hero { text-align: center; margin: 24px 0 26px; }
-.home-title { font-family: var(--disp); font-weight: 900; font-size: 30px; letter-spacing: -0.02em; }
-.home-tagline { font-family: var(--body); font-size: 12px; letter-spacing: .02em; margin-top: 6px; opacity: .8; }
-.rank-blocks { display: flex; flex-direction: column; gap: 18px; }
-.rank-block-wrap { text-align: center; }
-.rank-block { width: 100%; border: 3px solid var(--ink); padding: 26px 14px; cursor: pointer; display: block; }
-.rank-block:hover { opacity: .92; }
-.rank-block.locked { opacity: .4; }
-.rank-block-label { font-family: var(--disp); font-weight: 900; font-size: 24px; letter-spacing: .02em; }
-.rank-block-desc { font-family: var(--body); font-size: 12px; margin-top: 8px; opacity: .85; }
-.lock { font-size: .8em; }
+/* WA王決定戦バナー */
+.wao-banner {
+  display: block; width: 100%; border: 0; padding: 0; cursor: pointer;
+  border-radius: var(--radius); overflow: hidden; box-shadow: var(--shadow-lg);
+  background: var(--black); position: relative; margin: 22px 0 14px;
+}
+.wao-banner img { width: 100%; height: auto; display: block; }
+.wao-banner .go {
+  position: absolute; right: 14px; bottom: 12px;
+  width: 26px; height: 26px; border-radius: 50%;
+  background: #fff; color: var(--black);
+  display: grid; place-items: center; font-size: 13px; font-weight: 900;
+}
+/* 準備中（グレーアウト） */
+.wao-banner.is-locked { cursor: not-allowed; box-shadow: var(--shadow); }
+.wao-banner.is-locked img { filter: grayscale(1); opacity: .38; }
+.wao-banner.is-locked .go { display: none; }
+.wao-lock {
+  position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
+  background: rgba(0,0,0,.72); color: #fff; border: 2px solid #fff; border-radius: 20px;
+  font-family: var(--disp); font-weight: 900; font-size: 12px;
+  letter-spacing: .12em; padding: 5px 18px; white-space: nowrap;
+}
 
-/* ---- フッターブロック（プール＋作問） ---- */
-.foot-block { margin-top: 28px; text-align: center; }
-.pool-bar { font-family: var(--body); font-size: 12px; letter-spacing: .03em; opacity: .75; margin-bottom: 12px; }
+/* 難易度カード 2×2 */
+.rank-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.rank-card {
+  position: relative; border: 0; cursor: pointer; text-align: left;
+  border-radius: var(--radius); box-shadow: var(--shadow-lg);
+  padding: 14px 14px 12px; min-height: 84px;
+  display: flex; flex-direction: column; justify-content: center;
+  font-family: var(--disp); color: #fff;
+}
+.rank-card .name { font-weight: 900; font-size: 17px; line-height: 1.25; }
+.rank-card .desc { font-size: 11px; font-weight: 500; margin-top: 3px; opacity: .95; }
+.rank-card .stars { position: absolute; top: 12px; right: 12px; display: flex; gap: 3px; }
+.rank-card .stars svg { width: 15px; height: 15px; display: block; }
+.rank-card .mega { position: absolute; top: 11px; right: 12px; width: 19px; height: 19px; }
+.rank-card.c-navy   { background: var(--navy); }
+.rank-card.c-yellow { background: var(--yellow); color: var(--ink); }
+.rank-card.c-magenta{ background: var(--magenta); }
+.rank-card.c-cyan   { background: var(--cyan); }
+.rank-card.is-locked { opacity: .55; cursor: not-allowed; }
+.rank-card .lock { font-size: 12px; }
+.rank-card.daily-empty { filter: grayscale(.75); opacity: .6; }
 
-/* ---- クイズ進捗 ---- */
-.quiz-progress { margin-bottom: 14px; }
-.quiz-progress > span { font-family: var(--disp); font-weight: 900; font-size: 11px; letter-spacing: .1em; text-transform: uppercase; opacity: .6; }
-.seg-bar { display: flex; gap: 4px; margin-top: 6px; }
-.seg { flex: 1; height: 5px; background: rgba(28,28,26,0.15); }
+/* NEW バッジ */
+.new-badge {
+  position: absolute; top: -7px; left: -6px;
+  background: #fff; color: var(--magenta);
+  border: 2px solid var(--magenta); border-radius: 20px;
+  font-family: var(--disp); font-weight: 900; font-size: 9px;
+  padding: 1px 7px; letter-spacing: .04em;
+}
 
-/* ---- 問題カード（2×2グリッド） ---- */
-.quiz-card { padding: 22px; }
-.q-title { font-family: var(--disp); font-weight: 900; font-size: 19px; text-transform: none; line-height: 1.25; letter-spacing: -0.01em; text-align: center; margin-bottom: 20px; }
-.q-mark { color: var(--red); }
-.choice-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-.gopt { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; text-align: left; background: var(--paper); border: 3px solid var(--ink); color: var(--ink); padding: 16px 14px; min-height: 74px; cursor: pointer; font-family: var(--body); transition: background .12s, color .12s, border-color .12s, opacity .12s; }
-.gopt:hover:not(:disabled) { background: var(--ink); color: var(--paper); }
-.gopt:hover:not(:disabled) .gopt-n { color: var(--paper); }
+/* 問題をつくる（黒バー） */
+.create-bar {
+  display: flex; align-items: center; gap: 12px; width: 100%;
+  margin-top: 14px; padding: 15px 18px; cursor: pointer;
+  background: var(--black); color: #fff; border: 0;
+  border-radius: var(--radius); box-shadow: var(--shadow-lg);
+  font-family: var(--disp); font-weight: 900; font-size: 16px;
+}
+.create-bar .plus {
+  width: 26px; height: 26px; border-radius: 50%; background: #fff; color: var(--black);
+  display: grid; place-items: center; font-size: 19px; line-height: 1; flex: none;
+}
+.create-bar .note { font-size: 11px; font-weight: 500; opacity: .85; }
+.create-bar .pen { margin-left: auto; width: 21px; height: 21px; }
+
+/* ---------------- カテゴリのタグ ---------------- */
+.cat-tag {
+  display: inline-block; font-family: var(--disp); font-weight: 900;
+  font-size: 12px; padding: 4px 12px; border-radius: 3px; color: #fff;
+}
+.cat-tag.c-yellow { background: var(--yellow); color: var(--ink); }
+.cat-tag.c-magenta{ background: var(--magenta); }
+.cat-tag.c-cyan   { background: var(--cyan); }
+.cat-tag.c-navy   { background: var(--navy); }
+.cat-tag.c-black  { background: var(--black); }
+.cat-tag.sm { font-size: 10px; padding: 2px 8px; }
+
+/* ---------------- クイズ ---------------- */
+.quiz-progress { display: flex; align-items: center; gap: 10px; font-size: 12px; color: var(--muted); margin-bottom: 10px; }
+.seg-bar { display: flex; gap: 4px; flex: 1; }
+.seg { flex: 1; height: 5px; border-radius: 3px; background: var(--panel); }
+
+.q-title { font-family: var(--disp); font-weight: 900; font-size: 19px; line-height: 1.5; margin: 14px 0 18px; }
+.q-title .q-mark { margin-right: 4px; }
+
+.choice-grid { display: flex; flex-direction: column; gap: 12px; }
+.gopt {
+  display: flex; align-items: center; gap: 12px; width: 100%;
+  background: var(--paper); border: 1px solid var(--line); border-radius: var(--radius);
+  padding: 15px 18px; cursor: pointer; text-align: left;
+  font-family: var(--body); font-size: 15px; color: var(--ink);
+  transition: background .12s, border-color .12s;
+}
+.gopt:hover:not(:disabled) { background: #fafafa; }
+.gopt-n { color: var(--muted); font-weight: 500; flex: none; }
+.gopt-t { flex: 1; }
 .gopt:disabled { cursor: default; }
-.gopt-n { font-family: var(--disp); font-weight: 900; font-size: 15px; color: var(--ink); }
-.gopt-t { font-weight: 500; font-size: 15px; line-height: 1.3; }
-.gopt.is-picked { border-width: 4px; }
-.gopt.is-faded { opacity: .35; }
-.gopt.is-faded .gopt-n { }
+.gopt.is-picked { background: var(--panel); border-color: var(--panel); }
+.gopt.is-faded { color: #b5b5b5; }
+.gopt.is-faded .gopt-n { color: #cfcfcf; }
+.gopt.is-correct { border-width: 0; font-weight: 700; }
 
-/* ---- 解説・アクション ---- */
-.explain { margin-top: 18px; background: var(--paper-2); border-left: 5px solid var(--ink); padding: 14px; }
-.explain-head { font-family: var(--disp); font-weight: 900; font-size: 14px; letter-spacing: .04em; margin-bottom: 6px; }
-.explain p { font-size: 14px; line-height: 1.5; white-space: pre-wrap; }
-.explain-body { font-size: 14px; line-height: 1.5; white-space: pre-wrap; margin-bottom: 8px; }
-.explain-link { display: inline-block; margin-top: 10px; font-family: var(--disp); font-weight: 900; font-size: 13px;
-  color: var(--blue); text-decoration: none; border-bottom: 2px solid var(--blue); padding-bottom: 1px; word-break: break-all; }
-.explain-link:hover { opacity: .75; }
-.quiz-actions { margin-top: 16px; }
+/* 解説 */
+.explain { margin-top: 18px; }
+.explain-head { font-family: var(--disp); font-weight: 900; font-size: 15px; margin-bottom: 6px; }
+.explain p, .explain-body { font-size: 14px; line-height: 1.75; white-space: pre-wrap; margin: 0; }
+.explain-link, .link-inline {
+  display: inline-flex; align-items: center; gap: 6px; margin-top: 12px;
+  color: var(--cyan); font-size: 13px; text-decoration: none; word-break: break-all;
+}
+.explain-link svg, .link-inline svg { width: 22px; height: 22px; flex: none; }
 
-/* ---- クレジット ---- */
-.credit { display: flex; flex-direction: column; gap: 2px; font-family: var(--body); font-size: 11px; letter-spacing: .03em; opacity: .7; margin-top: 18px; padding-top: 12px; border-top: 1px dashed var(--line); text-align: center; }
+/* 作成者クレジット */
+.credit { font-size: 10px; color: var(--muted); text-align: right; margin-top: 14px; }
 
-/* ---- 結果（円グラフ） ---- */
-.result-wrap { text-align: center; padding: 20px 0 8px; }
-.donut-wrap { position: relative; width: 220px; height: 220px; margin: 6px auto 4px; }
-.donut { width: 100%; height: 100%; }
-.donut-center { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; }
-.donut-pct { font-family: var(--disp); font-weight: 900; font-size: 44px; letter-spacing: -0.03em; line-height: 1; }
-.donut-sub { font-family: var(--body); font-size: 13px; opacity: .7; margin-top: 6px; }
-.result-line { font-family: var(--disp); font-weight: 700; font-size: 15px; margin: 14px 0 18px; }
-.result-actions { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
-.result-actions .btn { min-width: 150px; }
-.share-btn { border-width: 3px; }
+/* リアクション行 */
+.react-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 12px; padding-top: 14px; border-top: 1px solid var(--line); }
+.react-btn {
+  display: inline-flex; align-items: center; gap: 8px;
+  background: var(--panel); border: 0; border-radius: var(--radius);
+  padding: 8px 16px; cursor: pointer;
+  font-family: var(--disp); font-weight: 700; font-size: 13px; color: var(--ink);
+}
+.react-btn svg { width: 20px; height: 20px; display: block; }
+.react-btn.is-on { background: #ffe3f2; }
+.react-btn.r-laugh.is-on { background: #def6ff; }
+.react-btn:disabled { opacity: .6; cursor: default; }
+.btn-plain {
+  background: var(--paper); border: 1px solid var(--line); border-radius: var(--radius);
+  padding: 8px 16px; cursor: pointer; font-family: var(--disp); font-weight: 700;
+  font-size: 13px; color: var(--ink);
+}
 
-/* ---- トップの「作問する」 ---- */
-.home-create { margin-top: 22px; }
+/* 次の問題へ */
+.quiz-next { display: flex; align-items: center; justify-content: flex-end; gap: 12px; margin-top: 26px; }
+.quiz-next span { font-family: var(--disp); font-weight: 700; font-size: 14px; }
+.next-circle {
+  width: 44px; height: 44px; border-radius: 50%; border: 0; cursor: pointer;
+  background: var(--black); color: #fff; display: grid; place-items: center;
+  font-size: 18px; box-shadow: var(--shadow);
+}
 
-/* ---- 作問一覧（アコーディオン） ---- */
-.newq-btn { margin-bottom: 16px; }
+/* ---------------- 結果画面 ---------------- */
+.result-wrap { text-align: center; }
+.donut-wrap { position: relative; width: 240px; margin: 18px auto 6px; }
+.donut { width: 100%; height: auto; display: block; }
+.donut-center { position: absolute; inset: 0; display: grid; place-content: center; }
+.donut-pct { font-family: var(--disp); font-weight: 900; font-size: 34px; line-height: 1.1; }
+.donut-sub { font-size: 12px; color: var(--ink); }
+.result-line { font-size: 13px; margin: 4px 0 18px; }
+.result-actions { display: flex; justify-content: center; gap: 12px; flex-wrap: wrap; }
+
+/* ---------------- ボタン ---------------- */
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  background: var(--panel); color: var(--ink); border: 0; border-radius: var(--radius);
+  padding: 12px 22px; cursor: pointer; box-shadow: var(--shadow);
+  font-family: var(--disp); font-weight: 900; font-size: 15px;
+}
+.btn:hover { filter: brightness(.97); }
+.btn:disabled { opacity: .5; cursor: not-allowed; box-shadow: none; }
+.btn svg { width: 18px; height: 18px; }
+.btn-primary { background: var(--magenta); color: #fff; }
+.btn-ink { background: var(--black); color: #fff; }
+.btn-ghost { background: transparent; box-shadow: none; color: var(--muted); font-weight: 700; font-size: 13px; }
+.btn-danger { background: #fff; color: var(--magenta); box-shadow: none; border: 1px solid var(--magenta); }
+.btn-block { display: flex; width: 100%; }
+.btn-sm { padding: 8px 16px; font-size: 13px; }
+.btn-lg { padding: 15px 34px; font-size: 17px; }
+.link-btn { background: none; border: 0; padding: 0; cursor: pointer; color: var(--muted); font-size: 13px; font-family: var(--disp); font-weight: 700; }
+
+/* ---------------- ランキング ---------------- */
+.rank-panel { background: var(--panel); border-radius: var(--radius); padding: 6px 14px; }
+.rank-row { display: flex; align-items: center; gap: 10px; padding: 10px 2px; border-bottom: 1px solid rgba(0,0,0,.08); font-size: 14px; }
+.rank-row:last-child { border-bottom: 0; }
+.rank-pos { width: 20px; font-family: var(--disp); font-weight: 700; text-align: right; flex: none; font-variant-numeric: tabular-nums; }
+.rank-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rank-val { font-size: 13px; font-variant-numeric: tabular-nums; flex: none; }
+.rank-row.is-me { color: var(--cyan); }
+.rank-row.is-me .rank-pos, .rank-row.is-me .rank-val { color: var(--cyan); }
+.rank-delta { font-family: var(--disp); font-weight: 900; font-size: 14px; margin: 4px 0 10px; }
+.rank-delta.up { color: var(--magenta); }
+.rank-delta.down { color: var(--muted); }
+.rank-two { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+@media (max-width: 520px) { .rank-two { grid-template-columns: 1fr; } }
+.rank-cap { font-size: 10px; color: var(--muted); line-height: 1.5; margin: 0 0 6px; }
+
+/* ---------------- マイページ ---------------- */
+.me-row { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; }
+.me-name { font-family: var(--disp); font-weight: 900; font-size: 16px; }
+.me-handle { font-size: 11px; color: var(--muted); }
+
+.score-list { background: var(--paper); border-radius: var(--radius); padding: 4px 14px; box-shadow: var(--shadow); }
+.score-row { display: flex; align-items: center; gap: 10px; padding: 9px 0; border-bottom: 1px solid var(--line); font-size: 14px; }
+.score-row:last-child { border-bottom: 0; }
+.score-main { flex: 1; font-family: var(--disp); font-weight: 700; }
+.score-date { font-size: 10px; color: var(--muted); flex: none; }
+
+/* 履歴（振り返り） */
+.rv-item { display: flex; gap: 12px; padding: 14px 0; border-bottom: 1px solid var(--line); }
+.rv-mark { flex: none; width: 22px; height: 22px; margin-top: 2px; }
+.rv-body { flex: 1; min-width: 0; }
+.rv-q { font-size: 14px; line-height: 1.6; margin: 0 0 4px; }
+.rv-a { font-size: 11px; color: var(--muted); margin: 0 0 8px; }
+.rv-btns { display: flex; gap: 8px; flex-wrap: wrap; }
+.rv-btns .react-btn, .rv-btns .btn-plain { padding: 5px 11px; font-size: 11px; }
+.rv-btns .react-btn svg { width: 15px; height: 15px; }
+
+/* ---------------- 作問フォーム ---------------- */
+.field-label { display: block; font-family: var(--disp); font-weight: 700; font-size: 14px; margin: 18px 0 6px; }
+.field-label .req { color: var(--magenta); margin-left: 3px; }
+.input {
+  width: 100%; background: var(--paper); border: 1px solid var(--line);
+  border-radius: var(--radius); padding: 12px 14px; font-family: var(--body);
+  font-size: 15px; color: var(--ink);
+}
+.input::placeholder { color: #b5b5b5; }
+.input:focus { outline: 2px solid var(--cyan); outline-offset: -1px; }
+textarea.input { resize: vertical; min-height: 92px; }
+
+.cat-list { background: var(--panel); border-radius: var(--radius); padding: 6px 14px; }
+.cat-item { display: flex; align-items: center; gap: 10px; padding: 11px 0; cursor: pointer; border-bottom: 1px solid rgba(0,0,0,.07); }
+.cat-item:last-child { border-bottom: 0; }
+.radio-wrap { position: relative; width: 18px; height: 18px; flex: none; }
+.radio-wrap input { position: absolute; opacity: 0; width: 100%; height: 100%; margin: 0; cursor: pointer; }
+.radio-dot { display: block; width: 18px; height: 18px; background: #fff; border: 1px solid var(--muted); border-radius: 2px; }
+.radio-wrap input:checked + .radio-dot { border-color: var(--magenta); }
+.radio-wrap input:checked + .radio-dot::after {
+  content: ''; position: absolute; inset: 4px; background: var(--magenta); border-radius: 1px;
+}
+.cat-name { font-family: var(--disp); font-weight: 900; font-size: 14px; flex: none; }
+.cat-guide { font-size: 10px; color: var(--muted); line-height: 1.4; }
+.cat-item .date-in { margin-left: auto; width: 150px; padding: 7px 10px; font-size: 13px; }
+.daily-date.hidden { display: none; }
+
+/* ---------------- 一覧（アコーディオン） ---------------- */
+.rank-chips { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 16px; }
+.chip {
+  font-family: var(--disp); font-weight: 700; font-size: 12px;
+  padding: 7px 14px; border-radius: 20px; border: 1px solid var(--line);
+  background: var(--paper); color: var(--ink); cursor: pointer;
+}
+.chip.active { background: var(--ink); border-color: var(--ink); color: #fff; }
+
 .acc-list { display: flex; flex-direction: column; gap: 10px; }
-.date-group-head { font-family: var(--disp); font-weight: 900; font-size: 14px; letter-spacing: .04em;
-  margin: 18px 0 8px; padding-bottom: 5px; border-bottom: 3px solid var(--ink); }
-.date-group-head:first-child { margin-top: 0; }
-.acc-item { border: 3px solid var(--ink); background: var(--paper); }
-.acc-head { display: flex; align-items: center; gap: 0; width: 100%; background: none; border: none; cursor: pointer; padding: 0; text-align: left; }
-.acc-bar { width: 12px; align-self: stretch; flex: none; min-height: 52px; }
-.acc-tri { flex: none; padding: 0 12px; font-size: 12px; transition: transform .15s ease; }
+.acc-item { background: var(--paper); border-radius: var(--radius); box-shadow: var(--shadow); overflow: hidden; }
+.acc-head { display: flex; align-items: center; gap: 10px; width: 100%; background: none; border: 0; cursor: pointer; padding: 13px 14px; text-align: left; }
+.acc-bar { width: 5px; align-self: stretch; border-radius: 3px; flex: none; }
+.acc-tri { font-size: 9px; color: var(--muted); flex: none; }
+.acc-q { flex: 1; font-size: 14px; line-height: 1.5; }
+.acc-author { display: block; font-size: 10px; color: var(--muted); margin-top: 2px; }
+.acc-daily-tag { font-size: 10px; color: var(--muted); margin-right: 4px; }
+.acc-good { flex: none; font-family: var(--disp); font-weight: 700; font-size: 12px; white-space: nowrap; color: var(--muted); }
+.acc-body { padding: 0 14px 16px; }
 .acc-item.open .acc-tri { transform: rotate(90deg); }
-.acc-q { font-family: var(--disp); font-weight: 700; font-size: 14px; line-height: 1.3; padding: 14px 14px 14px 0; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
-.acc-body { padding: 0; }
-.acc-item.open .acc-body { padding: 4px 16px 18px; border-top: 2px solid var(--line); }
 
-/* ---- レスポンシブ（結果ボタン等） ---- */
-@media (max-width: 420px) {
-  .result-actions .btn { min-width: 130px; }
-  .home-title { font-size: 26px; }
+.date-group-head { font-family: var(--disp); font-weight: 900; font-size: 14px; margin: 20px 0 8px; padding-bottom: 6px; border-bottom: 2px solid var(--ink); }
+.date-group-head:first-child { margin-top: 0; }
+
+.choices.static { display: flex; flex-direction: column; gap: 8px; margin-bottom: 6px; }
+.choice.static { display: flex; align-items: center; gap: 10px; border: 1px solid var(--line); border-radius: var(--radius); padding: 10px 14px; font-size: 14px; }
+.choice.static.correct { border-color: var(--magenta); }
+.choice-index { color: var(--muted); font-size: 12px; }
+.correct-tag { margin-left: auto; font-family: var(--disp); font-weight: 900; font-size: 10px; color: var(--magenta); }
+
+/* コメント */
+.comment { display: flex; gap: 10px; padding: 12px 0; border-bottom: 1px solid var(--line); }
+.comment:last-child { border-bottom: 0; }
+.comment-main { flex: 1; min-width: 0; }
+.comment-head { display: flex; align-items: baseline; gap: 8px; }
+.comment-author { font-family: var(--disp); font-weight: 700; font-size: 13px; }
+.comment-date { font-size: 10px; color: var(--muted); }
+.comment-body { font-size: 14px; line-height: 1.7; margin: 2px 0 0; white-space: pre-wrap; word-break: break-word; }
+.comment-form { display: flex; flex-direction: column; gap: 8px; margin: 10px 0 4px; }
+
+/* ---------------- ログインボーナス（スタンプカード） ---------------- */
+.modal { position: fixed; inset: 0; z-index: 90; display: none; }
+.modal.open { display: block; }
+.modal-veil { position: absolute; inset: 0; background: rgba(0,0,0,.45); }
+.modal-box {
+  position: relative; z-index: 1; background: var(--paper);
+  max-width: 420px; width: calc(100% - 40px); margin: 8vh auto 0;
+  border-radius: 14px; padding: 22px 20px 26px; box-shadow: 0 10px 30px rgba(0,0,0,.3);
+  max-height: 84vh; overflow-y: auto;
 }
+.modal-x { position: absolute; top: 12px; right: 14px; background: none; border: 0; cursor: pointer; font-size: 22px; color: var(--navy); line-height: 1; }
+.modal-title { display: flex; align-items: center; justify-content: center; gap: 8px; font-family: var(--disp); font-weight: 900; font-size: 18px; margin-bottom: 14px; }
+.modal-title svg { width: 17px; height: 19px; }
+.stamp-lead { background: var(--navy); color: #fff; text-align: center; font-family: var(--disp); font-weight: 700; font-size: 14px; padding: 8px; border-radius: 3px; margin-bottom: 18px; }
 
-/* ============================================================
- *  ハンバーガーメニュー & マイページ
- * ============================================================ */
-.burger { background: none; border: none; font-size: 24px; line-height: 1; cursor: pointer; color: var(--ink); padding: 4px 6px; }
-.menu { position: fixed; inset: 0; background: rgba(28,28,26,.5); display: none; z-index: 60; }
+.stamp-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px 6px; }
+.stamp-cell { position: relative; aspect-ratio: 1; display: grid; place-items: center; }
+.stamp-num {
+  width: 38px; height: 38px; border-radius: 50%; background: var(--panel);
+  display: grid; place-items: center; font-family: var(--disp); font-weight: 700;
+  font-size: 14px; color: var(--muted); font-variant-numeric: tabular-nums;
+}
+.stamp-cell.is-bonus .stamp-num { background: var(--yellow); color: var(--ink); }
+.stamp-mark { position: absolute; inset: -2px; display: grid; place-items: center; }
+.stamp-mark svg { width: 100%; height: 100%; }
+
+/* ---------------- WA王決定戦ページ ---------------- */
+.wao-hero { border-radius: var(--radius); overflow: hidden; box-shadow: var(--shadow-lg); margin-bottom: 18px; }
+.wao-hero img { width: 100%; height: auto; display: block; }
+.wao-rules { background: var(--paper); border-radius: var(--radius); box-shadow: var(--shadow); padding: 18px 18px 20px; }
+.wao-rules ul { margin: 0; padding-left: 0; list-style: none; }
+.wao-rules li { display: flex; gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--line); font-size: 14px; line-height: 1.6; }
+.wao-rules li:last-child { border-bottom: 0; }
+.wao-rules li b { font-family: var(--disp); font-weight: 900; color: var(--magenta); flex: none; }
+.wao-warn { background: #fff4fa; border-radius: var(--radius); padding: 14px 16px; font-size: 13px; line-height: 1.7; margin: 16px 0; color: var(--ink); }
+.wao-period { font-family: var(--disp); font-weight: 900; text-align: center; font-size: 15px; margin: 4px 0 16px; }
+.wao-soon { text-align: center; background: var(--panel); border-radius: var(--radius); padding: 16px; font-family: var(--disp); font-weight: 900; font-size: 15px; color: var(--muted); }
+
+/* ---------------- フッター ---------------- */
+.site-foot {
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 30;
+  background: var(--bg); border-top: 1px solid var(--line);
+  padding: 9px 16px; text-align: center;
+}
+.site-foot-tag { display: none; }
+.site-foot-pool { font-size: 11px; color: var(--muted); }
+
+/* ---------------- メニュー ---------------- */
+.menu { position: fixed; inset: 0; z-index: 80; display: none; }
 .menu.open { display: block; }
-.menu-panel { position: absolute; top: 0; right: 0; height: 100%; width: 270px; max-width: 85vw; background: var(--paper); border-left: 3px solid var(--ink); padding: 54px 20px 20px; display: flex; flex-direction: column; gap: 10px; overflow-y: auto; }
-.menu-close { position: absolute; top: 10px; right: 14px; background: var(--ink); color: var(--paper); border: none; width: 30px; height: 30px; font-size: 20px; cursor: pointer; line-height: 1; }
-.menu-user { display: flex; align-items: center; gap: 10px; }
-.menu-avatar { width: 44px; height: 44px; border-radius: 50%; object-fit: cover; border: 2px solid var(--ink); flex: none; display: inline-block; }
-.menu-user-name { font-family: var(--disp); font-weight: 900; font-size: 15px; }
-.menu-user-handle { font-family: var(--body); font-size: 11px; opacity: .6; word-break: break-all; }
-.menu-sep { border-top: 3px solid var(--ink); margin: 6px 0; }
-.menu-item { font-family: var(--disp); font-weight: 900; font-size: 15px; letter-spacing: .04em; text-align: left; background: none; border: none; color: var(--ink); padding: 10px 4px; cursor: pointer; }
-.menu-item:hover { background: var(--paper-2); }
-.menu-logout { text-align: left; padding: 6px 4px; }
-
-/* ---- マイページ ---- */
-.mypage-user { margin-bottom: 16px; }
-.score-list { list-style: none; display: flex; flex-direction: column; gap: 8px; }
-.score-row { display: flex; align-items: center; gap: 10px; border: 2px solid var(--ink); padding: 8px 12px; font-size: 13px; }
-.score-rank { font-family: var(--disp); font-weight: 900; font-size: 11px; padding: 3px 10px; flex: none; }
-.score-val { font-family: var(--disp); font-weight: 700; }
-.score-date { margin-left: auto; font-size: 11px; }
-.rank-list { list-style: none; display: flex; flex-direction: column; gap: 6px; }
-.rank-row { display: flex; align-items: center; gap: 10px; padding: 8px 12px; border: 2px solid var(--line); font-size: 14px; }
-.rank-row.me { border: 3px solid var(--blue); background: rgba(31,76,214,.06); }
-.rank-pos { font-family: var(--disp); font-weight: 900; width: 26px; height: 26px; background: var(--ink); color: var(--paper); display: grid; place-items: center; font-size: 13px; flex: none; }
-.rank-row:nth-child(1) .rank-pos { background: var(--yellow); color: var(--ink); }
-.rank-row:nth-child(2) .rank-pos { background: #b9b3a2; color: var(--ink); }
-.rank-row:nth-child(3) .rank-pos { background: #c97e35; color: var(--paper); }
-.rank-name { font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.rank-score { margin-left: auto; font-family: var(--disp); font-weight: 900; flex: none; }
-.review-list { display: flex; flex-direction: column; gap: 8px; }
-.review-row { display: flex; gap: 12px; border: 2px solid var(--ink); padding: 10px 12px; }
-.review-mark { font-family: var(--disp); font-weight: 900; font-size: 22px; flex: none; width: 30px; text-align: center; }
-.review-mark.ok { color: var(--blue); }
-.review-mark.ng { color: var(--red); }
-.review-q { font-weight: 700; font-size: 14px; line-height: 1.35; }
-.review-a { font-size: 12px; margin-top: 2px; }
-.review-date { font-size: 10px; margin-top: 2px; }
-
-/* ---- ログイン画面のゲスト導線（控えめ） ---- */
-.guest-entry { margin-top: 22px; padding-top: 12px; border-top: 1px dashed var(--line); text-align: center; }
-.guest-link { font-size: 11px; text-transform: none; letter-spacing: .02em; text-decoration: underline; }
-
-/* ---- オーナーページ ---- */
-.stat-trio { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
-.stat-tile { text-align: center; padding: 16px 8px; border: 3px solid var(--ink); }
-.stat-val { font-family: var(--disp); font-weight: 900; font-size: 28px; letter-spacing: -0.03em; line-height: 1; }
-.stat-label { font-family: var(--disp); font-weight: 700; font-size: 10px; letter-spacing: 0.18em; text-transform: uppercase; margin-top: 6px; opacity: .85; }
-.rank-txt { flex: 1; min-width: 0; }
-.rank-txt .rank-name { white-space: normal; }
-.rank-handle { font-size: 10px; word-break: break-all; }
-.rank-sub { font-family: var(--body); font-weight: 500; font-size: 11px; opacity: .6; margin-left: 4px; }
-
-/* ---- マイページ：振り返りコメント & ランキング省略 ---- */
-.icon-btn { flex: none; align-self: flex-start; background: var(--paper); border: 2px solid var(--ink); width: 34px; height: 34px; font-size: 15px; cursor: pointer; display: grid; place-items: center; padding: 0; }
-.icon-btn:hover { background: var(--paper-2); }
-.review-row-wrap { border: 2px solid var(--ink); }
-.review-row-wrap .review-row { border: none; }
-.review-cslot { padding: 0 12px; }
-.review-cslot > div { padding-bottom: 12px; border-top: 1px dashed var(--line); padding-top: 12px; }
-.rank-ellipsis { text-align: center; list-style: none; font-family: var(--disp); font-weight: 900; padding: 2px 0; }
-
-/* ---- 本日の問題 / 作問トグル / 表示 ---- */
-.clr-ink { background: var(--ink); color: var(--paper); border-color: var(--ink); }
-.rank-block-wrap.daily-empty .rank-block { opacity: .4; cursor: not-allowed; }
-.rank-block-wrap.daily-empty .rank-block-desc { color: var(--red); font-weight: 700; opacity: 1; }
-.daily-toggle-wrap { border: 3px solid var(--ink); background: var(--paper-2); padding: 12px 14px; margin-bottom: 4px; }
-.daily-toggle { display: flex; align-items: center; gap: 10px; cursor: pointer; font-family: var(--disp); font-weight: 700; font-size: 13px; }
-.daily-toggle input { width: 20px; height: 20px; flex: none; }
-.daily-date.hidden, .hidden { display: none; }
-.correct-in { border-color: var(--blue) !important; }
-.acc-daily-tag { display: inline-block; font-family: var(--disp); font-weight: 900; font-size: 10px; background: var(--ink); color: var(--paper); padding: 1px 6px; margin-right: 2px; }
-
-/* ---- 連続ログイン（マイページ） ---- */
-.streak-box { display: flex; align-items: center; gap: 14px; border: 3px solid var(--ink); background: var(--yellow); padding: 14px 16px; margin-bottom: 4px; }
-.streak-flame { font-size: 34px; line-height: 1; }
-.streak-cur { font-family: var(--disp); font-weight: 900; font-size: 18px; color: var(--ink); }
-.streak-sub { font-family: var(--body); font-size: 12px; margin-top: 2px; }
-
-/* ---- NEW バッジ（ホームのランクブロック） ---- */
-.rank-block { position: relative; }
-.new-badge { position: absolute; top: -10px; right: -8px; background: var(--red); color: var(--paper); font-family: var(--disp); font-weight: 900; font-size: 11px; letter-spacing: .08em; padding: 4px 9px; border: 2px solid var(--paper); transform: rotate(4deg); }
-
-/* ---- 作問者タグ（全問題閲覧） ---- */
-.acc-author { display: inline-block; font-family: var(--body); font-size: 10px; opacity: .6; margin-left: 6px; white-space: nowrap; }
-
-/* ---- 作問カテゴリ選択（ラジオ＋ガイド） ---- */
-.cat-list { display: flex; flex-direction: column; gap: 8px; }
-.cat-item { display: grid; grid-template-columns: auto auto 1fr; align-items: center; gap: 10px; border: 3px solid var(--ink); padding: 10px 12px; cursor: pointer; }
-.cat-item .radio-wrap { flex: none; }
-.cat-chip { font-family: var(--disp); font-weight: 900; font-size: 13px; padding: 4px 10px; white-space: nowrap; }
-.cat-guide { font-family: var(--body); font-size: 12px; line-height: 1.35; opacity: .8; }
-@media (max-width: 480px) {
-  .cat-item { grid-template-columns: auto 1fr; }
-  .cat-item .cat-guide { grid-column: 1 / -1; margin-left: 34px; }
+.menu-veil { position: absolute; inset: 0; background: rgba(0,0,0,.4); }
+.menu-panel {
+  position: absolute; top: 0; right: 0; bottom: 0; width: min(300px, 82vw);
+  background: var(--paper); padding: 20px 18px; overflow-y: auto;
+  display: flex; flex-direction: column; gap: 12px; box-shadow: -4px 0 18px rgba(0,0,0,.18);
 }
+.menu-user { display: flex; align-items: center; gap: 10px; padding-bottom: 14px; border-bottom: 1px solid var(--line); }
+.menu-item {
+  display: flex; align-items: center; gap: 8px; width: 100%;
+  background: none; border: 0; padding: 11px 2px; cursor: pointer; text-align: left;
+  font-family: var(--disp); font-weight: 700; font-size: 15px; color: var(--ink);
+}
+.menu-item:hover { color: var(--magenta); }
+.menu-logout { color: var(--muted); font-size: 13px; }
+.menu-badge {
+  background: var(--magenta); color: #fff; border-radius: 20px;
+  font-size: 10px; font-weight: 900; padding: 1px 7px; margin-left: 4px;
+}
+.menu-sep { height: 1px; background: var(--line); margin: 4px 0; }
+.menu-x { position: absolute; top: 14px; right: 16px; background: none; border: 0; font-size: 22px; cursor: pointer; color: var(--ink); }
 
-/* ---- 👍 いいねボタン ---- */
-.reaction-bar { display: flex; gap: 10px; margin: 14px 0 0; flex-wrap: wrap; }
-.good-btn { display: inline-flex; align-items: center; gap: 8px; background: var(--paper); border: 3px solid var(--ink); color: var(--ink); font-family: var(--disp); font-weight: 900; font-size: 14px; padding: 8px 16px; cursor: pointer; }
-.good-btn:hover { background: var(--paper-2); }
-.good-btn.good-funny.on { background: var(--yellow); border-color: var(--ink); }
-.good-btn.good-heart .good-count, .good-btn.good-heart span:first-child { color: #d64550; }
-.good-btn.good-heart.on { background: #d64550; border-color: #d64550; color: var(--paper); }
-.good-btn.good-heart.on .good-count, .good-btn.good-heart.on span:first-child { color: var(--paper); }
-.good-count { min-width: 14px; text-align: center; }
+/* ---------------- トースト ---------------- */
+.toasts { position: fixed; left: 50%; bottom: 76px; transform: translateX(-50%); z-index: 100; display: flex; flex-direction: column; gap: 8px; align-items: center; }
+.toast {
+  background: var(--ink); color: #fff; border-radius: 20px; padding: 9px 20px;
+  font-size: 13px; box-shadow: var(--shadow-lg); animation: toastIn .2s ease;
+}
+.toast.success { background: var(--magenta); }
+.toast.error { background: #c0392b; }
+@keyframes toastIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
 
-/* ---- ログインボーナス（トップ） ---- */
-.home-bonus { text-align: center; font-family: var(--disp); font-weight: 900; font-size: 13px; letter-spacing: .04em; background: var(--yellow); color: var(--ink); border: 3px solid var(--ink); padding: 8px 12px; margin: 0 0 16px; }
+/* ---------------- ログイン画面 ---------------- */
+.login-wrap { text-align: center; padding-top: 12px; }
+.login-logo { width: 210px; max-width: 60vw; margin: 0 auto 18px; display: block; }
+.guest-link { display: inline-block; margin-top: 16px; text-decoration: underline; }
 
-/* ---- 結果ページの順位変動 ---- */
-.result-rank { text-align: left; margin-top: 10px; }
-.rank-delta { font-family: var(--disp); font-weight: 900; font-size: 15px; text-align: center; margin-bottom: 10px; }
-.rank-delta.up { color: var(--blue); }
-.rank-delta.down { color: var(--red); }
-.points-breakdown { font-size: 11px; margin-top: 6px; line-height: 1.5; }
+.errorbox { background: #fff4f4; border-radius: var(--radius); padding: 14px; font-size: 13px; color: #c0392b; }
 
-/* ---- 面白クイズランキング ---- */
-.funny-list { list-style: none; display: flex; flex-direction: column; gap: 8px; }
-.funny-row { display: flex; align-items: center; gap: 10px; border: 2px solid var(--ink); padding: 10px 12px; }
-.funny-pos { font-family: var(--disp); font-weight: 900; width: 26px; height: 26px; background: var(--ink); color: var(--paper); display: grid; place-items: center; font-size: 13px; flex: none; }
-.funny-list li:nth-child(1) .funny-pos { background: var(--yellow); color: var(--ink); }
-.funny-list li:nth-child(2) .funny-pos { background: #b9b3a2; color: var(--ink); }
-.funny-list li:nth-child(3) .funny-pos { background: #c97e35; color: var(--paper); }
-.funny-txt { flex: 1; min-width: 0; }
-.funny-q { font-weight: 700; font-size: 14px; line-height: 1.3; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
-.funny-meta { font-size: 11px; margin-top: 2px; }
-.funny-count { font-family: var(--disp); font-weight: 900; font-size: 15px; flex: none; }
+/* メニュー内のユーザー表示 */
+.menu-user-txt { min-width: 0; }
+.menu-user-name { font-family: var(--disp); font-weight: 900; font-size: 14px; }
+.menu-user-handle { font-size: 10px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; }
 
-/* ---- ハンバーガー/メニューのバッジ ---- */
-.burger { position: relative; }
-.burger-badge { position: absolute; top: -4px; right: -6px; min-width: 16px; height: 16px; padding: 0 4px; background: var(--red); color: var(--paper); font-family: var(--disp); font-weight: 900; font-size: 10px; border-radius: 999px; display: inline-flex; align-items: center; justify-content: center; }
-.burger-badge.hidden { display: none; }
-.menu-item { display: flex; align-items: center; justify-content: space-between; }
-.menu-badge { background: var(--red); color: var(--paper); font-family: var(--disp); font-weight: 900; font-size: 11px; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 999px; display: inline-flex; align-items: center; justify-content: center; }
+/* 新着コメント一覧 */
+.nc-list { display: flex; flex-direction: column; gap: 12px; }
+.nc-item { background: var(--paper); border-radius: var(--radius); box-shadow: var(--shadow); padding: 14px; }
+.nc-item.nc-new { border-left: 4px solid var(--magenta); }
+.nc-q { font-size: 12px; color: var(--muted); margin: 0 0 8px; }
+.nc-badge-inline { background: var(--magenta); color: #fff; border-radius: 20px; font-size: 9px; font-weight: 900; padding: 1px 7px; }
 
-/* ---- 作った問題の🤣数 ---- */
-.acc-good { flex: none; padding: 0 12px; font-family: var(--disp); font-weight: 900; font-size: 13px; white-space: nowrap; }
+/* コメントの種別（コメント／補足） */
+.comment-kind { font-family: var(--disp); font-weight: 700; font-size: 10px; padding: 1px 7px; border-radius: 20px; background: var(--panel); color: var(--muted); }
+.comment-kind.kind-supplement { background: #def6ff; color: var(--cyan); }
 
-/* ---- 新着コメント ---- */
-.nc-list { display: flex; flex-direction: column; gap: 10px; }
-.nc-item { border: 2px solid var(--ink); padding: 11px 12px; }
-.nc-item.nc-new { border-color: var(--red); background: rgba(216,38,28,.05); }
-.nc-q { font-size: 12px; margin-bottom: 6px; display: -webkit-box; -webkit-line-clamp: 1; -webkit-box-orient: vertical; overflow: hidden; }
-.nc-badge-inline { background: var(--red); color: var(--paper); font-family: var(--disp); font-weight: 900; font-size: 9px; letter-spacing: .06em; padding: 1px 6px; }
+/* 作問完了 */
+.done-actions { display: flex; flex-direction: column; gap: 10px; margin-top: 18px; }
 
-/* ---- 振り返りの操作ボタン & 本文中リンク ---- */
-.review-btns { display: flex; flex-direction: column; gap: 6px; flex: none; align-self: flex-start; }
-.review-btns .icon-btn { text-decoration: none; }
-.inline-link { color: var(--blue); text-decoration: underline; word-break: break-all; }
-
-/* ---- 総合ランキングの内訳（オーナー） ---- */
-.rank-bd { font-size: 10px; line-height: 1.4; margin-top: 3px; }
+@media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }

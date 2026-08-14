@@ -30,16 +30,28 @@ window.QUIZ_CONFIG = {
   lockMisskeyHost: true,
 
   // 3ランク。label・desc・color は自由に変えられます（key は変えないでください）。
-  // color は 'yellow' / 'red' / 'blue' から選択。
-  // desc＝ホームの説明、guide＝作問時のガイドライン
+  // color は 'yellow' / 'magenta' / 'cyan' / 'navy' から選択。
+  // desc＝ホームの説明、guide＝作問時のガイドライン、stars＝難易度の星の数
   ranks: [
-    { key: 'beginner',     label: '入門編', color: 'yellow', desc: '入会したてで迷ってる人向け', guide: '公式・準公式に関するもの' },
-    { key: 'intermediate', label: '中級編', color: 'red',    desc: 'ちょっと慣れてきた人向け',   guide: 'メンバー複数名が参加しておりAERUや配信アーカイブなどで情報が後からでも見返せるもの' },
-    { key: 'mania',        label: '上級編', color: 'blue',   desc: '沼に入りたい人向け',         guide: '特定のメンバーに関するもの' },
+    { key: 'beginner',     label: '入門編', color: 'yellow',  stars: 1, desc: '入会したての人へ',   guide: '公式・準公式に関するもの' },
+    { key: 'intermediate', label: '中級編', color: 'magenta', stars: 2, desc: '慣れてきた人へ',     guide: 'メンバー複数名が参加しておりAERUや配信アーカイブなどで情報が後からでも見返せるもの' },
+    { key: 'mania',        label: '上級編', color: 'cyan',    stars: 3, desc: '沼にハマりたい人へ', guide: '特定のメンバーに関するもの' },
   ],
 
   // 本日の問題（その日限りのお題）。ストックがこの数「以下」だとグレーアウト。
-  daily: { label: '本日の問題', color: 'ink', desc: 'その日限りのタイムリーなお題', guide: '一過性の話題', minStock: 3 },
+  daily: { label: '本日の問題', color: 'navy', desc: 'タイムリーな話題', guide: '一過性の話題', minStock: 3 },
+
+  // WA王決定戦（1週間限定イベント）
+  // enabled: false の間は、トップのバナーがグレーアウトして中に入れません。
+  // 期間中だけ公開したいので、公開の準備が整ったら enabled: true にします。
+  waking: {
+    enabled: false,              // ← 公開するとき true にする
+    label: 'WA王決定戦',
+    start: '2026-08-24',         // 公開開始（この日の0時から）
+    end:   '2026-08-31',         // 公開終了（この日の終わりまで）
+    cutoff: '2026-08-24',        // この日より前に作られた問題が出題対象（＝8/23まで）
+    minutes: 40,                 // 想定所要時間（分）
+  },
 
   // シェア文につけるハッシュタグ（# は不要）
   shareHashtag: 'waquiz',
