@@ -243,8 +243,9 @@ function showStampCard(streak) {
       const day = base + i;                 // このマスが何日目か
       const isBonus = isBonusDay(day);
       const stamped = i <= filled;          // 1 から順に押していく
+      const isLatest = i === filled;        // 今日ぶん＝最後の1つだけ押す演出をつける
       // 押した日は、下の数字を薄くしてスタンプが読めるようにする
-      const cell = h('div', { class: 'stamp-cell' + (isBonus ? ' is-bonus' : '') + (stamped ? ' is-stamped' : '') }, [
+      const cell = h('div', { class: 'stamp-cell' + (isBonus ? ' is-bonus' : '') + (stamped ? ' is-stamped' : '') + (isLatest ? ' is-latest' : '') }, [
         h('span', { class: 'stamp-num' }, String(day)),
       ]);
       if (stamped) {
