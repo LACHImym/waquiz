@@ -203,6 +203,13 @@ function isBonusDay(day) {
   return Store.loginPointsForDay(day) > (CONFIG.points.login || 0);
 }
 
+// 判子の傾き（0〜30度）。手で押したようにバラつかせる。
+// 日数から計算しているので、カードを開き直しても同じマスは同じ角度のままになる。
+function stampTilt(day) {
+  const r = Math.sin(day * 12.9898) * 43758.5453;
+  return (r - Math.floor(r)) * 30;
+}
+
 // 連続ログインのバナーを押したら、いつでもスタンプカードを開けるようにする
 function makeStampOpener(banner, streak) {
   banner.classList.add('is-tappable');
@@ -241,8 +248,11 @@ function showStampCard(streak) {
         h('span', { class: 'stamp-num' }, String(day)),
       ]);
       if (stamped) {
-        cell.appendChild(h('span', { class: 'stamp-mark',
-          html: isBonus ? ICONS.stampBonus() : ICONS.stamp() }));
+        cell.appendChild(h('span', {
+          class: 'stamp-mark',
+          style: `transform:rotate(${stampTilt(day).toFixed(1)}deg)`,
+          html: isBonus ? ICONS.stampBonus() : ICONS.stamp(),
+        }));
       }
       grid.appendChild(cell);
     }

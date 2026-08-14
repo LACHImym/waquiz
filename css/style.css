@@ -449,7 +449,7 @@ textarea.input { resize: vertical; min-height: 92px; }
 /* 判子は縦横比がそれぞれ違うので、つぶさずに収める */
 .stamp-mark svg, .stamp-mark img { width: 100%; height: 100%; object-fit: contain; display: block; }
 /* 顔の判子は「検定」の判子より一回り小さく扱う */
-.stamp-cell:not(.is-bonus) .stamp-mark img { width: 84%; height: 84%; }
+.stamp-cell:not(.is-bonus) .stamp-mark img { width: 60%; height: 60%; }
 /* 押した日は数字を薄くする（スタンプと重なって読めなくなるのを防ぐ） */
 .stamp-cell.is-stamped .stamp-num { opacity: .3; }
 
