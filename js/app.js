@@ -1838,7 +1838,7 @@ function renderLogin(app) {
   if (CONFIG.lockMisskeyHost) {
     app.appendChild(h('section', { class: 'card login-card' }, [
       h('h1', {}, 'ようこそ'),
-      h('p', { class: 'muted' }, 'みんなで四択クイズを作って、みんなで解こう。'),
+      h('p', { class: 'muted' }, 'オンラインコミュニティWAの４択クイズ'),
       h('div', { class: 'server-tag' }, [
         h('span', { class: 'server-tag-label' }, 'コミュニティ'),
         h('span', { class: 'server-tag-host' }, host),
