@@ -443,6 +443,8 @@ textarea.input { resize: vertical; min-height: 92px; }
 .stamp-cell.is-bonus .stamp-num { background: var(--yellow); color: var(--ink); }
 .stamp-mark { position: absolute; inset: -2px; display: grid; place-items: center; }
 .stamp-mark svg { width: 100%; height: 100%; }
+/* 押した日は数字を薄くする（スタンプと重なって読めなくなるのを防ぐ） */
+.stamp-cell.is-stamped .stamp-num { opacity: .3; }
 
 /* ---------------- WA王決定戦ページ ---------------- */
 .wao-hero { border-radius: var(--radius); overflow: hidden; box-shadow: var(--shadow-lg); margin-bottom: 18px; }

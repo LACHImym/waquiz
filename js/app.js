@@ -218,7 +218,8 @@ function showStampCard(loginDays, streak) {
       const n = i + 1;
       const isBonus = n % 5 === 0;                 // 5日ごとは大きめボーナス
       const stamped = set.has(date);
-      const cell = h('div', { class: 'stamp-cell' + (isBonus ? ' is-bonus' : '') }, [
+      // 押した日は、下の数字を薄くしてスタンプが読めるようにする
+      const cell = h('div', { class: 'stamp-cell' + (isBonus ? ' is-bonus' : '') + (stamped ? ' is-stamped' : '') }, [
         h('span', { class: 'stamp-num' }, String(n)),
       ]);
       if (stamped) {
