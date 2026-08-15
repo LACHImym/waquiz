@@ -505,7 +505,11 @@ function renderSetupNotice() {
 
 
 /* ---------- トップ（本日の問題＋3難易度） ---------- */
+// ※ switchView 以外（ログインボーナスの表示更新）からも直接呼ばれるので、
+//   ここで中身を消してから描く。消さないと画面が二重に積まれてしまう。
 function renderHome(app) {
+  app = app || $('#app');
+  app.innerHTML = '';
   renderHeader({});
 
   // --- ヒーロー（HOMEバナー＋連続ログイン） ---
