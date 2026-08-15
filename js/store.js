@@ -618,6 +618,82 @@ const Store = (() => {
     return cms.map(c => ({ ...c, qbody: bodyMap[c.question_id] }));
   }
 
+  // ============================================================
+  //  WA王決定戦
+  // ============================================================
+  // この人の挑戦記録（無ければ null）。1人1行なので「挑戦済みか」の判定に使う。
+  async function waoEntry(user) {
+    if (!user || !db) return null;
+    const { data, error } = await db.from('wao_entries')
+      .select('*').eq('user_handle', Misskey.handleOf(user)).limit(1);
+    if (error) throw error;
+    return (data && data[0]) || null;
+  }
+
+  // 出題対象：cutoff の日より前に作られた問題を全部
+  async function waoQuestions(cutoffYmd) {
+    must();
+    return selectAll('questions', '*', q => q.lt('created_at', cutoffYmd));
+  }
+
+  // 挑戦の開始を記録。既に挑戦済みならエラーになる（1人1回きり）
+  async function waoStart(user, total) {
+    must();
+    const { data, error } = await db.from('wao_entries')
+      .insert({ user_handle: Misskey.handleOf(user), user_name: user.name, total })
+      .select();
+    if (error) throw error;
+    return data && data[0];
+  }
+
+  // 1問ごとの正誤を記録（同点だったときの順位付けに使う）
+  async function waoRecordAnswers(user, items) {
+    if (!user || !db || !items || !items.length) return;
+    const handle = Misskey.handleOf(user);
+    const rows = items.map(it => ({
+      user_handle: handle, question_id: it.question_id, is_correct: it.is_correct,
+    }));
+    const { error } = await db.from('wao_answers')
+      .upsert(rows, { onConflict: 'user_handle,question_id' });
+    if (error) console.warn('wao answers failed', error);
+  }
+
+  async function waoFinish(user, correct, answered) {
+    must();
+    const { error } = await db.from('wao_entries').update({
+      correct, answered, finished: true, finished_at: new Date().toISOString(),
+    }).eq('user_handle', Misskey.handleOf(user));
+    if (error) throw error;
+  }
+
+  // 結果の集計。正解数が同じ場合は「みんなが間違えた問題を当てた人」を上位にする。
+  // 難問ボーナス = その問題を落とした人の割合の合計（誰も解けない問題を当てるほど大きい）
+  async function waoRanking() {
+    must();
+    const [entries, answers] = await Promise.all([
+      selectAll('wao_entries', '*'),
+      selectAll('wao_answers', 'user_handle, question_id, is_correct'),
+    ]);
+    const perQ = {};
+    answers.forEach(a => {
+      const x = perQ[a.question_id] || (perQ[a.question_id] = { total: 0, correct: 0 });
+      x.total++; if (a.is_correct) x.correct++;
+    });
+    const bonus = {};
+    answers.forEach(a => {
+      if (!a.is_correct) return;
+      const x = perQ[a.question_id];
+      const rate = x.total ? x.correct / x.total : 1;   // 全員正解なら 1（＝加点なし）
+      bonus[a.user_handle] = (bonus[a.user_handle] || 0) + (1 - rate);
+    });
+    return entries
+      .map(e => ({ ...e, rarity: Math.round((bonus[e.user_handle] || 0) * 100) / 100 }))
+      .sort((a, b) =>
+        b.correct - a.correct ||
+        b.rarity - a.rarity ||
+        String(a.finished_at || '').localeCompare(String(b.finished_at || '')));
+  }
+
   // ---- 履歴 ----
   async function addHistory(questionId, action, user, detail) {
     const row = {
@@ -651,5 +727,6 @@ const Store = (() => {
     commentsOnMyQuestions, myComments,
     recordLogin, getStreak, loginPointsForDay, saveProfile, saveProfileRow, allProfiles,
     listComments, addComment, updateComment, deleteComment, listHistory,
+    waoEntry, waoQuestions, waoStart, waoRecordAnswers, waoFinish, waoRanking,
   };
 })();

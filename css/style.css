@@ -471,7 +471,39 @@ textarea.input { resize: vertical; min-height: 92px; }
 .wao-rules li:last-child { border-bottom: 0; }
 .wao-rules li b { font-family: var(--disp); font-weight: 900; color: var(--magenta); flex: none; }
 .wao-warn { background: #fff4fa; border-radius: var(--radius); padding: 14px 16px; font-size: 13px; line-height: 1.7; margin: 16px 0; color: var(--ink); }
-.wao-period { font-family: var(--disp); font-weight: 900; text-align: center; font-size: 15px; margin: 4px 0 16px; }
+.wao-period { font-family: var(--disp); font-weight: 900; text-align: center; font-size: 15px; margin: 4px 0 12px; }
+
+/* 締切までのカウントダウン */
+.wao-banner-wrap { margin: 22px 0 14px; }
+.wao-banner-wrap .wao-banner { margin: 0; }
+.wao-count {
+  display: flex; align-items: center; justify-content: center; gap: 10px; flex-wrap: wrap;
+  background: var(--navy); color: #fff; border-radius: var(--radius);
+  padding: 10px 14px; margin-bottom: 18px;
+}
+.wao-count-label { font-family: var(--disp); font-weight: 900; font-size: 12px; letter-spacing: .06em; opacity: .9; }
+.wao-count-nums { display: flex; align-items: baseline; gap: 8px; }
+.wao-count-u { display: flex; align-items: baseline; gap: 2px; }
+.wao-count-u b {
+  font-family: var(--disp); font-weight: 900; font-size: 24px; line-height: 1;
+  font-variant-numeric: tabular-nums; letter-spacing: -.02em;
+}
+.wao-count-u i { font-style: normal; font-size: 10px; opacity: .85; }
+/* 残り1時間を切ったら赤く */
+.wao-count.is-urgent { background: var(--magenta); }
+/* バナーの下に置く細めの表示 */
+.wao-count.is-slim { margin: 8px 0 0; padding: 7px 12px; border-radius: 0 0 var(--radius) var(--radius); }
+.wao-count.is-slim .wao-count-u b { font-size: 17px; }
+
+/* 本番の進み具合バー（.quiz-progress は横並びなので flex:1 で残りを埋める） */
+.wao-bar { flex: 1; height: 6px; background: var(--panel); border-radius: 4px; overflow: hidden; }
+.wao-bar span { display: block; height: 100%; background: var(--navy); transition: width .25s ease; }
+
+/* 挑戦おわり・挑戦済み */
+.wao-fin { padding: 26px 20px 24px; }
+.wao-fin-mark { width: 34px; height: 38px; margin: 0 auto 10px; }
+.wao-fin h2 { margin-bottom: 8px; }
+.wao-fin p { margin: 4px 0; font-size: 14px; }
 .wao-soon { text-align: center; background: var(--panel); border-radius: var(--radius); padding: 16px; font-family: var(--disp); font-weight: 900; font-size: 15px; color: var(--muted); }
 
 /* ---------------- フッター ---------------- */

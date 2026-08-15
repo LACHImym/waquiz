@@ -171,7 +171,7 @@ async function boot() {
   loginBonus();
   refreshNewComments();
   // タブを閉じる／ページを離れるときも、途中離脱として記録（ベストエフォート）
-  window.addEventListener('pagehide', () => { flushAbandon(); });
+  window.addEventListener('pagehide', () => { flushAbandon(); flushWaoAbandon(); });
   // 未ログインなら、まずログイン画面へ（ゲスト入場を選んだ人は除く）
   if (!user && !sessionStorage.getItem('ocq_guest')) switchView('login');
   else switchView('home');
@@ -367,8 +367,9 @@ function openMenu() {
       items.push(ownerLink('👑 総合ランキング', 'owner-total'));
       items.push(ownerLink('👑 正答数ランキング', 'owner-correct'));
       items.push(ownerLink('👑 面白クイズランキング', 'owner-funny'));
+      items.push(ownerLink('👑 WA王決定戦の結果', 'owner-wao'));
     }
-    items.push(h('button', { class: 'link-btn menu-logout', onclick: () => { flushAbandon(); Misskey.logout(); location.reload(); } }, 'ログアウト'));
+    items.push(h('button', { class: 'link-btn menu-logout', onclick: () => { flushAbandon(); flushWaoAbandon(); Misskey.logout(); location.reload(); } }, 'ログアウト'));
   }
 
   m.appendChild(h('div', { class: 'menu-panel' }, [
@@ -407,7 +408,8 @@ async function flushAbandon() {
 }
 
 function switchView(view) {
-  if (currentView === 'quiz') flushAbandon(); // クイズ画面から抜ける＝途中離脱として記録
+  if (currentView === 'quiz') flushAbandon();        // クイズ画面から抜ける＝途中離脱として記録
+  if (currentView === 'wao-quiz') flushWaoAbandon(); // WA王も同じ（そこで終了・再挑戦不可）
   currentView = view;
   const app = $('#app');
   app.innerHTML = '';
@@ -420,6 +422,7 @@ function switchView(view) {
   else if (view === 'owner-total') renderOwnerRanking(app, 'total');
   else if (view === 'owner-correct') renderOwnerRanking(app, 'correct');
   else if (view === 'owner-funny') renderOwnerRanking(app, 'funny');
+  else if (view === 'owner-wao') renderOwnerWao(app);
   else if (view === 'new-comments') renderNewComments(app);
   else if (view === 'ranking') renderRanking(app);
   else if (view === 'wao') renderWao(app);
@@ -427,7 +430,7 @@ function switchView(view) {
 
 /* ---------- WA王決定戦（1週間限定・ルール説明ページ） ---------- */
 // 「はじめる」を押すと最終確認 → 本番。ここは入口の2段構えの1段目。
-function renderWao(app) {
+async function renderWao(app) {
   const w = CONFIG.waking || {};
   if (!waoOpen()) { toast('WA王決定戦は準備中です', 'info'); return switchView('home'); }
   if (!user) return requireLogin('WA王決定戦はログインすると挑戦できます');
@@ -437,6 +440,14 @@ function renderWao(app) {
     h('img', { src: 'assets/wao-banner.png', alt: w.label })));
 
   app.appendChild(h('p', { class: 'wao-period' }, `${fmtMdW(w.start)} 〜 ${fmtMdW(w.end)} 限定`));
+  app.appendChild(waoCountdown());
+
+  // 挑戦済みなら、ここで打ち切って「挑戦済み」の画面を出す
+  if (Store.isConfigured()) {
+    let entry = null;
+    try { entry = await Store.waoEntry(user); } catch {}
+    if (entry) { app.appendChild(waoDoneCard(entry)); return; }
+  }
 
   const rules = h('div', { class: 'wao-rules' }, [
     h('h2', {}, 'ルール'),
@@ -473,10 +484,160 @@ function confirmWaoStart() {
   });
 }
 
-function startWao() {
-  // ※ 本番の出題ロジックは公開前に実装します（config.waking.enabled が false の間は入れません）
-  toast('WA王決定戦は現在準備中です', 'info');
-  switchView('home');
+/* ---------- WA王決定戦：本番 ----------
+ * ・cutoff より前に作られた問題を「全問」ランダムな順番で出す
+ * ・正解／不正解はその場では見せない（点数も出さない）
+ * ・1人1回きり。始めた時点で記録するので、途中でやめても再挑戦はできない
+ */
+let wao = null;
+
+async function startWao() {
+  if (!user) return requireLogin('WA王決定戦はログインすると挑戦できます');
+  if (!Store.isConfigured()) return toast('Supabase を設定すると挑戦できます', 'error');
+  if (!waoOpen()) { toast('WA王決定戦は準備中です', 'info'); return switchView('home'); }
+
+  currentView = 'wao-quiz';
+  const w = CONFIG.waking || {};
+  renderHeader({ title: w.label });
+  const app = $('#app'); app.innerHTML = '';
+  app.appendChild(h('p', { class: 'muted center' }, '問題を準備中…'));
+
+  // 既に挑戦済みなら、ここで止める
+  let entry = null;
+  try { entry = await Store.waoEntry(user); }
+  catch (e) { app.innerHTML = ''; app.appendChild(errorBox(e)); return; }
+  if (entry) { app.innerHTML = ''; app.appendChild(waoDoneCard(entry)); return; }
+
+  let list;
+  try { list = await Store.waoQuestions(w.cutoff); }
+  catch (e) { app.innerHTML = ''; app.appendChild(errorBox(e)); return; }
+
+  if (!list.length) {
+    app.innerHTML = '';
+    app.appendChild(h('div', { class: 'card center' }, [
+      h('p', { class: 'muted' }, '出題できる問題がまだありません。'),
+      h('button', { class: 'btn btn-ghost btn-sm', onclick: () => switchView('home') }, '← トップへ'),
+    ]));
+    return;
+  }
+  // 出題順をランダムに
+  const idx = shuffleIdx(list.length);
+  list = idx.map(i => list[i]);
+
+  // 挑戦の開始を記録（ここで1回ぶんを消費する）
+  try { await Store.waoStart(user, list.length); }
+  catch (e) {
+    // 二重に押した場合など。改めて記録を読んで「挑戦済み」にする
+    let again = null;
+    try { again = await Store.waoEntry(user); } catch {}
+    app.innerHTML = '';
+    app.appendChild(again ? waoDoneCard(again) : errorBox(e));
+    return;
+  }
+
+  wao = { list, i: 0, correct: 0, answers: [], answered: false, _done: false };
+  renderWaoQuiz();
+}
+
+function renderWaoQuiz() {
+  const w = CONFIG.waking || {};
+  const app = $('#app'); app.innerHTML = '';
+  renderHeader({ title: w.label });
+  const q = wao.list[wao.i];
+  const total = wao.list.length;
+  wao.answered = false;
+
+  app.appendChild(h('div', { class: 'quiz-progress' }, [
+    h('span', {}, `${wao.i + 1}問目 / 全${total}問`),
+    h('div', { class: 'wao-bar' }, h('span', { style: `width:${(wao.i / total) * 100}%` })),
+  ]));
+
+  // 選択肢は毎回ランダムに並べ替え
+  const order = shuffleIdx(q.choices.length);
+  const dispCorrect = order.indexOf(q.correct_index);
+  const grid = h('div', { class: 'choice-grid' });
+  order.map(i => q.choices[i]).forEach((c, i) => {
+    grid.appendChild(h('button', { class: 'gopt', onclick: () => answerWao(i, dispCorrect, q, grid) },
+      [h('span', { class: 'gopt-n' }, LETTERS[i] + '.'), h('span', { class: 'gopt-t' }, c)]));
+  });
+
+  app.appendChild(h('section', { class: 'card quiz-card' }, [
+    h('div', {}, h('span', { class: 'cat-tag c-navy' }, w.label)),
+    h('h2', { class: 'q-title' }, [h('span', { class: 'q-mark' }, 'Q.'), ' ', q.body]),
+    grid,
+  ]));
+  app.appendChild(h('p', { class: 'hint center' }, '※ 正解・不正解はその場では出ません。最後まで進んでください。'));
+}
+
+function answerWao(i, dispCorrect, q, grid) {
+  if (wao.answered) return;
+  wao.answered = true;
+  const isRight = i === dispCorrect;
+  if (isRight) wao.correct++;
+  wao.answers.push({ question_id: q.id, is_correct: isRight });
+  // 正誤は見せず、押したものだけ印を付けてすぐ次へ
+  [...grid.children].forEach((btn, idx) => {
+    btn.disabled = true;
+    if (idx === i) btn.classList.add('is-picked');
+    else btn.classList.add('is-faded');
+  });
+  setTimeout(() => {
+    if (wao.i >= wao.list.length - 1) return finishWao();
+    wao.i++;
+    renderWaoQuiz();
+    window.scrollTo({ top: 0 });
+  }, 240);
+}
+
+async function finishWao() {
+  if (!wao || wao._done) return;
+  wao._done = true;
+  const answers = wao.answers.slice(), correct = wao.correct, total = wao.list.length;
+  currentView = 'wao-result';
+  const w = CONFIG.waking || {};
+  renderHeader({ title: w.label });
+  const app = $('#app'); app.innerHTML = '';
+  app.appendChild(h('p', { class: 'muted center' }, '記録中…'));
+  try {
+    await Store.waoRecordAnswers(user, answers);
+    await Store.waoFinish(user, correct, answers.length);
+  } catch (e) { console.warn('wao finish failed', e); }
+
+  app.innerHTML = '';
+  app.appendChild(h('section', { class: 'card center wao-fin' }, [
+    h('div', { class: 'wao-fin-mark', html: ICONS.flag('#171c61') }),
+    h('h2', {}, 'おつかれさまでした！'),
+    h('p', {}, `全${total}問のうち ${answers.length}問に回答しました。`),
+    h('p', { class: 'hint' }, '点数と順位はその場では出ません。WA王の発表をお楽しみに。'),
+    h('div', { style: 'margin-top:18px' },
+      h('button', { class: 'btn btn-primary', onclick: () => switchView('home') }, 'トップへ戻る')),
+  ]));
+}
+
+// 途中でやめたとき：答えたぶんだけ記録して、そこで終了にする（再挑戦はできない）
+async function flushWaoAbandon() {
+  const w = wao;
+  if (!w || w._done) return;
+  w._done = true;
+  if (!user || !Store.isConfigured()) return;
+  try {
+    await Store.waoRecordAnswers(user, w.answers);
+    await Store.waoFinish(user, w.correct, w.answers.length);
+  } catch (e) { console.warn('wao abandon failed', e); }
+}
+
+// 「挑戦済み」の表示
+function waoDoneCard(entry) {
+  return h('div', { class: 'card center wao-fin' }, [
+    h('div', { class: 'wao-fin-mark', html: ICONS.flag('#171c61') }),
+    h('h2', {}, '挑戦は完了しています'),
+    h('p', {}, entry && entry.answered
+      ? `${entry.total}問中 ${entry.answered}問に回答しました。`
+      : 'すでに一度挑戦しています。'),
+    h('p', { class: 'hint' }, '挑戦できるのはお一人さま1回きりです。点数・順位は後日発表します。'),
+    h('div', { style: 'margin-top:18px' },
+      h('button', { class: 'btn btn-ghost', onclick: () => switchView('home') }, '← トップへ戻る')),
+  ]);
 }
 
 function requireLogin(msg) {
@@ -632,7 +793,56 @@ function waoBanner() {
     h('img', { src: 'assets/wao-banner.png', alt: (CONFIG.waking && CONFIG.waking.label) || 'WA王決定戦' }),
     open ? h('span', { class: 'go' }, '›') : h('span', { class: 'wao-lock' }, '準備中'),
   ]);
-  return btn;
+  // 公開中は、締切までの残り時間を出す
+  if (!open) return btn;
+  return h('div', { class: 'wao-banner-wrap' }, [btn, waoCountdown('is-slim')]);
+}
+
+/* ---------- WA王決定戦のカウントダウン ---------- */
+// 開始前は「開始まで」、期間中は「締切まで」を1秒ごとに更新する。
+// 締切＝終了日の終わり（例：8/31 なら 9/1 の 0時）。
+function waoDateAt(ymd, plusDays = 0) {
+  if (!ymd) return null;
+  const [y, m, d] = ymd.split('-').map(Number);
+  return new Date(y, m - 1, d + plusDays, 0, 0, 0, 0);
+}
+function waoStartAt() { return waoDateAt((CONFIG.waking || {}).start); }
+function waoDeadline() { return waoDateAt((CONFIG.waking || {}).end, 1); }
+
+function waoCountdown(cls = '') {
+  const el = h('div', { class: ('wao-count ' + cls).trim() });
+  const unit = (n, u) => h('span', { class: 'wao-count-u' }, [
+    h('b', {}, String(n).padStart(2, '0')), h('i', {}, u),
+  ]);
+  // 描き直す。もう数える必要が無くなったら false を返す。
+  const paint = () => {
+    const now = new Date(), st = waoStartAt(), dl = waoDeadline();
+    let label, target;
+    if (st && now < st) { label = '開始まで'; target = st; }
+    else if (dl && now < dl) { label = '締切まで'; target = dl; }
+    else {
+      el.innerHTML = '';
+      el.classList.remove('is-urgent');
+      el.appendChild(h('span', { class: 'wao-count-label' }, '受付は終了しました'));
+      return false;
+    }
+    const s = Math.max(0, Math.floor((target - now) / 1000));
+    el.innerHTML = '';
+    el.appendChild(h('span', { class: 'wao-count-label' }, label));
+    el.appendChild(h('span', { class: 'wao-count-nums' }, [
+      unit(Math.floor(s / 86400), '日'),
+      unit(Math.floor(s % 86400 / 3600), '時間'),
+      unit(Math.floor(s % 3600 / 60), '分'),
+      unit(s % 60, '秒'),
+    ]));
+    el.classList.toggle('is-urgent', target - now < 3600 * 1000); // 残り1時間を切ったら赤く
+    return true;
+  };
+  if (paint()) {
+    // 画面から消えたら止める（画面を移動しても裏で動き続けないように）
+    const iv = setInterval(() => { if (!el.isConnected || !paint()) clearInterval(iv); }, 1000);
+  }
+  return el;
 }
 
 /* ---------- クイズ開始（全5問） ---------- */
@@ -1713,6 +1923,42 @@ async function renderOwnerPage(app) {
     list.forEach(q => acc.appendChild(accRow(q, { showAuthor: true }))); // 作問者タグ付き
     slot.appendChild(acc);
   }
+}
+
+/* ---------- オーナー用：WA王決定戦の結果 ----------
+ * 正解数の多い順。同点は「みんなが間違えた問題を当てた人」が上位（難問ボーナス）。 */
+async function renderOwnerWao(app) {
+  if (!user) return requireLogin();
+  if (!isOwnerAccount()) return toast('オーナーのみ入れるページです', 'error');
+  const w = CONFIG.waking || {};
+  renderHeader({ title: '👑 ' + (w.label || 'WA王決定戦') });
+  const slot = h('div', {}, h('p', { class: 'muted center' }, '集計中…'));
+  app.appendChild(slot);
+  if (!Store.isConfigured()) { slot.innerHTML = ''; return; }
+
+  let rows;
+  try { rows = await Store.waoRanking(); }
+  catch (e) { slot.innerHTML = ''; slot.appendChild(errorBox(e)); return; }
+  slot.innerHTML = '';
+
+  slot.appendChild(h('p', { class: 'hint', style: 'margin-bottom:10px' },
+    '正解数の多い順。同点のときは、みんなが間違えた問題を当てた人（難問ボーナス）が上位です。'));
+  if (!rows.length) { slot.appendChild(h('p', { class: 'muted center' }, 'まだ挑戦者がいません。')); return; }
+
+  slot.appendChild(h('p', { class: 'rank-cap' },
+    `挑戦者 ${rows.length}人 / 完走 ${rows.filter(r => r.finished).length}人`));
+  slot.appendChild(h('div', { class: 'rank-panel' }, rows.map((r, i) =>
+    h('div', { class: 'rank-row' }, [
+      h('span', { class: 'rank-pos' }, String(i + 1)),
+      avatarEl(r.user_handle, r.user_name, 'avatar-sm'),
+      h('div', { class: 'rank-name', style: 'white-space:normal' }, [
+        h('div', {}, r.user_name || r.user_handle),
+        h('div', { style: 'font-size:10px;color:var(--muted)' }, r.user_handle),
+        h('div', { style: 'font-size:10px;color:var(--muted)' },
+          `${r.answered}/${r.total}問 回答・難問ボーナス ${r.rarity}` + (r.finished ? '' : '・途中終了')),
+      ]),
+      h('span', { class: 'rank-val' }, `${r.correct}問正解`),
+    ]))));
 }
 
 /* ---------- オーナー用ランキング（各ページ・全員分） ---------- */
