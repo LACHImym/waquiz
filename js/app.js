@@ -744,7 +744,7 @@ function answerQuiz(i, grid, q) {
   const cWrap = h('div', { id: 'quiz-comments' });
   reveal.appendChild(cWrap);
   Store.listComments(q.id).then(comments => {
-    const block = commentsBlock(q.id, comments.slice().reverse(), true); // 新しい順
+    const block = commentsBlock(q.id, comments, true); // 古い順（Store が古い順で返す）
     cWrap.appendChild(block);
   }).catch(() => {});
 
@@ -1105,8 +1105,8 @@ function commentsBlock(qid, comments, formFirst = false) {
         const c = await Store.addComment(qid, b, user);
         const empty = listEl.querySelector('.comment-empty');
         if (empty) empty.remove();
-        // 新しいコメントは一覧の一番上に追加（新しい順で見えるように）
-        formFirst ? listEl.prepend(renderComment(c)) : listEl.appendChild(renderComment(c));
+        // 古い順に並んでいるので、書いたコメントは一番下に足す
+        listEl.appendChild(renderComment(c));
         closeForm();
         toast('コメントを送信しました', 'success');
       } catch (e) { send.disabled = false; toast(e.message || '送信に失敗', 'error'); }
@@ -1653,7 +1653,7 @@ async function renderMyPage(app) {
         try {
           const cs = await Store.listComments(a.question_id);
           cSlot.innerHTML = '';
-          cSlot.appendChild(commentsBlock(a.question_id, cs.slice().reverse(), true));
+          cSlot.appendChild(commentsBlock(a.question_id, cs, true));
         } catch (e) { cSlot.innerHTML = ''; cSlot.appendChild(h('p', { class: 'muted' }, '読み込みに失敗しました')); }
       },
     }, 'コメントする') : null;
