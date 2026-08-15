@@ -313,7 +313,11 @@ h3 { font-family: var(--disp); font-weight: 700; font-size: 15px; margin: 0 0 6p
 .rank-row { display: flex; align-items: center; gap: 10px; padding: 10px 2px; border-bottom: 1px solid rgba(0,0,0,.08); font-size: 14px; }
 .rank-row:last-child { border-bottom: 0; }
 .rank-pos { width: 20px; font-family: var(--disp); font-weight: 700; text-align: right; flex: none; font-variant-numeric: tabular-nums; }
-.rank-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rank-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rank-name-main { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* 名前の下の小さい補足（累計ログイン日数など） */
+.rank-sub { font-size: 10px; color: var(--muted); line-height: 1.4; }
+.rank-row.is-me .rank-sub { color: var(--cyan); opacity: .8; }
 .rank-val { font-size: 13px; font-variant-numeric: tabular-nums; flex: none; }
 .rank-row.is-me { color: var(--cyan); }
 .rank-row.is-me .rank-pos, .rank-row.is-me .rank-val { color: var(--cyan); }

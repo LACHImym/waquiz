@@ -396,7 +396,7 @@ const Store = (() => {
 
     const M = {};
     const get = (handle, name) => {
-      const m = M[handle] || (M[handle] = { handle, name: name || handle, points: 0, breakdown: {} });
+      const m = M[handle] || (M[handle] = { handle, name: name || handle, points: 0, days: 0, breakdown: {} });
       if (name) m.name = name;
       return m;
     };
@@ -428,10 +428,11 @@ const Store = (() => {
       if (l.user_name) u.name = l.user_name;
     });
     Object.entries(byUser).forEach(([handle, u]) => {
-      const dates = u.dates.slice().sort();
+      const dates = [...new Set(u.dates)].sort();
       let day = 0, prev = null, sum = 0;
       for (const d of dates) { day = (prev && shiftYmd(prev, 1) === d) ? day + 1 : 1; sum += loginPointsForDay(day); prev = d; }
       add(handle, u.name, 'login', sum);
+      get(handle, u.name).days = dates.length;   // 累計ログイン日数（ランキング表示用）
     });
     gds.data.forEach(g => {
       add(g.user_handle, null, 'goodGiven', P.goodGiven);

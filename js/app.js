@@ -865,7 +865,7 @@ function showResult() {
       const arrow = delta > 0 ? `↑ ${delta}ランクUP！` : delta < 0 ? `↓ ${-delta}ランクDOWN` : '→ 変わらず';
       rankSlot.appendChild(h('h3', { class: 'section-title' }, '総合ランキング'));
       rankSlot.appendChild(h('p', { class: `rank-delta ${delta > 0 ? 'up' : delta < 0 ? 'down' : ''}` }, `${posBefore}位 → ${posNow}位　${arrow}`));
-      rankSlot.appendChild(windowRankingList(list, r => `${r.points}pt`));
+      rankSlot.appendChild(windowRankingList(list, r => `${r.points}pt`, r => `累計${r.days || 0}日ログイン`));
     })();
   }
 
@@ -1624,7 +1624,7 @@ async function renderMyPage(app) {
   // ---- ランキング（他のブロックと同じ幅で縦に並べる） ----
   slot.appendChild(h('h3', { class: 'section-title' }, '総合ランキング'));
   slot.appendChild(h('p', { class: 'rank-cap' }, 'ログイン(1) ログインボーナス(+5) コメント(2) 問題をつくる(10) イベントボーナス(+100) など'));
-  slot.appendChild(windowRankingList(total, r => `${r.points}pt`));
+  slot.appendChild(windowRankingList(total, r => `${r.points}pt`, r => `累計${r.days || 0}日ログイン`));
   if (myPoints(total)) slot.appendChild(h('p', { class: 'rank-cap', style: 'margin-top:6px' }, myPointsBreakdown(total)));
 
   slot.appendChild(h('h3', { class: 'section-title' }, '正答数ランキング'));
@@ -1735,6 +1735,7 @@ async function renderOwnerRanking(app, kind) {
           h('div', { class: 'rank-name', style: 'white-space:normal' }, [
             h('div', {}, r.name || r.handle),
             h('div', { style: 'font-size:10px;color:var(--muted)' }, r.handle),
+            h('div', { style: 'font-size:10px;color:var(--muted)' }, `累計${r.days || 0}日ログイン`),
             h('div', { style: 'font-size:10px;color:var(--muted)' }, breakdownText(r.breakdown)),
           ]),
           h('span', { class: 'rank-val' }, `${r.points}pt`),
@@ -1791,7 +1792,8 @@ function rankingWindow(list, myHandle, radius = 2) {
   const end = Math.min(list.length, meIdx + radius + 1);
   return { rows: list.slice(start, end).map((r, i) => ({ r, pos: start + i + 1 })), topCut: start > 0, botCut: end < list.length, meMissing: false };
 }
-function windowRankingList(list, scoreFn) {
+// subFn を渡すと、名前の下に小さい補足（累計ログイン日数など）を出す
+function windowRankingList(list, scoreFn, subFn) {
   if (!list || !list.length) return h('p', { class: 'muted' }, 'まだデータがありません。');
   const myHandle = user ? Misskey.handleOf(user) : null;
   const w = rankingWindow(list, myHandle);
@@ -1799,10 +1801,14 @@ function windowRankingList(list, scoreFn) {
   if (w.topCut) items.push(h('div', { class: 'rank-ellipsis muted' }, '…'));
   w.rows.forEach(({ r, pos }) => {
     const isMe = r.handle === myHandle;
+    const sub = subFn ? subFn(r) : null;
     items.push(h('div', { class: 'rank-row' + (isMe ? ' is-me' : '') }, [
       h('span', { class: 'rank-pos' }, String(pos)),
       avatarEl(r.handle, r.name, 'avatar-sm'),
-      h('span', { class: 'rank-name' }, isMe ? 'あなた' : (r.name || r.handle)),
+      h('div', { class: 'rank-name' }, [
+        h('div', { class: 'rank-name-main' }, isMe ? 'あなた' : (r.name || r.handle)),
+        sub ? h('div', { class: 'rank-sub' }, sub) : null,
+      ]),
       h('span', { class: 'rank-val' }, scoreFn(r)),
     ]));
   });
