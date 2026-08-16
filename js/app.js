@@ -367,6 +367,8 @@ function openMenu() {
       items.push(ownerLink('👑 総合ランキング', 'owner-total'));
       items.push(ownerLink('👑 正答数ランキング', 'owner-correct'));
       items.push(ownerLink('👑 面白クイズランキング', 'owner-funny'));
+      // 公開前はここからだけ WA王決定戦に入って動作確認できる
+      items.push(ownerLink(waoLive() ? '👑 WA王決定戦' : '👑 WA王決定戦（テスト）', 'wao'));
       items.push(ownerLink('👑 WA王決定戦の結果', 'owner-wao'));
     }
     items.push(h('button', { class: 'link-btn menu-logout', onclick: () => { flushAbandon(); flushWaoAbandon(); Misskey.logout(); location.reload(); } }, 'ログアウト'));
@@ -819,20 +821,21 @@ function waoLive() {
 function waoPreview() { return isOwnerAccount() && !waoLive(); }
 // 中に入れるか
 function waoOpen() { return waoLive() || waoPreview(); }
+// トップのバナーは「本当に公開中」かどうかだけで決める。
+// 公開前のオーナーのテストは、ハンバーガーメニューから入る（バナーは全員グレーのまま）。
 function waoBanner() {
-  const open = waoOpen(), preview = waoPreview();
+  const live = waoLive();
   const btn = h('button', {
-    class: 'wao-banner' + (open ? '' : ' is-locked') + (preview ? ' is-preview' : ''),
-    disabled: open ? undefined : 'disabled',
-    title: preview ? 'テスト中（オーナーのみ）' : open ? CONFIG.waking.label : '準備中です',
-    onclick: () => open ? switchView('wao') : null,
+    class: 'wao-banner' + (live ? '' : ' is-locked'),
+    disabled: live ? undefined : 'disabled',
+    title: live ? CONFIG.waking.label : '準備中です',
+    onclick: () => live ? switchView('wao') : null,
   }, [
     h('img', { src: 'assets/wao-banner.png', alt: (CONFIG.waking && CONFIG.waking.label) || 'WA王決定戦' }),
-    open ? h('span', { class: 'go' }, '›') : h('span', { class: 'wao-lock' }, '準備中'),
-    preview ? h('span', { class: 'wao-preview-tag' }, 'テスト中（オーナーのみ）') : null,
+    live ? h('span', { class: 'go' }, '›') : h('span', { class: 'wao-lock' }, '準備中'),
   ]);
-  // 中に入れるときだけ、締切までの残り時間を出す
-  if (!open) return btn;
+  // 公開中だけ、締切までの残り時間を出す
+  if (!live) return btn;
   return h('div', { class: 'wao-banner-wrap' }, [btn, waoCountdown('is-slim')]);
 }
 
