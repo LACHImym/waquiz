@@ -658,7 +658,7 @@ function answerWao(i, dispCorrect, q, grid) {
 async function finishWao() {
   if (!wao || wao._done) return;
   wao._done = true;
-  const answers = wao.answers.slice(), correct = wao.correct, total = wao.list.length;
+  const answers = wao.answers.slice(), correct = wao.correct;
   currentView = 'wao-result';
   const w = CONFIG.waking || {};
   renderHeader({ title: w.label });
@@ -675,11 +675,25 @@ async function finishWao() {
                onerror: function () { this.closest('.wao-hero').remove(); } })));
   app.appendChild(h('section', { class: 'card center wao-fin' }, [
     h('h2', {}, 'おつかれさまでした！'),
-    h('p', {}, `全${total}問のうち ${answers.length}問に回答しました。`),
     h('p', { class: 'hint' }, '点数と順位はその場では出ません。WA王の発表をお楽しみに。'),
+    h('div', { class: 'wao-fin-actions' }, [
+      h('button', { class: 'btn btn-primary', onclick: shareWao },
+        [h('span', { html: ICONS.share('#fff') }), document.createTextNode('シェアする')]),
+      h('button', { class: 'btn', onclick: () => switchView('mypage') }, 'マイページへ'),
+    ]),
   ]));
-  app.appendChild(waoReviewActions());
   app.appendChild(waoHomeButton());
+}
+
+// 完走したことをシェアする（点数は出さない）
+function shareWao() {
+  const w = CONFIG.waking || {};
+  const text =
+    `「${CONFIG.appName}」${w.label}に挑戦しました！\n` +
+    `結果発表が楽しみ。\n` +
+    (location.href.startsWith('http') ? `${location.origin + location.pathname}\n` : '') +
+    `#${CONFIG.shareHashtag}`;
+  Misskey.share(text);
 }
 
 // 途中でやめたとき：答えたぶんだけ記録して、そこで終了にする（再挑戦はできない）
