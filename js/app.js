@@ -482,7 +482,8 @@ async function renderWao(app) {
     if (entry) {
       app.appendChild(waoDoneCard(entry));
       if (isOwnerAccount()) app.appendChild(waoResetButton());
-      app.appendChild(waoSideActions());
+      app.appendChild(waoReviewActions());
+      app.appendChild(waoHomeButton());
       return;
     }
   }
@@ -500,26 +501,40 @@ async function renderWao(app) {
   ]);
   app.appendChild(rules);
 
+  // 本番に挑む前に、まず復習してもらう
+  app.appendChild(waoReviewActions());
+
   app.appendChild(h('div', { class: 'wao-warn' },
     '準備はいいですか？「挑戦する」を押すと本番がはじまります。' +
     '途中で画面を閉じたり戻ったりすると、そこで終了になるのでご注意ください。'));
 
   app.appendChild(h('button', { class: 'btn btn-primary btn-lg btn-block', onclick: confirmWaoStart }, '挑戦する'));
-  app.appendChild(waoSideActions());
+  app.appendChild(waoHomeButton());
 }
 
-/* ---------- WA王のページから、ほかの遊び方へ ---------- */
-function waoSideActions() {
+/* ---------- 復習する（本番前の練習・終わったあとの遊び場） ---------- */
+function waoReviewActions() {
+  const bigBtn = (mode, main, sub) => h('button', {
+    class: 'btn wao-review-btn', onclick: () => startQuiz(mode),
+  }, [
+    h('span', { class: 'wao-review-main' }, main),
+    h('span', { class: 'wao-review-sub' }, sub),
+  ]);
   return h('div', { class: 'wao-actions' }, [
-    h('h3', { class: 'section-title' }, 'ほかの問題で遊ぶ'),
+    h('h3', { class: 'section-title' }, '復習する'),
     h('div', { class: 'wao-actions-row' }, [
-      h('button', { class: 'btn btn-sm', onclick: () => startQuiz('archive') }, '本日の問題アーカイブ'),
-      h('button', { class: 'btn btn-sm', onclick: () => startQuiz('stock') }, 'ストック問題を解く'),
+      bigBtn('archive', '本日の問題', 'アーカイブ'),
+      bigBtn('stock', 'ストック問題', 'を解く'),
     ]),
     h('p', { class: 'hint center' }, 'どちらもランダムに5問出題します。WA王決定戦の記録には影響しません。'),
-    h('button', { class: 'btn btn-ghost btn-block', style: 'margin-top:12px',
-      onclick: () => switchView('home') }, '← ホーム画面へ戻る'),
   ]);
+}
+
+function waoHomeButton() {
+  return h('button', {
+    class: 'btn btn-ghost btn-block', style: 'margin-top:16px',
+    onclick: () => switchView('home'),
+  }, '← ホーム画面へ戻る');
 }
 
 // 2段目：最終確認のポップアップ
@@ -663,7 +678,8 @@ async function finishWao() {
     h('p', {}, `全${total}問のうち ${answers.length}問に回答しました。`),
     h('p', { class: 'hint' }, '点数と順位はその場では出ません。WA王の発表をお楽しみに。'),
   ]));
-  app.appendChild(waoSideActions());
+  app.appendChild(waoReviewActions());
+  app.appendChild(waoHomeButton());
 }
 
 // 途中でやめたとき：答えたぶんだけ記録して、そこで終了にする（再挑戦はできない）

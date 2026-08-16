@@ -502,11 +502,17 @@ textarea.input { resize: vertical; min-height: 92px; }
 .wao-bar { flex: 1; height: 6px; background: var(--panel); border-radius: 4px; overflow: hidden; }
 .wao-bar span { display: block; height: 100%; background: var(--navy); transition: width .25s ease; }
 
-/* WA王のページから、ほかの遊び方へ */
+/* 復習する（大きめのボタン2つ） */
 .wao-actions { margin-top: 22px; }
 .wao-actions .section-title { margin-bottom: 10px; }
 .wao-actions-row { display: flex; gap: 10px; }
-.wao-actions-row .btn { flex: 1; padding: 13px 8px; font-size: 13px; line-height: 1.35; }
+.wao-review-btn {
+  flex: 1; flex-direction: column; gap: 2px;
+  min-height: 92px; padding: 16px 10px; text-align: center;
+  background: var(--paper); box-shadow: var(--shadow-lg);
+}
+.wao-review-main { font-family: var(--disp); font-weight: 900; font-size: 16px; line-height: 1.3; }
+.wao-review-sub { font-family: var(--disp); font-weight: 900; font-size: 13px; line-height: 1.3; color: var(--muted); }
 
 /* 公開前のテスト表示（オーナーだけに見える） */
 .wao-preview-note {
