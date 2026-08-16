@@ -206,6 +206,9 @@ h3 { font-family: var(--disp); font-weight: 700; font-size: 15px; margin: 0 0 6p
   display: inline-block; font-family: var(--disp); font-weight: 900;
   font-size: 12px; padding: 4px 12px; border-radius: 3px; color: #fff;
 }
+/* 問題カードの「ジャンル＋公開日」 */
+.q-genre { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.q-date { font-family: var(--disp); font-weight: 700; font-size: 12px; color: var(--muted); }
 .cat-tag.c-yellow { background: var(--yellow); color: var(--ink); }
 .cat-tag.c-magenta{ background: var(--magenta); }
 .cat-tag.c-cyan   { background: var(--cyan); }
@@ -498,6 +501,12 @@ textarea.input { resize: vertical; min-height: 92px; }
 /* 本番の進み具合バー（.quiz-progress は横並びなので flex:1 で残りを埋める） */
 .wao-bar { flex: 1; height: 6px; background: var(--panel); border-radius: 4px; overflow: hidden; }
 .wao-bar span { display: block; height: 100%; background: var(--navy); transition: width .25s ease; }
+
+/* WA王のページから、ほかの遊び方へ */
+.wao-actions { margin-top: 22px; }
+.wao-actions .section-title { margin-bottom: 10px; }
+.wao-actions-row { display: flex; gap: 10px; }
+.wao-actions-row .btn { flex: 1; padding: 13px 8px; font-size: 13px; line-height: 1.35; }
 
 /* 公開前のテスト表示（オーナーだけに見える） */
 .wao-preview-note {

@@ -38,9 +38,17 @@ const esc = s => String(s ?? '').replace(/[&<>"']/g, c =>
 const rankOf = key => CONFIG.ranks.find(r => r.key === key) || CONFIG.ranks[0];
 // ブランドカラー（CSS の変数と同じ値）
 const COLOR = { yellow: '#ffd902', magenta: '#e4007f', cyan: '#2ea7e0', navy: '#171c61', ink: '#231815' };
-// 'daily' は特別カテゴリ。ランクと同じ関数で扱えるようにする。
-const colorKeyOf = key => key === 'daily' ? CONFIG.daily.color : rankOf(key).color;
-const rankLabel = key => key === 'daily' ? CONFIG.daily.label : rankOf(key).label;
+// 難易度以外の特別なカテゴリ。ランクと同じ関数で扱えるようにする。
+//   daily   … 今日の「本日の問題」
+//   archive … これまでの「本日の問題」から出す
+//   stock   … 難易度を問わずストックから出す
+const SPECIAL_MODES = {
+  daily:   { label: () => CONFIG.daily.label,      color: () => CONFIG.daily.color },
+  archive: { label: () => '本日の問題アーカイブ',    color: () => CONFIG.daily.color },
+  stock:   { label: () => 'ストック問題',           color: () => 'navy' },
+};
+const colorKeyOf = key => SPECIAL_MODES[key] ? SPECIAL_MODES[key].color() : rankOf(key).color;
+const rankLabel = key => SPECIAL_MODES[key] ? SPECIAL_MODES[key].label() : rankOf(key).label;
 const rankColor = key => COLOR[colorKeyOf(key)] || COLOR.ink;
 const onAccent = key => colorKeyOf(key) === 'yellow' ? '#231815' : '#ffffff';
 const LETTERS = '1234';
@@ -104,9 +112,22 @@ const fmtMdW = s => {
   const [y, m, d] = s.split('-').map(Number);
   return `${m}/${d}(${WEEK_JP[new Date(y, m - 1, d).getDay()]})`;
 };
-// 問題のジャンル表示（通常＝難易度名／本日の問題＝「8/14(金)の問題」）
-const genreLabel = q => q.scheduled_date ? `${fmtMdW(q.scheduled_date)}の問題` : rankLabel(q.rank);
+// 問題のジャンル表示（「入門編」「本日の問題」など）
+const genreLabel = q => q.scheduled_date ? CONFIG.daily.label : rankLabel(q.rank);
 const genreColorKey = q => q.scheduled_date ? CONFIG.daily.color : colorKeyOf(q.rank);
+// ISO日時 → 「8/14(金)」
+const fmtIsoMdW = iso => {
+  if (!iso) return '';
+  const d = new Date(iso);
+  return `${d.getMonth() + 1}/${d.getDate()}(${WEEK_JP[d.getDay()]})`;
+};
+// 公開された日付（本日の問題＝出題日／それ以外＝作成日）
+const questionDate = q => q.scheduled_date ? fmtMdW(q.scheduled_date) : fmtIsoMdW(q.created_at);
+// 問題カードの上に出す「ジャンル＋公開日」の行
+const qGenreLine = q => h('div', { class: 'q-genre' }, [
+  h('span', { class: `cat-tag c-${genreColorKey(q)}` }, genreLabel(q)),
+  h('span', { class: 'q-date' }, questionDate(q)),
+]);
 // 日付ユーティリティ（ブラウザのローカル日付＝日本時間）
 const pad2 = n => String(n).padStart(2, '0');
 const ymd = d => `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
@@ -450,7 +471,8 @@ async function renderWao(app) {
     ]));
   }
 
-  app.appendChild(h('p', { class: 'wao-period' }, `${fmtMdW(w.start)} 〜 ${fmtMdW(w.end)} 限定`));
+  app.appendChild(h('p', { class: 'wao-period' },
+    `${fmtMdW(w.start)} ${w.startTime || '0:00'} 〜 ${fmtMdW(w.end)} 24:00 限定`));
   app.appendChild(waoCountdown());
 
   // 挑戦済みなら、ここで打ち切って「挑戦済み」の画面を出す
@@ -460,6 +482,7 @@ async function renderWao(app) {
     if (entry) {
       app.appendChild(waoDoneCard(entry));
       if (isOwnerAccount()) app.appendChild(waoResetButton());
+      app.appendChild(waoSideActions());
       return;
     }
   }
@@ -482,8 +505,21 @@ async function renderWao(app) {
     '途中で画面を閉じたり戻ったりすると、そこで終了になるのでご注意ください。'));
 
   app.appendChild(h('button', { class: 'btn btn-primary btn-lg btn-block', onclick: confirmWaoStart }, '挑戦する'));
-  app.appendChild(h('div', { style: 'margin-top:14px;text-align:center' },
-    h('button', { class: 'btn btn-ghost', onclick: () => switchView('home') }, '← トップへ戻る')));
+  app.appendChild(waoSideActions());
+}
+
+/* ---------- WA王のページから、ほかの遊び方へ ---------- */
+function waoSideActions() {
+  return h('div', { class: 'wao-actions' }, [
+    h('h3', { class: 'section-title' }, 'ほかの問題で遊ぶ'),
+    h('div', { class: 'wao-actions-row' }, [
+      h('button', { class: 'btn btn-sm', onclick: () => startQuiz('archive') }, '本日の問題アーカイブ'),
+      h('button', { class: 'btn btn-sm', onclick: () => startQuiz('stock') }, 'ストック問題を解く'),
+    ]),
+    h('p', { class: 'hint center' }, 'どちらもランダムに5問出題します。WA王決定戦の記録には影響しません。'),
+    h('button', { class: 'btn btn-ghost btn-block', style: 'margin-top:12px',
+      onclick: () => switchView('home') }, '← ホーム画面へ戻る'),
+  ]);
 }
 
 // 2段目：最終確認のポップアップ
@@ -577,7 +613,7 @@ function renderWaoQuiz() {
   });
 
   app.appendChild(h('section', { class: 'card quiz-card' }, [
-    h('div', {}, h('span', { class: 'cat-tag c-navy' }, w.label)),
+    qGenreLine(q),
     h('h2', { class: 'q-title' }, [h('span', { class: 'q-mark' }, 'Q.'), ' ', q.body]),
     grid,
   ]));
@@ -619,14 +655,15 @@ async function finishWao() {
   } catch (e) { console.warn('wao finish failed', e); }
 
   app.innerHTML = '';
+  app.appendChild(h('div', { class: 'wao-hero' },
+    h('img', { src: 'assets/wao-finish.png', alt: 'おつかれさまでした！',
+               onerror: function () { this.closest('.wao-hero').remove(); } })));
   app.appendChild(h('section', { class: 'card center wao-fin' }, [
-    h('div', { class: 'wao-fin-mark', html: ICONS.flag('#171c61') }),
     h('h2', {}, 'おつかれさまでした！'),
     h('p', {}, `全${total}問のうち ${answers.length}問に回答しました。`),
     h('p', { class: 'hint' }, '点数と順位はその場では出ません。WA王の発表をお楽しみに。'),
-    h('div', { style: 'margin-top:18px' },
-      h('button', { class: 'btn btn-primary', onclick: () => switchView('home') }, 'トップへ戻る')),
   ]));
+  app.appendChild(waoSideActions());
 }
 
 // 途中でやめたとき：答えたぶんだけ記録して、そこで終了にする（再挑戦はできない）
@@ -669,8 +706,6 @@ function waoDoneCard(entry) {
       ? `${entry.total}問中 ${entry.answered}問に回答しました。`
       : 'すでに一度挑戦しています。'),
     h('p', { class: 'hint' }, '挑戦できるのはお一人さま1回きりです。点数・順位は後日発表します。'),
-    h('div', { style: 'margin-top:18px' },
-      h('button', { class: 'btn btn-ghost', onclick: () => switchView('home') }, '← トップへ戻る')),
   ]);
 }
 
@@ -810,12 +845,12 @@ function renderHome(app) {
 /* ---------- WA王決定戦バナー ---------- */
 // 期間内（config.waking.enabled かつ start〜end）だけ入れる。
 // それ以外は「準備中」でグレーアウトし、押しても入れない。
-// 本当に公開中か（config の enabled と期間のとおり）
+// 本当に公開中か（config の enabled と期間のとおり・時刻まで見る）
 function waoLive() {
   const w = CONFIG.waking || {};
   if (!w.enabled) return false;
-  const t = todayYMD();
-  return (!w.start || t >= w.start) && (!w.end || t <= w.end);
+  const now = new Date(), st = waoStartAt(), dl = waoDeadline();
+  return (!st || now >= st) && (!dl || now < dl);
 }
 // 公開前のオーナーだけの試し打ち。他の人はこれまで通り入れない。
 function waoPreview() { return isOwnerAccount() && !waoLive(); }
@@ -834,21 +869,23 @@ function waoBanner() {
     h('img', { src: 'assets/wao-banner.png', alt: (CONFIG.waking && CONFIG.waking.label) || 'WA王決定戦' }),
     live ? h('span', { class: 'go' }, '›') : h('span', { class: 'wao-lock' }, '準備中'),
   ]);
-  // 公開中だけ、締切までの残り時間を出す
-  if (!live) return btn;
+  // 公開前も「開始まで」を出す（期待を持たせるため）
   return h('div', { class: 'wao-banner-wrap' }, [btn, waoCountdown('is-slim')]);
 }
 
 /* ---------- WA王決定戦のカウントダウン ---------- */
 // 開始前は「開始まで」、期間中は「締切まで」を1秒ごとに更新する。
 // 締切＝終了日の終わり（例：8/31 なら 9/1 の 0時）。
-function waoDateAt(ymd, plusDays = 0) {
+function waoDateAt(ymd, plusDays = 0, hm = '00:00') {
   if (!ymd) return null;
   const [y, m, d] = ymd.split('-').map(Number);
-  return new Date(y, m - 1, d + plusDays, 0, 0, 0, 0);
+  const [hh, mi] = String(hm || '00:00').split(':').map(Number);
+  return new Date(y, m - 1, d + plusDays, hh || 0, mi || 0, 0, 0);
 }
-function waoStartAt() { return waoDateAt((CONFIG.waking || {}).start); }
-function waoDeadline() { return waoDateAt((CONFIG.waking || {}).end, 1); }
+// 開始＝start の startTime（例：8/24 22:00）
+function waoStartAt() { const w = CONFIG.waking || {}; return waoDateAt(w.start, 0, w.startTime); }
+// 締切＝end の翌日0時（例：8/31 が終了日なら 9/1 の0時）
+function waoDeadline() { const w = CONFIG.waking || {}; return waoDateAt(w.end, 1); }
 
 function waoCountdown(cls = '') {
   const el = h('div', { class: ('wao-count ' + cls).trim() });
@@ -901,11 +938,13 @@ async function startQuiz(rankKey) {
   let seenIds = [];
   try { seenIds = JSON.parse(localStorage.getItem(cycleKey) || '[]'); } catch {}
 
+  const n = CONFIG.questionsPerQuiz;
   let res;
   try {
-    res = rankKey === 'daily'
-      ? await Store.sampleDaily(CONFIG.questionsPerQuiz, todayYMD(), seenIds)
-      : await Store.sampleQuestions(rankKey, CONFIG.questionsPerQuiz, seenIds);
+    res = rankKey === 'daily'   ? await Store.sampleDaily(n, todayYMD(), seenIds)
+        : rankKey === 'archive' ? await Store.sampleDailyArchive(n, seenIds)          // これまでの本日の問題
+        : rankKey === 'stock'   ? await Store.sampleQuestions(undefined, n, seenIds)  // 難易度を問わずストックから
+        : await Store.sampleQuestions(rankKey, n, seenIds);
   }
   catch (e) { app.innerHTML = ''; app.appendChild(errorBox(e)); return; }
   const list = res.list;
@@ -951,8 +990,7 @@ function renderQuiz() {
 
   quiz.answered = false;
   const card = h('section', { class: 'card quiz-card' }, [
-    // 出題ジャンル（入門編／8/14(金)の問題 など）
-    h('div', {}, h('span', { class: `cat-tag c-${genreColorKey(q)}` }, genreLabel(q))),
+    qGenreLine(q),
     h('h2', { class: 'q-title' }, [h('span', { class: 'q-mark' }, 'Q.'), ' ', q.body]),
     grid,
     h('div', { id: 'reveal' }),

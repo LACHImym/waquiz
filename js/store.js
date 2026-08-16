@@ -149,6 +149,14 @@ const Store = (() => {
     return deckSelect(data, n, seenIds, counts);
   }
 
+  // これまでの「本日の問題」すべて（アーカイブ）から n 問
+  async function sampleDailyArchive(n, seenIds = []) {
+    must();
+    const data = await selectAll('questions', '*', q => q.not('scheduled_date', 'is', null));
+    const counts = await answerCounts();
+    return deckSelect(data, n, seenIds, counts);
+  }
+
   // ランクごとの最新作成日時（通常問題のみ）。NEWバッジ判定用。
   async function newestByRank() {
     must();
@@ -732,7 +740,7 @@ const Store = (() => {
   return {
     init, isConfigured,
     listQuestions, listMyQuestions, getQuestion, randomQuestion, sampleQuestions, countByRank,
-    sampleDaily, countDaily, newestByRank,
+    sampleDaily, sampleDailyArchive, countDaily, newestByRank,
     createQuestion, updateQuestion, deleteQuestion,
     recordAnswer, recordAnswersBatch, recordResult, listMyResults, listRecentAnswers, ranking, totalRanking,
     funnyRanking, heartRanking, hardRanking,
