@@ -666,6 +666,19 @@ const Store = (() => {
     if (error) throw error;
   }
 
+  // オーナーが公開前にテストするため、自分の挑戦記録を消す
+  async function waoResetUser(user) {
+    must();
+    const handle = Misskey.handleOf(user);
+    const a = await db.from('wao_answers').delete().eq('user_handle', handle).select();
+    if (a.error) throw a.error;
+    const e = await db.from('wao_entries').delete().eq('user_handle', handle).select();
+    if (e.error) throw e.error;
+    if (!e.data || !e.data.length) {
+      throw new Error('消せませんでした。DBの削除の許可（supabase/migrate_all.sql）を実行してください。');
+    }
+  }
+
   // 結果の集計。正解数が同じ場合は「みんなが間違えた問題を当てた人」を上位にする。
   // 難問ボーナス = その問題を落とした人の割合の合計（誰も解けない問題を当てるほど大きい）
   async function waoRanking() {
@@ -727,6 +740,6 @@ const Store = (() => {
     commentsOnMyQuestions, myComments,
     recordLogin, getStreak, loginPointsForDay, saveProfile, saveProfileRow, allProfiles,
     listComments, addComment, updateComment, deleteComment, listHistory,
-    waoEntry, waoQuestions, waoStart, waoRecordAnswers, waoFinish, waoRanking,
+    waoEntry, waoQuestions, waoStart, waoRecordAnswers, waoFinish, waoRanking, waoResetUser,
   };
 })();

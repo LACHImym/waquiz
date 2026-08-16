@@ -146,5 +146,10 @@ drop policy if exists "insert wao_answers" on wao_answers;
 create policy "insert wao_answers" on wao_answers for insert with check (true);
 drop policy if exists "update wao_answers" on wao_answers;
 create policy "update wao_answers" on wao_answers for update using (true) with check (true);
+-- 削除の許可（オーナーが公開前のテスト記録を消せるようにするため）
+drop policy if exists "delete wao_entries" on wao_entries;
+create policy "delete wao_entries" on wao_entries for delete using (true);
+drop policy if exists "delete wao_answers" on wao_answers;
+create policy "delete wao_answers" on wao_answers for delete using (true);
 
 -- ===== ここまで =====

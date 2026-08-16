@@ -439,6 +439,15 @@ async function renderWao(app) {
   app.appendChild(h('div', { class: 'wao-hero' },
     h('img', { src: 'assets/wao-banner.png', alt: w.label })));
 
+  // 公開前のテスト表示であることを、オーナーにはっきり伝える
+  if (waoPreview()) {
+    app.appendChild(h('div', { class: 'wao-preview-note' }, [
+      h('b', {}, 'テスト中（オーナーのみ）'),
+      h('span', {}, 'まだ公開されていません。ほかの人はこの画面に入れません。' +
+        'ここでの挑戦も本番と同じように記録されるので、公開前に下の「テスト記録を消す」で消してください。'),
+    ]));
+  }
+
   app.appendChild(h('p', { class: 'wao-period' }, `${fmtMdW(w.start)} 〜 ${fmtMdW(w.end)} 限定`));
   app.appendChild(waoCountdown());
 
@@ -446,7 +455,11 @@ async function renderWao(app) {
   if (Store.isConfigured()) {
     let entry = null;
     try { entry = await Store.waoEntry(user); } catch {}
-    if (entry) { app.appendChild(waoDoneCard(entry)); return; }
+    if (entry) {
+      app.appendChild(waoDoneCard(entry));
+      if (isOwnerAccount()) app.appendChild(waoResetButton());
+      return;
+    }
   }
 
   const rules = h('div', { class: 'wao-rules' }, [
@@ -626,6 +639,25 @@ async function flushWaoAbandon() {
   } catch (e) { console.warn('wao abandon failed', e); }
 }
 
+// オーナー用：自分の挑戦記録を消して、何度でもテストできるようにする
+function waoResetButton() {
+  const btn = h('button', { class: 'btn btn-danger btn-sm' }, '🗑 テスト記録を消す（オーナーのみ）');
+  btn.addEventListener('click', async () => {
+    if (!confirm('あなたのWA王決定戦の記録（解答も含む）を消します。よろしいですか？')) return;
+    btn.disabled = true;
+    try {
+      await Store.waoResetUser(user);
+      wao = null;
+      toast('記録を消しました。もう一度挑戦できます', 'success');
+      switchView('wao');
+    } catch (e) { btn.disabled = false; toast(e.message || '消せませんでした', 'error'); }
+  });
+  return h('div', { class: 'wao-reset' }, [
+    btn,
+    h('p', { class: 'hint' }, '※ 公開する前に、テストで作られた記録は消しておいてください。'),
+  ]);
+}
+
 // 「挑戦済み」の表示
 function waoDoneCard(entry) {
   return h('div', { class: 'card center wao-fin' }, [
@@ -776,24 +808,30 @@ function renderHome(app) {
 /* ---------- WA王決定戦バナー ---------- */
 // 期間内（config.waking.enabled かつ start〜end）だけ入れる。
 // それ以外は「準備中」でグレーアウトし、押しても入れない。
-function waoOpen() {
+// 本当に公開中か（config の enabled と期間のとおり）
+function waoLive() {
   const w = CONFIG.waking || {};
   if (!w.enabled) return false;
   const t = todayYMD();
   return (!w.start || t >= w.start) && (!w.end || t <= w.end);
 }
+// 公開前のオーナーだけの試し打ち。他の人はこれまで通り入れない。
+function waoPreview() { return isOwnerAccount() && !waoLive(); }
+// 中に入れるか
+function waoOpen() { return waoLive() || waoPreview(); }
 function waoBanner() {
-  const open = waoOpen();
+  const open = waoOpen(), preview = waoPreview();
   const btn = h('button', {
-    class: 'wao-banner' + (open ? '' : ' is-locked'),
+    class: 'wao-banner' + (open ? '' : ' is-locked') + (preview ? ' is-preview' : ''),
     disabled: open ? undefined : 'disabled',
-    title: open ? CONFIG.waking.label : '準備中です',
+    title: preview ? 'テスト中（オーナーのみ）' : open ? CONFIG.waking.label : '準備中です',
     onclick: () => open ? switchView('wao') : null,
   }, [
     h('img', { src: 'assets/wao-banner.png', alt: (CONFIG.waking && CONFIG.waking.label) || 'WA王決定戦' }),
     open ? h('span', { class: 'go' }, '›') : h('span', { class: 'wao-lock' }, '準備中'),
+    preview ? h('span', { class: 'wao-preview-tag' }, 'テスト中（オーナーのみ）') : null,
   ]);
-  // 公開中は、締切までの残り時間を出す
+  // 中に入れるときだけ、締切までの残り時間を出す
   if (!open) return btn;
   return h('div', { class: 'wao-banner-wrap' }, [btn, waoCountdown('is-slim')]);
 }
