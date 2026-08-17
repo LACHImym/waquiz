@@ -690,7 +690,8 @@ function shareWao() {
   const w = CONFIG.waking || {};
   const text =
     `「${CONFIG.appName}」${w.label}に挑戦しました！\n` +
-    `結果発表が楽しみ。\n` +
+    `君も一緒に掴みれとれ！\n` +
+    `クリック・スワイプ・WA王！\n` +
     (location.href.startsWith('http') ? `${location.origin + location.pathname}\n` : '') +
     `#${CONFIG.shareHashtag}`;
   Misskey.share(text);
