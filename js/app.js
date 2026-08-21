@@ -47,6 +47,11 @@ const SPECIAL_MODES = {
   archive: { label: () => '本日の問題アーカイブ',    color: () => CONFIG.daily.color },
   stock:   { label: () => 'ストック問題',           color: () => 'navy' },
 };
+// 復習モードの結果発表ページに出すサムネイル
+const RESULT_THUMB = {
+  archive: 'assets/wao-result-archive.png',
+  stock:   'assets/wao-result-stock.png',
+};
 const colorKeyOf = key => SPECIAL_MODES[key] ? SPECIAL_MODES[key].color() : rankOf(key).color;
 const rankLabel = key => SPECIAL_MODES[key] ? SPECIAL_MODES[key].label() : rankOf(key).label;
 const rankColor = key => COLOR[colorKeyOf(key)] || COLOR.ink;
@@ -1139,6 +1144,15 @@ function showResult() {
   renderHeader({ title: rankLabel(quiz.rank), color });
 
   const app = $('#app'); app.innerHTML = '';
+
+  // 復習モード（アーカイブ／ストック）の結果には専用のサムネイルを出す
+  const thumb = RESULT_THUMB[quiz.rank];
+  if (thumb) {
+    app.appendChild(h('div', { class: 'result-thumb' },
+      h('img', { src: thumb, alt: '',
+                 onerror: function () { this.closest('.result-thumb').remove(); } })));
+  }
+
   const R = 54, C = 2 * Math.PI * R;
   const svg = `
     <svg class="donut" viewBox="0 0 140 140">

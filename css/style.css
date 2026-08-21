@@ -282,6 +282,10 @@ h3 { font-family: var(--disp); font-weight: 700; font-size: 15px; margin: 0 0 6p
 }
 
 /* ---------------- 結果画面 ---------------- */
+/* 復習モード（アーカイブ／ストック）の結果サムネイル */
+.result-thumb { border-radius: var(--radius); overflow: hidden; box-shadow: var(--shadow-lg); margin-bottom: 16px; }
+.result-thumb img { width: 100%; height: auto; display: block; }
+
 .result-wrap { text-align: center; }
 .donut-wrap { position: relative; width: 240px; margin: 18px auto 6px; }
 .donut { width: 100%; height: auto; display: block; }
