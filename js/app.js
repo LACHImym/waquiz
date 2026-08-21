@@ -498,7 +498,7 @@ async function renderWao(app) {
     h('ul', {}, [
       h('li', {}, [h('b', {}, '1回だけ'), h('span', {}, '挑戦できるのは、お一人さま1回きりです。')]),
       h('li', {}, [h('b', {}, '中断不可'), h('span', {}, '途中でやめると、そこで終了になります。やり直しはできません。')]),
-      h('li', {}, [h('b', {}, '全問'), h('span', {}, `${fmtMdW(shiftYmdApp(w.cutoff, -1))}までに作られた問題から、全問をランダムな順番で出題します。`)]),
+      h('li', {}, [h('b', {}, '出題数'), h('span', {}, `${fmtMdW(shiftYmdApp(w.cutoff, -1))}までに作られた問題から、ランダムに選ばれた${w.questionCount}問を出題します。`)]),
       h('li', {}, [h('b', {}, '所要時間'), h('span', {}, `およそ ${w.minutes} 分かかります。時間に余裕のあるときにどうぞ。`)]),
       h('li', {}, [h('b', {}, '結果'), h('span', {}, '点数・順位はその場では出ません。WA王は後日発表します。')]),
       h('li', {}, [h('b', {}, '同点のとき'), h('span', {}, '正解数が同じ場合は、みんなが間違えた難しい問題を当てた人が上位になります。')]),
@@ -591,9 +591,10 @@ async function startWao() {
     ]));
     return;
   }
-  // 出題順をランダムに
+  // ランダムに並べ替えてから、決められた問題数だけ取り出す
+  // （対象がその数に満たないときは、あるぶんだけ出題する）
   const idx = shuffleIdx(list.length);
-  list = idx.map(i => list[i]);
+  list = idx.map(i => list[i]).slice(0, w.questionCount || list.length);
 
   // 挑戦の開始を記録（ここで1回ぶんを消費する）
   try { await Store.waoStart(user, list.length); }
