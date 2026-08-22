@@ -329,6 +329,9 @@ h3 { font-family: var(--disp); font-weight: 700; font-size: 15px; margin: 0 0 6p
 .rank-delta.up { color: var(--magenta); }
 .rank-delta.down { color: var(--muted); }
 .rank-cap { font-size: 10px; color: var(--muted); line-height: 1.5; margin: 0 0 6px; }
+/* オーナーページの補足行（最終ログインなど）。7日以上あいている人は色を変える。 */
+.owner-sub { font-size: 10px; color: var(--muted); line-height: 1.5; }
+.owner-sub.is-stale { color: var(--magenta); font-weight: 700; }
 
 /* ---------------- マイページ ---------------- */
 .me-row { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; }

@@ -440,7 +440,9 @@ const Store = (() => {
       let day = 0, prev = null, sum = 0;
       for (const d of dates) { day = (prev && shiftYmd(prev, 1) === d) ? day + 1 : 1; sum += loginPointsForDay(day); prev = d; }
       add(handle, u.name, 'login', sum);
-      get(handle, u.name).days = dates.length;   // 累計ログイン日数（ランキング表示用）
+      const m = get(handle, u.name);
+      m.days = dates.length;                     // 累計ログイン日数
+      m.lastLogin = dates[dates.length - 1];     // 最終ログイン日（いちばん新しい日）
     });
     gds.data.forEach(g => {
       add(g.user_handle, null, 'goodGiven', P.goodGiven);

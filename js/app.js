@@ -128,6 +128,23 @@ const fmtIsoMdW = iso => {
 };
 // 公開された日付（本日の問題＝出題日／それ以外＝作成日）
 const questionDate = q => q.scheduled_date ? fmtMdW(q.scheduled_date) : fmtIsoMdW(q.created_at);
+
+// 「2026-08-20」が今日から何日前か
+const daysAgoFrom = ymd => {
+  if (!ymd) return null;
+  const [y, m, d] = ymd.split('-').map(Number);
+  const then = new Date(y, m - 1, d), now = new Date();
+  return Math.round((new Date(now.getFullYear(), now.getMonth(), now.getDate()) - then) / 86400000);
+};
+// 最終ログイン日の表示。離れている人がひと目で分かるよう「◯日前」も添え、
+// 7日以上あいている人は色を変える。
+function lastLoginEl(ymd) {
+  if (!ymd) return h('div', { class: 'owner-sub' }, '最終ログイン —');
+  const n = daysAgoFrom(ymd);
+  const ago = n === 0 ? '今日' : n === 1 ? '昨日' : `${n}日前`;
+  return h('div', { class: 'owner-sub' + (n >= 7 ? ' is-stale' : '') },
+    `最終ログイン ${fmtMdW(ymd)}（${ago}）`);
+}
 // 問題カードの上に出す「ジャンル＋公開日」の行
 const qGenreLine = q => h('div', { class: 'q-genre' }, [
   h('span', { class: `cat-tag c-${genreColorKey(q)}` }, genreLabel(q)),
@@ -2110,6 +2127,7 @@ async function renderOwnerRanking(app, kind) {
           h('div', { class: 'rank-name', style: 'white-space:normal' }, [
             h('div', {}, r.name || r.handle),
             h('div', { style: 'font-size:10px;color:var(--muted)' }, r.handle),
+            lastLoginEl(r.lastLogin),
             h('div', { style: 'font-size:10px;color:var(--muted)' }, `累計${r.days || 0}日ログイン`),
             h('div', { style: 'font-size:10px;color:var(--muted)' }, breakdownText(r.breakdown)),
           ]),
