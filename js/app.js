@@ -484,15 +484,8 @@ async function renderWao(app) {
   app.appendChild(h('div', { class: 'wao-hero' },
     h('img', { src: 'assets/wao-banner.png', alt: w.label })));
 
-  // 公開前のテスト表示であることを、オーナーにはっきり伝える
-  if (waoPreview()) {
-    app.appendChild(h('div', { class: 'wao-preview-note' }, [
-      h('b', {}, 'テスト中（オーナーのみ）'),
-      h('span', {}, 'まだ公開されていません。ほかの人はこの画面に入れません。' +
-        'ここでの挑戦も本番と同じように記録されるので、公開前に下の「テスト記録を消す」で消してください。'),
-    ]));
-  }
-
+  // ※ ここから下は、オーナーも一般メンバーとまったく同じ表示にする。
+  //   （テスト記録を消すボタンは オーナー用の結果ページ に置いてある）
   app.appendChild(h('p', { class: 'wao-period' },
     `${fmtMdW(w.start)} ${w.startTime || '0:00'} 〜 ${fmtMdW(w.end)} 24:00 限定`));
   app.appendChild(waoCountdown());
@@ -503,7 +496,6 @@ async function renderWao(app) {
     try { entry = await Store.waoEntry(user); } catch {}
     if (entry) {
       app.appendChild(waoDoneCard(entry));
-      if (isOwnerAccount()) app.appendChild(waoResetButton());
       app.appendChild(waoReviewActions());
       app.appendChild(waoHomeButton());
       return;
@@ -742,7 +734,7 @@ function waoResetButton() {
       await Store.waoResetUser(user);
       wao = null;
       toast('記録を消しました。もう一度挑戦できます', 'success');
-      switchView('wao');
+      switchView('owner-wao');
     } catch (e) { btn.disabled = false; toast(e.message || '消せませんでした', 'error'); }
   });
   return h('div', { class: 'wao-reset' }, [
@@ -2085,7 +2077,11 @@ async function renderOwnerWao(app) {
 
   slot.appendChild(h('p', { class: 'hint', style: 'margin-bottom:10px' },
     '正解数の多い順。同点のときは、みんなが間違えた問題を当てた人（難問ボーナス）が上位です。'));
-  if (!rows.length) { slot.appendChild(h('p', { class: 'muted center' }, 'まだ挑戦者がいません。')); return; }
+  if (!rows.length) {
+    slot.appendChild(h('p', { class: 'muted center' }, 'まだ挑戦者がいません。'));
+    slot.appendChild(waoResetButton());   // 自分のテスト記録が残っていれば、ここから消せる
+    return;
+  }
 
   slot.appendChild(h('p', { class: 'rank-cap' },
     `挑戦者 ${rows.length}人 / 完走 ${rows.filter(r => r.finished).length}人`));
@@ -2101,6 +2097,7 @@ async function renderOwnerWao(app) {
       ]),
       h('span', { class: 'rank-val' }, `${r.correct}問正解`),
     ]))));
+  slot.appendChild(waoResetButton());   // 公開前のテスト記録を消す
 }
 
 /* ---------- オーナー用ランキング（各ページ・全員分） ---------- */
