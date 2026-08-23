@@ -47,11 +47,21 @@ const SPECIAL_MODES = {
   archive: { label: () => '本日の問題アーカイブ',    color: () => CONFIG.daily.color },
   stock:   { label: () => 'ストック問題',           color: () => 'navy' },
 };
-// 復習モードの結果発表ページに出すサムネイル
-const RESULT_THUMB = {
-  archive: 'assets/wao-result-archive.png',
-  stock:   'assets/wao-result-stock.png',
+/* ---------- 復習モードの結果発表ページに出すサムネイル ----------
+ * 毎回この中からランダムに1枚選ぶ。増やしたいときは配列に足すだけでよい。
+ * ただし1問も正解できなかったときだけは、専用の1枚を出す。 */
+const RESULT_THUMBS = {
+  archive: ['assets/wao-result-archive.png', 'assets/wao-result-thanks.png'],
+  stock:   ['assets/wao-result-stock.png',   'assets/wao-result-thanks.png'],
 };
+const RESULT_THUMB_ZERO = 'assets/wao-result-zero.png';   // 正答率0%のとき
+
+function resultThumb(mode, pct) {
+  const pool = RESULT_THUMBS[mode];
+  if (!pool || !pool.length) return null;
+  if (pct === 0) return RESULT_THUMB_ZERO;
+  return pool[Math.floor(Math.random() * pool.length)];
+}
 const colorKeyOf = key => SPECIAL_MODES[key] ? SPECIAL_MODES[key].color() : rankOf(key).color;
 const rankLabel = key => SPECIAL_MODES[key] ? SPECIAL_MODES[key].label() : rankOf(key).label;
 const rankColor = key => COLOR[colorKeyOf(key)] || COLOR.ink;
@@ -1156,7 +1166,7 @@ function showResult() {
   const app = $('#app'); app.innerHTML = '';
 
   // 復習モード（アーカイブ／ストック）の結果には専用のサムネイルを出す
-  const thumb = RESULT_THUMB[quiz.rank];
+  const thumb = resultThumb(quiz.rank, pct);
   if (thumb) {
     app.appendChild(h('div', { class: 'result-thumb' },
       h('img', { src: thumb, alt: '',
