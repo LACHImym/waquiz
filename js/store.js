@@ -646,6 +646,15 @@ const Store = (() => {
     return selectAll('questions', '*', q => q.lt('created_at', cutoffYmd));
   }
 
+  // 出題対象が何問あるか（ルール表示用。中身は取らずに数だけ数える）
+  async function waoQuestionCount(cutoffYmd) {
+    must();
+    const { count, error } = await db.from('questions')
+      .select('*', { count: 'exact', head: true }).lt('created_at', cutoffYmd);
+    if (error) throw error;
+    return count || 0;
+  }
+
   // 挑戦の開始を記録。既に挑戦済みならエラーになる（1人1回きり）
   async function waoStart(user, total) {
     must();
@@ -756,6 +765,6 @@ const Store = (() => {
     commentsOnMyQuestions, myComments,
     recordLogin, getStreak, loginPointsForDay, saveProfile, saveProfileRow, allProfiles,
     listComments, addComment, updateComment, deleteComment, listHistory,
-    waoEntry, waoQuestions, waoStart, waoRecordAnswers, waoFinish, waoRanking, waoResetUser,
+    waoEntry, waoQuestions, waoQuestionCount, waoStart, waoRecordAnswers, waoFinish, waoRanking, waoResetUser,
   };
 })();

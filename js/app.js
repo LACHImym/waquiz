@@ -519,7 +519,7 @@ async function renderWao(app) {
     h('ul', {}, [
       h('li', {}, [h('b', {}, '1回だけ'), h('span', {}, '挑戦できるのは、お一人さま1回きりです。')]),
       h('li', {}, [h('b', {}, '中断不可'), h('span', {}, '途中でやめると、そこで終了になります。やり直しはできません。')]),
-      h('li', {}, [h('b', {}, '出題数'), h('span', {}, `${fmtMdW(shiftYmdApp(w.cutoff, -1))}までに作られた問題から、ランダムに選ばれた${w.questionCount}問を出題します。`)]),
+      h('li', {}, [h('b', {}, '出題数'), qCountLine(w)]),
       h('li', {}, [h('b', {}, '所要時間'), h('span', {}, `およそ ${w.minutes} 分かかります。時間に余裕のあるときにどうぞ。`)]),
       h('li', {}, [h('b', {}, '配点'), h('span', {},
         `1問正解で1点。さらに、みんなが間違えた問題ほど高い加点がつきます（最大 +${w.rarityWeight}点）。難問を当てるほど有利です。`)]),
@@ -537,6 +537,25 @@ async function renderWao(app) {
 
   app.appendChild(h('button', { class: 'btn btn-primary btn-lg btn-block', onclick: confirmWaoStart }, '挑戦する'));
   app.appendChild(waoHomeButton());
+}
+
+// ルールの「出題数」の行。実際の問題数を数えて「全◯問」と出す。
+function qCountLine(w) {
+  const until = fmtMdW(shiftYmdApp(w.cutoff, -1));
+  // 出題数を決め打ちしている場合は、その数をそのまま出す
+  if (w.questionCount) {
+    return h('span', {}, `${until}までに作られた問題から、ランダムに選ばれた${w.questionCount}問を出題します。`);
+  }
+  const el = h('span', {}, `${until}までに作られた問題を、全問ランダムな順番で出題します。`);
+  // 何問あるかは数えてから差し替える（数えられなければ元の文のまま）
+  if (Store.isConfigured()) {
+    Store.waoQuestionCount(w.cutoff).then(n => {
+      if (n > 0 && el.isConnected) {
+        el.textContent = `${until}までに作られた全${n}問を、ランダムな順番で出題します。`;
+      }
+    }).catch(() => {});
+  }
+  return el;
 }
 
 /* ---------- 復習する（本番前の練習・終わったあとの遊び場） ---------- */
