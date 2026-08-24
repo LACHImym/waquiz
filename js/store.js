@@ -709,11 +709,17 @@ const Store = (() => {
       const rate = x.total ? x.correct / x.total : 1;   // 全員正解なら 1（＝加点なし）
       bonus[a.user_handle] = (bonus[a.user_handle] || 0) + (1 - rate);
     });
+    // 得点 = 正解数 ＋ 難問ボーナス × 重み（重みは config.waking.rarityWeight）
+    const weight = (CONFIG.waking || {}).rarityWeight || 0;
+    const r2 = n => Math.round(n * 100) / 100;
     return entries
-      .map(e => ({ ...e, rarity: Math.round((bonus[e.user_handle] || 0) * 100) / 100 }))
+      .map(e => {
+        const rarity = r2(bonus[e.user_handle] || 0);
+        return { ...e, rarity, score: r2(e.correct + rarity * weight) };
+      })
       .sort((a, b) =>
+        b.score - a.score ||
         b.correct - a.correct ||
-        b.rarity - a.rarity ||
         String(a.finished_at || '').localeCompare(String(b.finished_at || '')));
   }
 
