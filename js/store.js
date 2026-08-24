@@ -698,38 +698,20 @@ const Store = (() => {
     }
   }
 
-  // 結果の集計。正解数が同じ場合は「みんなが間違えた問題を当てた人」を上位にする。
-  // 難問ボーナス = その問題を落とした人の割合の合計（誰も解けない問題を当てるほど大きい）
+  // 結果の集計。正解数の多い順。正解数が同じ人は同じ順位（同立）にする。
   async function waoRanking() {
     must();
-    const [entries, answers] = await Promise.all([
-      selectAll('wao_entries', '*'),
-      selectAll('wao_answers', 'user_handle, question_id, is_correct'),
-    ]);
-    const perQ = {};
-    answers.forEach(a => {
-      const x = perQ[a.question_id] || (perQ[a.question_id] = { total: 0, correct: 0 });
-      x.total++; if (a.is_correct) x.correct++;
+    const entries = await selectAll('wao_entries', '*');
+    const rows = entries.sort((a, b) =>
+      b.correct - a.correct ||
+      String(a.finished_at || '').localeCompare(String(b.finished_at || '')));
+    // 1, 2, 2, 4 のように、同点は同じ順位・次はその人数ぶん飛ばす
+    let prev = null, rank = 0;
+    rows.forEach((r, i) => {
+      if (prev === null || r.correct !== prev) { rank = i + 1; prev = r.correct; }
+      r.rank = rank;
     });
-    const bonus = {};
-    answers.forEach(a => {
-      if (!a.is_correct) return;
-      const x = perQ[a.question_id];
-      const rate = x.total ? x.correct / x.total : 1;   // 全員正解なら 1（＝加点なし）
-      bonus[a.user_handle] = (bonus[a.user_handle] || 0) + (1 - rate);
-    });
-    // 得点 = 正解数 ＋ 難問ボーナス × 重み（重みは config.waking.rarityWeight）
-    const weight = (CONFIG.waking || {}).rarityWeight || 0;
-    const r2 = n => Math.round(n * 100) / 100;
-    return entries
-      .map(e => {
-        const rarity = r2(bonus[e.user_handle] || 0);
-        return { ...e, rarity, score: r2(e.correct + rarity * weight) };
-      })
-      .sort((a, b) =>
-        b.score - a.score ||
-        b.correct - a.correct ||
-        String(a.finished_at || '').localeCompare(String(b.finished_at || '')));
+    return rows;
   }
 
   // ---- 履歴 ----

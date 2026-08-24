@@ -139,8 +139,6 @@ const fmtIsoMdW = iso => {
 // 公開された日付（本日の問題＝出題日／それ以外＝作成日）
 const questionDate = q => q.scheduled_date ? fmtMdW(q.scheduled_date) : fmtIsoMdW(q.created_at);
 
-// 小数点以下2桁までにそろえる（9.152 → 9.15）
-const r2disp = n => String(Math.round(n * 100) / 100);
 // 「2026-08-20」が今日から何日前か
 const daysAgoFrom = ymd => {
   if (!ymd) return null;
@@ -521,8 +519,7 @@ async function renderWao(app) {
       h('li', {}, [h('b', {}, '中断不可'), h('span', {}, '途中でやめると、そこで終了になります。やり直しはできません。')]),
       h('li', {}, [h('b', {}, '出題数'), qCountLine(w)]),
       h('li', {}, [h('b', {}, '所要時間'), h('span', {}, `およそ ${w.minutes} 分かかります。時間に余裕のあるときにどうぞ。`)]),
-      h('li', {}, [h('b', {}, '配点'), h('span', {},
-        `1問正解で1点。さらに、みんなが間違えた問題ほど高い加点がつきます（最大 +${w.rarityWeight}点）。難問を当てるほど有利です。`)]),
+      h('li', {}, [h('b', {}, '順位'), h('span', {}, '正解数の多い順です。正解数が同じ場合は同順位になります。')]),
       h('li', {}, [h('b', {}, '結果'), h('span', {}, '点数・順位はその場では出ません。WA王は後日発表します。')]),
     ]),
   ]);
@@ -2107,9 +2104,8 @@ async function renderOwnerWao(app) {
   catch (e) { slot.innerHTML = ''; slot.appendChild(errorBox(e)); return; }
   slot.innerHTML = '';
 
-  const w8 = (CONFIG.waking || {}).rarityWeight || 0;
   slot.appendChild(h('p', { class: 'hint', style: 'margin-bottom:10px' },
-    `得点の高い順。得点 ＝ 正解数 ＋ 難問ボーナス×${w8}（難しい問題を当てるほど加点）。`));
+    '正解数の多い順。正解数が同じ人は同順位です。'));
   if (!rows.length) {
     slot.appendChild(h('p', { class: 'muted center' }, 'まだ挑戦者がいません。'));
     slot.appendChild(waoResetButton());   // 自分のテスト記録が残っていれば、ここから消せる
@@ -2120,17 +2116,15 @@ async function renderOwnerWao(app) {
     `挑戦者 ${rows.length}人 / 完走 ${rows.filter(r => r.finished).length}人`));
   slot.appendChild(h('div', { class: 'rank-panel' }, rows.map((r, i) =>
     h('div', { class: 'rank-row' }, [
-      h('span', { class: 'rank-pos' }, String(i + 1)),
+      h('span', { class: 'rank-pos' }, String(r.rank)),
       avatarEl(r.user_handle, r.user_name, 'avatar-sm'),
       h('div', { class: 'rank-name', style: 'white-space:normal' }, [
         h('div', {}, r.user_name || r.user_handle),
         h('div', { style: 'font-size:10px;color:var(--muted)' }, r.user_handle),
         h('div', { style: 'font-size:10px;color:var(--muted)' },
-          `${r.correct}問正解 ＋ 難問ボーナス ${r.rarity}×${w8}＝${r2disp(r.rarity * w8)}点`),
-        h('div', { style: 'font-size:10px;color:var(--muted)' },
           `${r.answered}/${r.total}問 回答` + (r.finished ? '' : '・途中終了')),
       ]),
-      h('span', { class: 'rank-val' }, `${r.score}点`),
+      h('span', { class: 'rank-val' }, `${r.correct}問正解`),
     ]))));
   slot.appendChild(waoResetButton());   // 公開前のテスト記録を消す
 }
