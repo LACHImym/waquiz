@@ -393,12 +393,14 @@ const Store = (() => {
   async function totalRanking() {
     must();
     const P = CONFIG.points;
-    const [qsD, ansD, cmsD, lgsD, gdsD] = await Promise.all([
+    const [qsD, ansD, cmsD, lgsD, gdsD, waoD] = await Promise.all([
       selectAll('questions', 'id, created_by, created_by_name'),
       selectAll('answers', 'user_handle, user_name, is_correct'),
       selectAll('comments', 'author, author_name, question_id'),
       selectAll('logins', 'user_handle, user_name, login_date'),
       selectAll('goods', 'user_handle, question_id', q => q.eq('kind', 'funny')),
+      // WA王決定戦の完走ボーナス用。テーブルが未作成でも他の集計は止めない。
+      selectAll('wao_entries', 'user_handle, user_name, finished').catch(() => []),
     ]);
     const qs = { data: qsD }, ans = { data: ansD }, cms = { data: cmsD }, lgs = { data: lgsD }, gds = { data: gdsD };
 
@@ -448,6 +450,10 @@ const Store = (() => {
       add(g.user_handle, null, 'goodGiven', P.goodGiven);
       const author = qAuthor[g.question_id];
       if (author && author !== g.user_handle) add(author, null, 'goodReceived', P.goodReceived);
+    });
+    // WA王決定戦：最後まで解いた人にイベントボーナス
+    (waoD || []).forEach(e => {
+      if (e.finished) add(e.user_handle, e.user_name, 'decisionBattle', P.decisionBattle);
     });
 
     return Object.values(M).sort((x, y) => y.points - x.points);

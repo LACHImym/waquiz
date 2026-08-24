@@ -2237,7 +2237,7 @@ function myPoints(total) {
   return me ? me.points : 0;
 }
 function breakdownLabels() {
-  return { login: 'ログイン', solve: '解答', correct: '正解', create: '作問', comment: 'コメント', commentReceived: '被コメント', goodGiven: 'うけるねした', goodReceived: 'うけるねされた' };
+  return { login: 'ログイン', solve: '解答', correct: '正解', create: '作問', comment: 'コメント', commentReceived: '被コメント', goodGiven: 'うけるねした', goodReceived: 'うけるねされた', decisionBattle: 'WA王完走' };
 }
 function breakdownText(bd) {
   const L = breakdownLabels();
