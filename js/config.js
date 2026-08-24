@@ -40,7 +40,7 @@ window.QUIZ_CONFIG = {
   // enabled: false の間は、トップのバナーがグレーアウトして中に入れません。
   // 期間中だけ公開したいので、公開の準備が整ったら enabled: true にします。
   waking: {
-    enabled: false,              // ← 公開するとき true にする
+    enabled: true,               // ← 公開するとき true にする
     label: 'WA王決定戦',
     start: '2026-08-24',         // 公開開始の日
     startTime: '21:00',          // 公開開始の時刻（この時刻から挑戦できる）
