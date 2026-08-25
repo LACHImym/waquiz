@@ -1965,35 +1965,45 @@ async function renderUserRanking(slot) {
   slot.appendChild(h('h3', { class: 'section-title' }, '総合ランキング'));
   slot.appendChild(h('p', { class: 'rank-cap' },
     'ログイン(1) ログインボーナス(+5) コメント(2) 問題をつくる(10) イベントボーナス(+100) など'));
-  slot.appendChild(topRankingList(total, 5, r => `${r.points}pt`));
+
+  // 自分がいま何位かを先に出す（長い一覧でも自分の位置がすぐ分かるように）
+  const myHandle = user ? Misskey.handleOf(user) : null;
+  const ranked = withTieRanks(total);
+  const me = ranked.find(r => r.handle === myHandle);
+  slot.appendChild(h('p', { class: 'rank-me-line' },
+    me ? `全${ranked.length}人中　あなたは ${me.rank}位（${me.points}pt）`
+       : `全${ranked.length}人が参加中`));
+
+  slot.appendChild(fullRankingList(ranked, r => `${r.points}pt`));
   if (user && myPoints(total)) {
     slot.appendChild(h('p', { class: 'rank-cap', style: 'margin-top:8px' }, myPointsBreakdown(total)));
   }
 }
 
-/* ---------- 上位n名を出し、自分が圏外なら自分の行も足す ---------- */
-function topRankingList(list, n, scoreFn) {
-  if (!list || !list.length) return h('p', { class: 'muted' }, 'まだデータがありません。');
-  const myHandle = user ? Misskey.handleOf(user) : null;
-  const meIdx = list.findIndex(r => r.handle === myHandle);
-  const row = (r, pos) => h('div', { class: 'rank-row' + (r.handle === myHandle ? ' is-me' : '') }, [
-    h('span', { class: 'rank-pos' }, String(pos)),
-    avatarEl(r.handle, r.name, 'avatar-sm'),
-    h('span', { class: 'rank-name' }, r.handle === myHandle ? 'あなた' : (r.name || r.handle)),
-    h('span', { class: 'rank-val' }, scoreFn(r)),
-  ]);
-  const items = list.slice(0, n).map((r, i) => row(r, i + 1));
-  // 自分が上位に入っていなければ、区切りを入れて自分の行を足す
-  if (meIdx >= n) {
-    items.push(h('div', { class: 'rank-ellipsis muted' }, '…'));
-    items.push(row(list[meIdx], meIdx + 1));
-  }
-  const box = h('div', { class: 'rank-panel' }, items);
-  if (user && meIdx === -1) {
-    return h('div', {}, [box, h('p', { class: 'hint' }, '参加するとランキングに載ります。')]);
-  }
-  return box;
+/* ---------- 同点は同順位にして順位をふる（1,2,2,4…） ---------- */
+function withTieRanks(list) {
+  let prev = null, rank = 0;
+  return (list || []).map((r, i) => {
+    if (prev === null || r.points !== prev) { rank = i + 1; prev = r.points; }
+    return { ...r, rank };
+  });
 }
+
+/* ---------- 全員ぶんのランキング（1位から順に、自分の行は色を変える） ---------- */
+function fullRankingList(ranked, scoreFn) {
+  if (!ranked || !ranked.length) return h('p', { class: 'muted' }, 'まだデータがありません。');
+  const myHandle = user ? Misskey.handleOf(user) : null;
+  return h('div', { class: 'rank-panel' }, ranked.map(r => {
+    const isMe = r.handle === myHandle;
+    return h('div', { class: 'rank-row' + (isMe ? ' is-me' : '') }, [
+      h('span', { class: 'rank-pos' }, String(r.rank)),
+      avatarEl(r.handle, r.name, 'avatar-sm'),
+      h('span', { class: 'rank-name' }, isMe ? `${r.name || 'あなた'}（あなた）` : (r.name || r.handle)),
+      h('span', { class: 'rank-val' }, scoreFn(r)),
+    ]);
+  }));
+}
+
 
 /* ---------- マイページ ---------- */
 async function renderMyPage(app) {

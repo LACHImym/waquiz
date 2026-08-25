@@ -322,8 +322,14 @@ h3 { font-family: var(--disp); font-weight: 700; font-size: 15px; margin: 0 0 6p
 .rank-pos { width: 20px; font-family: var(--disp); font-weight: 700; text-align: right; flex: none; font-variant-numeric: tabular-nums; }
 .rank-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .rank-val { font-size: 13px; font-variant-numeric: tabular-nums; flex: none; }
-.rank-row.is-me { color: var(--cyan); }
-.rank-row.is-me .rank-pos, .rank-row.is-me .rank-val { color: var(--cyan); }
+.rank-row.is-me { color: var(--cyan); background: #eaf6fd; }
+.rank-row.is-me .rank-pos, .rank-row.is-me .rank-val { color: var(--cyan); font-weight: 900; }
+/* 「全◯人中 あなたは ◯位」の行 */
+.rank-me-line {
+  background: var(--navy); color: #fff; border-radius: var(--radius);
+  font-family: var(--disp); font-weight: 900; font-size: 14px;
+  padding: 10px 14px; margin: 0 0 10px; text-align: center;
+}
 .rank-ellipsis { text-align: center; font-size: 12px; padding: 2px 0; }
 .rank-delta { font-family: var(--disp); font-weight: 900; font-size: 14px; margin: 4px 0 10px; }
 .rank-delta.up { color: var(--magenta); }
