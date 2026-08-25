@@ -1900,14 +1900,28 @@ async function removeComment(c, item) {
 }
 
 /* ---------- ランキング（問題のランキング3種） ---------- */
+let rankTab = 'q';   // 'q'＝問題のランキング / 'u'＝ユーザーのランキング
+
 async function renderRanking(app) {
   renderHeader({ title: 'ランキング' });
   app.appendChild(h('h1', {}, 'ランキング'));
+
+  const mkTab = (key, label) => h('button', {
+    class: 'nc-tab' + (rankTab === key ? ' active' : ''),
+    onclick: () => { if (rankTab === key) return; rankTab = key; switchView('ranking'); },
+  }, label);
+  app.appendChild(h('div', { class: 'nc-tabs' }, [mkTab('q', '問題'), mkTab('u', 'ユーザー')]));
 
   const slot = h('div', {}, h('p', { class: 'muted center', style: 'margin-top:16px' }, '読み込み中…'));
   app.appendChild(slot);
   if (!Store.isConfigured()) { slot.innerHTML = ''; return; }
 
+  if (rankTab === 'u') await renderUserRanking(slot);
+  else await renderQuestionRanking(slot);
+}
+
+/* ---------- 問題のランキング ---------- */
+async function renderQuestionRanking(slot) {
   let hearts, funny, hard;
   try {
     [hearts, funny, hard] = await Promise.all([
@@ -1918,7 +1932,6 @@ async function renderRanking(app) {
   } catch (e) { slot.innerHTML = ''; slot.appendChild(errorBox(e)); return; }
   slot.innerHTML = '';
 
-  // 問題のランキングを1ブロック描く
   const block = (title, cap, rows, empty, valOf) => {
     slot.appendChild(h('h3', { class: 'section-title' }, title));
     slot.appendChild(h('p', { class: 'rank-cap' }, cap));
@@ -1940,6 +1953,46 @@ async function renderRanking(app) {
     'まだ「うけるね」が付いた問題がありません。', x => String(x.count));
   block('難問ランキング', '正答率が低い問題 上位5（3回以上解かれた問題が対象）', hard,
     'まだ集計できる問題がありません。', x => `${Math.round(x.rate * 100)}%`);
+}
+
+/* ---------- ユーザーのランキング（総合ランキング） ---------- */
+async function renderUserRanking(slot) {
+  let total;
+  try { total = await Store.totalRanking(); }
+  catch (e) { slot.innerHTML = ''; slot.appendChild(errorBox(e)); return; }
+  slot.innerHTML = '';
+
+  slot.appendChild(h('h3', { class: 'section-title' }, '総合ランキング'));
+  slot.appendChild(h('p', { class: 'rank-cap' },
+    'ログイン(1) ログインボーナス(+5) コメント(2) 問題をつくる(10) イベントボーナス(+100) など'));
+  slot.appendChild(topRankingList(total, 5, r => `${r.points}pt`));
+  if (user && myPoints(total)) {
+    slot.appendChild(h('p', { class: 'rank-cap', style: 'margin-top:8px' }, myPointsBreakdown(total)));
+  }
+}
+
+/* ---------- 上位n名を出し、自分が圏外なら自分の行も足す ---------- */
+function topRankingList(list, n, scoreFn) {
+  if (!list || !list.length) return h('p', { class: 'muted' }, 'まだデータがありません。');
+  const myHandle = user ? Misskey.handleOf(user) : null;
+  const meIdx = list.findIndex(r => r.handle === myHandle);
+  const row = (r, pos) => h('div', { class: 'rank-row' + (r.handle === myHandle ? ' is-me' : '') }, [
+    h('span', { class: 'rank-pos' }, String(pos)),
+    avatarEl(r.handle, r.name, 'avatar-sm'),
+    h('span', { class: 'rank-name' }, r.handle === myHandle ? 'あなた' : (r.name || r.handle)),
+    h('span', { class: 'rank-val' }, scoreFn(r)),
+  ]);
+  const items = list.slice(0, n).map((r, i) => row(r, i + 1));
+  // 自分が上位に入っていなければ、区切りを入れて自分の行を足す
+  if (meIdx >= n) {
+    items.push(h('div', { class: 'rank-ellipsis muted' }, '…'));
+    items.push(row(list[meIdx], meIdx + 1));
+  }
+  const box = h('div', { class: 'rank-panel' }, items);
+  if (user && meIdx === -1) {
+    return h('div', {}, [box, h('p', { class: 'hint' }, '参加するとランキングに載ります。')]);
+  }
+  return box;
 }
 
 /* ---------- マイページ ---------- */
