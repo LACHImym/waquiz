@@ -2162,8 +2162,8 @@ async function renderOwnerWao(app) {
   app.appendChild(slot);
   if (!Store.isConfigured()) { slot.innerHTML = ''; return; }
 
-  let rows;
-  try { rows = await Store.waoRanking(); }
+  let rows, stats;
+  try { [rows, stats] = await Promise.all([Store.waoRanking(), Store.waoAnswerStats()]); }
   catch (e) { slot.innerHTML = ''; slot.appendChild(errorBox(e)); return; }
   slot.innerHTML = '';
 
@@ -2171,14 +2171,23 @@ async function renderOwnerWao(app) {
     '正解数の多い順。正解数が同じ人は同順位です。'));
   if (!rows.length) {
     slot.appendChild(h('p', { class: 'muted center' }, 'まだ挑戦者がいません。'));
-    slot.appendChild(waoResetButton());   // 自分のテスト記録が残っていれば、ここから消せる
+    if (waoPreview()) slot.appendChild(waoResetButton());
     return;
   }
 
+  // 申告された点数と、1問ごとの解答記録が食い違っている人を洗い出す
+  const odd = rows.filter(r => !matchesRecord(r, stats[r.user_handle]));
   slot.appendChild(h('p', { class: 'rank-cap' },
     `挑戦者 ${rows.length}人 / 完走 ${rows.filter(r => r.finished).length}人`));
-  slot.appendChild(h('div', { class: 'rank-panel' }, rows.map((r, i) =>
-    h('div', { class: 'rank-row' }, [
+  slot.appendChild(h('div', { class: 'wao-audit' + (odd.length ? ' is-bad' : '') },
+    odd.length
+      ? `⚠ ${odd.length}人の記録が、1問ごとの解答と食い違っています（下の赤い行）。`
+      : '✓ 全員の点数が、1問ごとの解答記録と一致しています。'));
+
+  slot.appendChild(h('div', { class: 'rank-panel' }, rows.map((r, i) => {
+    const st = stats[r.user_handle];
+    const ok = matchesRecord(r, st);
+    return h('div', { class: 'rank-row' + (ok ? '' : ' is-suspect') }, [
       h('span', { class: 'rank-pos' }, String(r.rank)),
       avatarEl(r.user_handle, r.user_name, 'avatar-sm'),
       h('div', { class: 'rank-name', style: 'white-space:normal' }, [
@@ -2186,10 +2195,23 @@ async function renderOwnerWao(app) {
         h('div', { style: 'font-size:10px;color:var(--muted)' }, r.user_handle),
         h('div', { style: 'font-size:10px;color:var(--muted)' },
           `${r.answered}/${r.total}問 回答` + (r.finished ? '' : '・途中終了')),
+        h('div', { class: 'wao-check' + (ok ? '' : ' is-bad') },
+          ok ? `照合OK（解答記録 ${st ? st.correct : 0}問正解）`
+             : `⚠ 申告 ${r.correct}問正解 / 解答記録は ${st ? st.correct : 0}問正解`
+               + `（回答 申告${r.answered} / 記録${st ? st.answered : 0}）`),
       ]),
       h('span', { class: 'rank-val' }, `${r.correct}問正解`),
-    ]))));
-  slot.appendChild(waoResetButton());   // 公開前のテスト記録を消す
+    ]);
+  })));
+  // やり直し防止のため、記録の削除は開催前（テスト中）だけに限定
+  if (waoPreview()) slot.appendChild(waoResetButton());
+}
+
+/* 申告された点数が、1問ごとの解答記録と合っているか
+ * （途中でページを閉じた場合など、記録がゼロ件のこともあるので厳しくしすぎない） */
+function matchesRecord(entry, st) {
+  const s = st || { answered: 0, correct: 0 };
+  return entry.correct === s.correct && entry.answered === s.answered;
 }
 
 /* ---------- オーナー用ランキング（各ページ・全員分） ---------- */

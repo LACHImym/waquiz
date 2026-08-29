@@ -19,8 +19,16 @@ const Misskey = (() => {
   }
 
   function getUser() {
-    try { return JSON.parse(localStorage.getItem(LS_KEY)); }
+    let u;
+    try { u = JSON.parse(localStorage.getItem(LS_KEY)); }
     catch { return null; }
+    // 以前のバージョンで保存してしまったアクセストークンを、見つけたら消す。
+    // （このアプリでは一度も使っていないので、消しても動作は変わりません）
+    if (u && u.token) {
+      delete u.token;
+      try { localStorage.setItem(LS_KEY, JSON.stringify(u)); } catch {}
+    }
+    return u;
   }
 
   function isLoggedIn() { return !!getUser(); }
@@ -53,7 +61,9 @@ const Misskey = (() => {
     const url = new URL(`https://${host}/miauth/${session}`);
     url.searchParams.set('name', CONFIG.appName);
     url.searchParams.set('callback', callback);
-    url.searchParams.set('permission', 'write:notes');
+    // このアプリは Misskey の API を一切呼びません（シェアは /share の画面を開くだけ）。
+    // なので投稿権限（write:notes）は不要。いちばん弱い read:account だけを求めます。
+    url.searchParams.set('permission', 'read:account');
     location.href = url.toString();
   }
 
@@ -80,9 +90,10 @@ const Misskey = (() => {
       throw new Error('ログインに失敗しました。もう一度お試しください。');
     }
 
+    // ※ data.token（アクセストークン）はわざと保存しません。
+    //    使わないトークンを端末に置いておくと、漏れたときに悪用されるだけなので。
     const user = {
       host: pending.host,
-      token: data.token,
       id: data.user.id,
       username: data.user.username,
       name: data.user.name || data.user.username,

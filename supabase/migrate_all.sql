@@ -136,20 +136,32 @@ alter table wao_entries enable row level security;
 alter table wao_answers enable row level security;
 drop policy if exists "read wao_entries" on wao_entries;
 create policy "read wao_entries" on wao_entries for select using (true);
-drop policy if exists "insert wao_entries" on wao_entries;
-create policy "insert wao_entries" on wao_entries for insert with check (true);
-drop policy if exists "update wao_entries" on wao_entries;
-create policy "update wao_entries" on wao_entries for update using (true) with check (true);
 drop policy if exists "read wao_answers" on wao_answers;
 create policy "read wao_answers" on wao_answers for select using (true);
+
+-- ---- ここから、記録の改ざん・やり直しを防ぐための制限 ----
+-- （詳しい説明は supabase/migrate_wao_lock.sql を見てください）
+-- 挑戦の開始は「0点・未完走」でしか作れない
+drop policy if exists "insert wao_entries" on wao_entries;
+create policy "insert wao_entries" on wao_entries for insert
+  with check (finished = false and correct = 0 and answered = 0);
+-- 結果の書き込みは「未完走 → 完走」の一方通行だけ（完走後は書き換え不可）
+drop policy if exists "update wao_entries" on wao_entries;
+create policy "update wao_entries" on wao_entries for update
+  using (finished = false) with check (finished = true);
+-- 1問ごとの解答も、完走したら追加・書き換えできない
 drop policy if exists "insert wao_answers" on wao_answers;
-create policy "insert wao_answers" on wao_answers for insert with check (true);
+create policy "insert wao_answers" on wao_answers for insert
+  with check (exists (select 1 from wao_entries e
+    where e.user_handle = wao_answers.user_handle and e.finished = false));
 drop policy if exists "update wao_answers" on wao_answers;
-create policy "update wao_answers" on wao_answers for update using (true) with check (true);
--- 削除の許可（オーナーが公開前のテスト記録を消せるようにするため）
+create policy "update wao_answers" on wao_answers for update
+  using (exists (select 1 from wao_entries e
+    where e.user_handle = wao_answers.user_handle and e.finished = false))
+  with check (true);
+-- 削除は禁止（消してやり直す抜け道をふさぐ）。
+-- どうしても消すときは Supabase の管理画面から。
 drop policy if exists "delete wao_entries" on wao_entries;
-create policy "delete wao_entries" on wao_entries for delete using (true);
 drop policy if exists "delete wao_answers" on wao_answers;
-create policy "delete wao_answers" on wao_answers for delete using (true);
 
 -- ===== ここまで =====

@@ -619,3 +619,13 @@ textarea.input { resize: vertical; min-height: 92px; }
 .done-actions { display: flex; flex-direction: column; gap: 10px; margin-top: 18px; }
 
 @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
+
+/* ---- WA王：オーナー用の照合表示（申告点数 vs 解答記録） ---- */
+.wao-audit {
+  background: #eef8f0; color: #1c6b34; border-radius: var(--radius);
+  font-size: 12px; font-weight: 700; padding: 9px 12px; margin: 0 0 10px;
+}
+.wao-audit.is-bad { background: #fdecef; color: var(--magenta); }
+.wao-check { font-size: 10px; color: var(--muted); margin-top: 2px; }
+.wao-check.is-bad { color: var(--magenta); font-weight: 700; }
+.rank-row.is-suspect { background: #fdecef; }

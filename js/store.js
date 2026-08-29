@@ -700,7 +700,8 @@ const Store = (() => {
     const e = await db.from('wao_entries').delete().eq('user_handle', handle).select();
     if (e.error) throw e.error;
     if (!e.data || !e.data.length) {
-      throw new Error('消せませんでした。DBの削除の許可（supabase/migrate_all.sql）を実行してください。');
+      throw new Error('消せませんでした。記録の削除は禁止されています（不正防止のため）。'
+        + 'どうしても消す必要があるときは Supabase の管理画面から消してください。');
     }
   }
 
@@ -718,6 +719,20 @@ const Store = (() => {
       r.rank = rank;
     });
     return rows;
+  }
+
+  // 検算用：1問ごとの解答記録から、人ごとの「実際の回答数・正解数」を数える。
+  // 点数はブラウザが申告した数字なので、この実データと突き合わせて食い違いを見つける。
+  async function waoAnswerStats() {
+    must();
+    const rows = await selectAll('wao_answers', 'user_handle, is_correct');
+    const map = {};
+    rows.forEach(r => {
+      const m = map[r.user_handle] || (map[r.user_handle] = { answered: 0, correct: 0 });
+      m.answered++;
+      if (r.is_correct) m.correct++;
+    });
+    return map;
   }
 
   // ---- 履歴 ----
@@ -753,6 +768,6 @@ const Store = (() => {
     commentsOnMyQuestions, myComments,
     recordLogin, getStreak, loginPointsForDay, saveProfile, saveProfileRow, allProfiles,
     listComments, addComment, updateComment, deleteComment, listHistory,
-    waoEntry, waoQuestions, waoQuestionCount, waoStart, waoRecordAnswers, waoFinish, waoRanking, waoResetUser,
+    waoEntry, waoQuestions, waoQuestionCount, waoStart, waoRecordAnswers, waoFinish, waoRanking, waoResetUser, waoAnswerStats,
   };
 })();
