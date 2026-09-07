@@ -64,6 +64,9 @@ window.QUIZ_CONFIG = {
     counts: [10, 50, 100, 251],
     // タイムマッチ：不正解1問につき加算される秒数
     timePenaltySec: 10,
+    // 1日にポイントが入るのは、ここまでの問題数（翌日0時にリセット）。
+    // これを超えて遊ぶのは自由だが、ポイントは増えない。
+    dailyPointCap: 251,
     // テーマソング（YouTubeの限定公開URL）。空にすると欄ごと非表示になります。
     themeSongUrl: 'https://youtu.be/H3deBh_mBzI',
     themeSongTitle: 'WA王決定戦 テーマソング',

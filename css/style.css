@@ -718,3 +718,4 @@ textarea.input { resize: vertical; min-height: 92px; }
   font-family: var(--disp); font-weight: 900; font-size: 13px;
   padding: 10px 14px; margin: 14px 0 0; text-align: center;
 }
+.arc-earn.is-capped { background: var(--panel); color: var(--muted); }

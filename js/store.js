@@ -252,11 +252,13 @@ const Store = (() => {
   }
 
   // 1セッション分の解答をまとめて記録（完走時のみ呼ぶ＝途中離脱は無効）
-  async function recordAnswersBatch(items, user) {
+  // source は 'quiz'（普段のクイズ）か 'arena'（アーカイブ）。
+  // アーカイブは1日の上限を数えるために区別する。
+  async function recordAnswersBatch(items, user, source = 'quiz') {
     if (!user || !db || !items || !items.length) return;
     const rows = items.map(it => ({
       question_id: it.question_id, user_handle: Misskey.handleOf(user),
-      user_name: user.name, is_correct: it.is_correct,
+      user_name: user.name, is_correct: it.is_correct, source,
     }));
     const { error } = await db.from('answers').insert(rows);
     if (error) console.warn('answers batch failed', error);
@@ -807,6 +809,19 @@ const Store = (() => {
     return { correctChoice: r.correct_choice || '', explanation: r.explanation || '' };
   }
 
+  // アーカイブで今日すでに何問ぶんポイントが入ったか（翌日0時にリセットされる）
+  async function arenaTodayCount(user) {
+    if (!user || !db) return 0;
+    const from = new Date(); from.setHours(0, 0, 0, 0);
+    const { count, error } = await db.from('answers')
+      .select('id', { count: 'exact', head: true })
+      .eq('user_handle', Misskey.handleOf(user))
+      .eq('source', 'arena')
+      .gte('created_at', from.toISOString());
+    if (error) throw error;
+    return count || 0;
+  }
+
   // ---- 履歴 ----
   async function addHistory(questionId, action, user, detail) {
     const row = {
@@ -841,7 +856,7 @@ const Store = (() => {
     recordLogin, getStreak, loginPointsForDay, saveProfile, saveProfileRow, allProfiles,
     listComments, addComment, updateComment, deleteComment, listHistory,
     waoEntry, waoQuestions, waoQuestionCount, waoStart, waoRecordAnswers, waoFinish, waoRanking, waoResetUser, waoAnswerStats,
-    arenaSample, timeAttackSubmit, timeAttackRanking,
+    arenaSample, timeAttackSubmit, timeAttackRanking, arenaTodayCount,
     grade, gradeQuiet, reveal,
   };
 })();

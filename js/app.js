@@ -2106,8 +2106,17 @@ async function renderArchive(app) {
   app.appendChild(rankSlot);
 
   app.appendChild(h('h3', { class: 'section-title' }, 'もう一度、挑戦する'));
-  app.appendChild(h('p', { class: 'hint', style: 'margin-top:-4px' },
-    'ここで解いたぶんも、普段どおりポイントが入り、総合ランキングに反映されます。'));
+  const capNote = h('p', { class: 'hint', style: 'margin-top:-4px' },
+    `ここで解いたぶんも、普段どおりポイントが入ります（1日 ${ARC().dailyPointCap}問ぶんまで）。`);
+  app.appendChild(capNote);
+  if (user && Store.isConfigured() && ARC().dailyPointCap) {
+    Store.arenaTodayCount(user).then(n => {
+      const left = Math.max(0, Number(ARC().dailyPointCap) - n);
+      capNote.textContent = left
+        ? `ここで解いたぶんも、普段どおりポイントが入ります。本日はあと ${left}問ぶん。`
+        : '本日ぶんのポイントは上限に達しています。遊べますが、ポイントは増えません。';
+    }).catch(() => {});
+  }
 
   app.appendChild(h('div', { class: 'arc-modes' }, [
     h('button', { class: 'arc-mode c-cyan', onclick: () => arcPickCount('random') }, [
@@ -2287,8 +2296,20 @@ async function finishArena() {
 
   // アーカイブで遊んだぶんも、普段どおりポイントに入れる
   // （総合ランキングは「WA検定でどれだけ遊んだか」の総合点なので）
+  // ただし1日にポイントが入るのは dailyPointCap 問まで。翌日0時にリセットされる。
+  let counted = 0, capReached = false;
   if (user && Store.isConfigured()) {
-    try { await Store.recordAnswersBatch(a.answers, user); } catch (e) { console.warn('arena answers failed', e); }
+    const cap = Number(ARC().dailyPointCap || 0);
+    let already = 0;
+    try { already = cap ? await Store.arenaTodayCount(user) : 0; } catch { already = 0; }
+    const room = cap ? Math.max(0, cap - already) : a.answers.length;
+    const toSave = a.answers.slice(0, room);
+    counted = toSave.length;
+    capReached = cap > 0 && counted < a.answers.length;
+    if (toSave.length) {
+      try { await Store.recordAnswersBatch(toSave, user, 'arena'); }
+      catch (e) { console.warn('arena answers failed', e); counted = 0; }
+    }
   }
 
   currentView = 'arena-result';
@@ -2319,8 +2340,17 @@ async function finishArena() {
 
   if (user) {
     const P = CONFIG.points || {};
-    const got = total * (P.solve || 0) + correct * (P.correct || 0);
-    app.appendChild(h('p', { class: 'arc-earn' }, `＋${got}pt 獲得（総合ランキングに反映されます）`));
+    // ポイントに数えられたのは先頭 counted 問ぶんだけ
+    const countedRight = a.answers.slice(0, counted).filter(x => x.is_correct).length;
+    const got = counted * (P.solve || 0) + countedRight * (P.correct || 0);
+    app.appendChild(h('p', { class: 'arc-earn' + (got ? '' : ' is-capped') },
+      got ? `＋${got}pt 獲得（総合ランキングに反映されます）`
+          : '本日ぶんのポイントは上限に達しています'));
+    if (capReached) {
+      app.appendChild(h('p', { class: 'hint center' },
+        `ポイントは1日 ${ARC().dailyPointCap}問ぶんまでです（今回は ${counted}問ぶんが加算されました）。`
+        + '日付が変わるとまた貯まります。'));
+    }
   }
 
   app.appendChild(h('div', { class: 'arc-again' }, [
