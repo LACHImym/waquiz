@@ -408,6 +408,7 @@ function openMenu() {
   items.push(menuItem('マイページ', () => (user ? switchView('mypage') : requireLogin('マイページはログインすると使えます'))));
   items.push(menuItem('新着コメント', () => (user ? switchView('new-comments') : requireLogin('ログインすると使えます')), newCommentCount));
   items.push(menuItem('ランキング', () => switchView('ranking')));
+  if (arcOn()) items.push(menuItem('WA王決定戦アーカイブ', () => switchView('wao-archive')));
   items.push(menuItem('作った問題', () => (user ? switchView('manage') : requireLogin('ログインすると使えます'))));
   items.push(menuItem('作問する', () => (user ? switchView('create') : requireLogin('作問はログインすると使えます'))));
 
@@ -465,6 +466,7 @@ async function flushAbandon() {
 function switchView(view) {
   if (currentView === 'quiz') flushAbandon();        // クイズ画面から抜ける＝途中離脱として記録
   if (currentView === 'wao-quiz') flushWaoAbandon(); // WA王も同じ（そこで終了・再挑戦不可）
+  if (currentView === 'arena' || currentView === 'arena-result') arena = null; // アーカイブの記録は残さない
   currentView = view;
   const app = $('#app');
   app.innerHTML = '';
@@ -481,6 +483,7 @@ function switchView(view) {
   else if (view === 'new-comments') renderNewComments(app);
   else if (view === 'ranking') renderRanking(app);
   else if (view === 'wao') renderWao(app);
+  else if (view === 'wao-archive') renderArchive(app);
 }
 
 /* ---------- WA王決定戦（1週間限定・ルール説明ページ） ---------- */
@@ -844,9 +847,6 @@ function renderHome(app) {
     heroTxt,
   ]));
 
-  // --- WA王決定戦バナー（期間外は準備中でグレーアウト） ---
-  app.appendChild(waoBanner());
-
   // --- 本日の問題＋3難易度（2×2） ---
   const grid = h('div', { class: 'rank-grid' });
   const cards = {};
@@ -905,6 +905,21 @@ function renderHome(app) {
     h('span', { class: 'pen', html: ICONS.pen('#fff') }),
   ]));
 
+  // --- WA王決定戦アーカイブ（終わった大会の記録＋遊べるモード。控えめに下へ） ---
+  if (arcOn()) {
+    app.appendChild(h('button', {
+      class: 'arc-entry',
+      onclick: () => switchView('wao-archive'),
+    }, [
+      h('span', { class: 'arc-entry-crown' }, '👑'),
+      h('span', { class: 'arc-entry-txt' }, [
+        h('b', {}, CONFIG.waoArchive.label || 'WA王決定戦アーカイブ'),
+        h('i', {}, '結果発表・ランダムマッチ・タイムマッチ'),
+      ]),
+      h('span', { class: 'arc-entry-go' }, '›'),
+    ]));
+  }
+
   // NEW バッジ：前回訪問以降に作られた問題があるランクに付ける（初回ログインは付けない）
   if (user && newSinceTs && Store.isConfigured()) {
     Store.newestByRank().then(m => {
@@ -931,26 +946,6 @@ function waoLive() {
 function waoPreview() { return isOwnerAccount() && !waoLive(); }
 // 中に入れるか
 function waoOpen() { return waoLive() || waoPreview(); }
-// トップのバナーは「本当に公開中」かどうかだけで決める。
-// 公開前のオーナーのテストは、ハンバーガーメニューから入る（バナーは全員グレーのまま）。
-function waoBanner() {
-  const live = waoLive();
-  const btn = h('button', {
-    class: 'wao-banner' + (live ? '' : ' is-locked'),
-    disabled: live ? undefined : 'disabled',
-    title: live ? CONFIG.waking.label : '準備中です',
-    onclick: () => live ? switchView('wao') : null,
-  }, [
-    h('img', { src: 'assets/wao-banner.png', alt: (CONFIG.waking && CONFIG.waking.label) || 'WA王決定戦' }),
-    live ? h('span', { class: 'go' }, '›') : h('span', { class: 'wao-lock' }, '準備中'),
-  ]);
-  // 公開前も「開始まで」を出す（期待を持たせるため）
-  return h('div', { class: 'wao-banner-wrap' }, [btn, waoCountdown('is-slim')]);
-}
-
-/* ---------- WA王決定戦のカウントダウン ---------- */
-// 開始前は「開始まで」、期間中は「締切まで」を1秒ごとに更新する。
-// 締切＝終了日の終わり（例：8/31 なら 9/1 の 0時）。
 function waoDateAt(ymd, plusDays = 0, hm = '00:00') {
   if (!ymd) return null;
   const [y, m, d] = ymd.split('-').map(Number);
@@ -2004,6 +1999,316 @@ function fullRankingList(ranked, scoreFn) {
   }));
 }
 
+
+/* ============================================================
+ *  WA王決定戦アーカイブ
+ *  大会が終わったあとも遊べる常設ページ。
+ *  ここでの成績は「普段の総合ランキング」には入りません（ポイントも動きません）。
+ * ============================================================ */
+const ARC = () => CONFIG.waoArchive || {};
+function arcOn() { return !!ARC().enabled; }
+function arcCounts() { return ARC().counts || [10, 50, 100, 251]; }
+function arcPenalty() { return Number(ARC().timePenaltySec || 10); }
+
+// YouTubeのURLから動画IDだけ取り出す（限定公開でも埋め込みは可能）
+function youtubeId(url) {
+  const m = /(?:v=|youtu\.be\/|embed\/|shorts\/)([\w-]{11})/.exec(String(url || ''));
+  return m ? m[1] : '';
+}
+
+// 秒を「1:23.4」の形に
+function fmtSec(sec) {
+  const s = Math.max(0, Number(sec) || 0);
+  const m = Math.floor(s / 60);
+  const r = (s - m * 60);
+  return m > 0 ? `${m}:${r.toFixed(1).padStart(4, '0')}` : `${r.toFixed(1)}秒`;
+}
+
+/* ---------- アーカイブのトップ ---------- */
+async function renderArchive(app) {
+  renderHeader({ title: ARC().label || 'WA王決定戦アーカイブ' });
+
+  // 概要
+  app.appendChild(h('section', { class: 'card arc-intro' }, [
+    h('h2', { class: 'arc-h2' }, '大会について'),
+    h('p', { class: 'arc-lead' }, ARC().summary || ''),
+  ]));
+
+  // 上位10名＋テーマソング＋遊ぶメニュー
+  const rankSlot = h('div', {}, h('p', { class: 'muted center' }, '結果を読み込み中…'));
+  app.appendChild(rankSlot);
+
+  app.appendChild(h('h3', { class: 'section-title' }, 'もう一度、挑戦する'));
+  app.appendChild(h('p', { class: 'hint', style: 'margin-top:-4px' },
+    'ここでの成績は、普段の総合ランキングやポイントには影響しません。'));
+
+  app.appendChild(h('div', { class: 'arc-modes' }, [
+    h('button', { class: 'arc-mode c-cyan', onclick: () => arcPickCount('random') }, [
+      h('span', { class: 'arc-mode-name' }, 'ランダムマッチ'),
+      h('span', { class: 'arc-mode-desc' }, '大会と同じ問題から出題。あなたの成績が、あの日の順位のどこに入るか'),
+    ]),
+    h('button', { class: 'arc-mode c-magenta', onclick: () => arcPickCount('time') }, [
+      h('span', { class: 'arc-mode-name' }, 'タイムマッチ'),
+      h('span', { class: 'arc-mode-desc' }, `速さを競う。不正解1問につき ＋${arcPenalty()}秒`),
+    ]),
+  ]));
+
+  // テーマソング
+  const vid = youtubeId(ARC().themeSongUrl);
+  if (vid) {
+    app.appendChild(h('h3', { class: 'section-title' }, 'テーマソング'));
+    app.appendChild(h('div', { class: 'arc-video' },
+      h('iframe', {
+        src: `https://www.youtube-nocookie.com/embed/${vid}`,
+        title: ARC().themeSongTitle || 'テーマソング',
+        frameborder: '0', allowfullscreen: '',
+        allow: 'accelerometer; clipboard-write; encrypted-media; gyroscope; picture-in-picture',
+      })));
+  }
+
+  app.appendChild(h('div', { class: 'center', style: 'margin-top:18px' },
+    h('button', { class: 'btn btn-ghost btn-sm', onclick: () => switchView('home') }, '← トップへ')));
+
+  // ランキングは後から差し込む
+  if (!Store.isConfigured()) { rankSlot.innerHTML = ''; return; }
+  let rows;
+  try { rows = await Store.waoRanking(); }
+  catch (e) { rankSlot.innerHTML = ''; rankSlot.appendChild(errorBox(e)); return; }
+  rankSlot.innerHTML = '';
+  const top = (rows || []).filter(r => r.correct > 0).slice(0, 10);
+  if (!top.length) return;
+
+  rankSlot.appendChild(h('h3', { class: 'section-title' }, '最終結果　TOP10'));
+  rankSlot.appendChild(h('div', { class: 'rank-panel' }, top.map(r =>
+    h('div', { class: 'rank-row' + (r.rank === 1 ? ' is-champ' : '') }, [
+      h('span', { class: 'rank-pos' }, String(r.rank)),
+      avatarEl(r.user_handle, r.user_name, 'avatar-sm'),
+      h('span', { class: 'rank-name' }, r.user_name || r.user_handle),
+      h('span', { class: 'rank-val' }, `${r.correct}問`),
+    ]))));
+  rankSlot.appendChild(h('p', { class: 'hint' },
+    `参加 ${rows.length}人 ／ 初代WA王は ${top[0].user_name || top[0].user_handle} さん（${top[0].correct}問正解）`));
+}
+
+/* ---------- 問題数を選ぶポップアップ ---------- */
+function arcPickCount(mode) {
+  const isTime = mode === 'time';
+  openModal(box => {
+    box.appendChild(h('h2', { class: 'modal-title' }, isTime ? 'タイムマッチ' : 'ランダムマッチ'));
+    box.appendChild(h('p', { class: 'hint' }, isTime
+      ? `全問終えるまでの速さを競います。不正解1問につき ＋${arcPenalty()}秒 が加算されます。`
+      : 'あなたの正答率を251問に換算して、あの日のランキングのどこに入るかを表示します。'));
+    box.appendChild(h('p', { class: 'modal-sub' }, '何問に挑戦しますか？'));
+    box.appendChild(h('div', { class: 'arc-count-grid' }, arcCounts().map(n =>
+      h('button', { class: 'btn arc-count', onclick: () => { closeModal(); startArena(mode, n); } },
+        [h('b', {}, String(n)), h('i', {}, '問')]))));
+  });
+}
+
+/* ---------- アリーナ（ランダム／タイム共通の出題エンジン） ---------- */
+let arena = null;
+
+async function startArena(mode, count) {
+  if (!Store.isConfigured()) return toast('Supabase を設定すると挑戦できます', 'error');
+  currentView = 'arena';
+  renderHeader({ title: mode === 'time' ? 'タイムマッチ' : 'ランダムマッチ' });
+  const app = $('#app'); app.innerHTML = '';
+  app.appendChild(h('p', { class: 'muted center' }, '問題を準備中…'));
+
+  let list;
+  try { list = await Store.arenaSample((CONFIG.waking || {}).cutoff, count); }
+  catch (e) { app.innerHTML = ''; app.appendChild(errorBox(e)); return; }
+  if (!list.length) {
+    app.innerHTML = '';
+    app.appendChild(h('div', { class: 'card center' }, [
+      h('p', { class: 'muted' }, '出題できる問題がありません。'),
+      h('button', { class: 'btn btn-ghost btn-sm', onclick: () => switchView('wao-archive') }, '← 戻る'),
+    ]));
+    return;
+  }
+  arena = { mode, list, i: 0, correct: 0, answered: false, startAt: Date.now(), done: false };
+  renderArenaQuiz();
+}
+
+function renderArenaQuiz() {
+  const app = $('#app'); app.innerHTML = '';
+  const a = arena, q = a.list[a.i], total = a.list.length;
+  const isTime = a.mode === 'time';
+
+  const head = h('div', { class: 'quiz-progress' }, [
+    h('span', {}, `${a.i + 1}問目 / 全${total}問`),
+    isTime ? h('span', { class: 'arc-clock', id: 'arc-clock' }, '0.0秒') : null,
+  ]);
+  app.appendChild(head);
+  app.appendChild(h('div', { class: 'wao-bar' },
+    h('span', { style: `width:${Math.round(a.i / total * 100)}%` })));
+
+  if (isTime) {
+    const el = head.querySelector('#arc-clock');
+    const iv = setInterval(() => {
+      if (!el.isConnected) return clearInterval(iv);
+      el.textContent = fmtSec((Date.now() - a.startAt) / 1000);
+    }, 100);
+  }
+
+  const order = shuffleIdx(q.choices.length);
+  const dispCorrect = order.indexOf(q.correct_index);
+  const grid = h('div', { class: 'choice-grid' });
+  order.map(idx => q.choices[idx]).forEach((c, i) => {
+    grid.appendChild(h('button', { class: 'gopt', onclick: () => answerArena(i, dispCorrect, grid) },
+      [h('span', { class: 'gopt-n' }, LETTERS[i] + '.'), h('span', { class: 'gopt-t' }, c)]));
+  });
+
+  a.answered = false;
+  app.appendChild(h('section', { class: 'card quiz-card' }, [
+    qGenreLine(q),
+    h('h2', { class: 'q-title' }, [h('span', { class: 'q-mark' }, 'Q.'), ' ', q.body]),
+    grid,
+  ]));
+  app.appendChild(h('div', { class: 'center', style: 'margin-top:14px' },
+    h('button', { class: 'btn btn-ghost btn-sm', onclick: () => { arena = null; switchView('wao-archive'); } }, 'やめる')));
+}
+
+function answerArena(i, dispCorrect, grid) {
+  const a = arena;
+  if (!a || a.answered) return;
+  a.answered = true;
+  const right = i === dispCorrect;
+  if (right) a.correct++;
+
+  [...grid.children].forEach((btn, idx) => {
+    btn.disabled = true;
+    // ランダムマッチは正解を教える。タイムマッチは速さ優先なので押した所だけ光らせる。
+    if (a.mode !== 'time' && idx === dispCorrect) btn.classList.add('is-correct-lite');
+    if (idx === i) btn.classList.add(right ? 'is-right' : 'is-wrong');
+    else if (a.mode === 'time' || idx !== dispCorrect) btn.classList.add('is-faded');
+  });
+
+  const wait = a.mode === 'time' ? 160 : 420;
+  setTimeout(() => {
+    if (a.i >= a.list.length - 1) return finishArena();
+    a.i++;
+    renderArenaQuiz();
+    window.scrollTo({ top: 0 });
+  }, wait);
+}
+
+async function finishArena() {
+  const a = arena;
+  if (!a || a.done) return;
+  a.done = true;
+  const total = a.list.length, correct = a.correct, wrong = total - correct;
+  const raw = (Date.now() - a.startAt) / 1000;
+  const finalSec = raw + wrong * arcPenalty();
+
+  currentView = 'arena-result';
+  renderHeader({ title: a.mode === 'time' ? 'タイムマッチ 結果' : 'ランダムマッチ 結果' });
+  const app = $('#app'); app.innerHTML = '';
+
+  if (a.mode === 'time') {
+    app.appendChild(h('section', { class: 'card center arc-result' }, [
+      h('p', { class: 'arc-res-label' }, 'あなたのタイム'),
+      h('p', { class: 'arc-res-big' }, fmtSec(finalSec)),
+      h('p', { class: 'hint' },
+        `実時間 ${fmtSec(raw)} ＋ 不正解 ${wrong}問 × ${arcPenalty()}秒`),
+      h('p', { class: 'arc-res-sub' }, `${total}問中 ${correct}問正解`),
+    ]));
+    const slot = h('div', {});
+    app.appendChild(slot);
+    if (user) {
+      try {
+        await Store.timeAttackSubmit(user, total, Number(finalSec.toFixed(1)), Number(raw.toFixed(1)), wrong);
+      } catch {}
+      await renderTimeRanking(slot, total, finalSec);
+    } else {
+      slot.appendChild(h('p', { class: 'hint center' }, 'ログインすると、タイムがランキングに登録されます。'));
+    }
+  } else {
+    await renderRandomResult(app, correct, total);
+  }
+
+  app.appendChild(h('div', { class: 'arc-again' }, [
+    h('button', { class: 'btn btn-primary', onclick: () => arcPickCount(a.mode) }, 'もう一度'),
+    h('button', { class: 'btn', onclick: () => switchView('wao-archive') }, 'アーカイブへ'),
+  ]));
+  arena = null;
+}
+
+/* ---------- ランダムマッチ：あの日の順位に当てはめる ---------- */
+async function renderRandomResult(app, correct, total) {
+  const pct = total ? correct / total : 0;
+  app.appendChild(h('section', { class: 'card center arc-result' }, [
+    h('p', { class: 'arc-res-label' }, 'あなたの成績'),
+    h('p', { class: 'arc-res-big' }, `${correct} / ${total}`),
+    h('p', { class: 'arc-res-sub' }, `正答率 ${(pct * 100).toFixed(1)}%`),
+  ]));
+
+  let rows = [];
+  try { rows = await Store.waoRanking(); } catch {}
+  rows = (rows || []).filter(r => r.correct > 0);
+  if (!rows.length) return;
+
+  // 大会は全251問。同じ正答率で251問解いたら何問正解だったか、に換算して当てはめる
+  const base = rows[0].total || 251;
+  const equiv = Math.round(pct * base);
+  const better = rows.filter(r => r.correct > equiv).length;
+  const place = better + 1;
+
+  app.appendChild(h('section', { class: 'card arc-place' }, [
+    h('p', { class: 'arc-place-head' }, `全${base}問に換算すると`),
+    h('p', { class: 'arc-place-big' }, [h('b', {}, String(equiv)), '問相当']),
+    h('p', { class: 'arc-place-rank' }, `あの日の順位なら　${place}位 / ${rows.length}人`),
+  ]));
+
+  // 前後の人を並べて、自分の位置を挟んで見せる
+  const near = [];
+  rows.forEach(r => { if (r.correct > equiv) near.push(r); });
+  const above = near.slice(-2);
+  const below = rows.filter(r => r.correct <= equiv).slice(0, 2);
+  const line = r => h('div', { class: 'rank-row' }, [
+    h('span', { class: 'rank-pos' }, String(r.rank)),
+    avatarEl(r.user_handle, r.user_name, 'avatar-sm'),
+    h('span', { class: 'rank-name' }, r.user_name || r.user_handle),
+    h('span', { class: 'rank-val' }, `${r.correct}問`),
+  ]);
+  const me = h('div', { class: 'rank-row is-me' }, [
+    h('span', { class: 'rank-pos' }, String(place)),
+    h('span', { class: 'rank-name' }, 'あなた（換算）'),
+    h('span', { class: 'rank-val' }, `${equiv}問`),
+  ]);
+  app.appendChild(h('div', { class: 'rank-panel' }, [...above.map(line), me, ...below.map(line)]));
+
+  const gap = above.length ? above[above.length - 1].correct - equiv : 0;
+  if (gap > 0) {
+    app.appendChild(h('p', { class: 'hint center' },
+      `あと ${gap}問 で ${above[above.length - 1].rank}位でした。`));
+  }
+}
+
+/* ---------- タイムマッチのランキング ---------- */
+async function renderTimeRanking(slot, count, myTime) {
+  slot.appendChild(h('h3', { class: 'section-title' }, `タイムランキング（${count}問）`));
+  let rows = [];
+  try { rows = await Store.timeAttackRanking(count); }
+  catch (e) { slot.appendChild(errorBox(e)); return; }
+  if (!rows.length) { slot.appendChild(h('p', { class: 'muted' }, 'まだ記録がありません。')); return; }
+
+  const myHandle = user ? Misskey.handleOf(user) : null;
+  slot.appendChild(h('div', { class: 'rank-panel' }, rows.slice(0, 10).map((r, i) => {
+    const isMe = r.user_handle === myHandle;
+    return h('div', { class: 'rank-row' + (isMe ? ' is-me' : '') }, [
+      h('span', { class: 'rank-pos' }, String(i + 1)),
+      avatarEl(r.user_handle, r.user_name, 'avatar-sm'),
+      h('span', { class: 'rank-name' }, r.user_name || r.user_handle),
+      h('span', { class: 'rank-val' }, fmtSec(r.seconds)),
+    ]);
+  })));
+  const mine = rows.findIndex(r => r.user_handle === myHandle);
+  if (mine >= 0) {
+    slot.appendChild(h('p', { class: 'hint center' },
+      `あなたのベストは ${fmtSec(rows[mine].seconds)}（${rows.length}人中 ${mine + 1}位）`));
+  }
+}
 
 /* ---------- マイページ ---------- */
 async function renderMyPage(app) {

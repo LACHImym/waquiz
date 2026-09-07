@@ -735,6 +735,44 @@ const Store = (() => {
     return map;
   }
 
+  // ============================================================
+  //  アーカイブ（ランダムマッチ／タイムマッチ）
+  //  ※ ここでの成績は「普段の総合ランキング」には一切入りません。
+  //     answers テーブルには書かないので、ポイントも動きません。
+  // ============================================================
+  // WA王で出題対象だった問題から、ランダムに n 問。
+  async function arenaSample(cutoffYmd, n) {
+    must();
+    const all = await selectAll('questions', '*', q => q.lt('created_at', cutoffYmd));
+    for (let i = all.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [all[i], all[j]] = [all[j], all[i]];
+    }
+    return all.slice(0, n);
+  }
+
+  // タイムマッチの記録を残す（1回ごとに1行。順位は最速タイムで決める）
+  async function timeAttackSubmit(user, questions, seconds, rawSeconds, wrong) {
+    if (!user || !db) return;
+    const { error } = await db.from('time_attack').insert({
+      user_handle: Misskey.handleOf(user), user_name: user.name,
+      questions, seconds, raw_seconds: rawSeconds, wrong,
+    });
+    if (error) console.warn('time attack save failed', error);
+  }
+
+  // 問題数ごとのタイムランキング。1人1つ（その人のいちばん速い記録）だけ残す。
+  async function timeAttackRanking(questions) {
+    must();
+    const rows = await selectAll('time_attack', '*', q => q.eq('questions', questions));
+    const best = {};
+    rows.forEach(r => {
+      const cur = best[r.user_handle];
+      if (!cur || Number(r.seconds) < Number(cur.seconds)) best[r.user_handle] = r;
+    });
+    return Object.values(best).sort((a, b) => Number(a.seconds) - Number(b.seconds));
+  }
+
   // ---- 履歴 ----
   async function addHistory(questionId, action, user, detail) {
     const row = {
@@ -769,5 +807,6 @@ const Store = (() => {
     recordLogin, getStreak, loginPointsForDay, saveProfile, saveProfileRow, allProfiles,
     listComments, addComment, updateComment, deleteComment, listHistory,
     waoEntry, waoQuestions, waoQuestionCount, waoStart, waoRecordAnswers, waoFinish, waoRanking, waoResetUser, waoAnswerStats,
+    arenaSample, timeAttackSubmit, timeAttackRanking,
   };
 })();
