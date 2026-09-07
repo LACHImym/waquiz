@@ -420,8 +420,6 @@ function openMenu() {
       items.push(ownerLink('👑 総合ランキング', 'owner-total'));
       items.push(ownerLink('👑 正答数ランキング', 'owner-correct'));
       items.push(ownerLink('👑 面白クイズランキング', 'owner-funny'));
-      // 公開前はここからだけ WA王決定戦に入って動作確認できる
-      items.push(ownerLink(waoLive() ? '👑 WA王決定戦' : '👑 WA王決定戦（テスト）', 'wao'));
       items.push(ownerLink('👑 WA王決定戦の結果', 'owner-wao'));
     }
     items.push(h('button', { class: 'link-btn menu-logout', onclick: () => { flushAbandon(); flushWaoAbandon(); Misskey.logout(); location.reload(); } }, 'ログアウト'));
@@ -850,6 +848,24 @@ function renderHome(app) {
     heroTxt,
   ]));
 
+  // --- WA王決定戦（開催中だけ出す。オーナーは公開前のテストでも出る） ---
+  // 大会をやらない期間は何も出ない。次の大会は config の waking を設定すれば復活する。
+  if (waoOpen()) {
+    const live = waoLive();
+    app.appendChild(h('div', { class: 'wao-banner-wrap' }, [
+      h('button', {
+        class: 'wao-banner',
+        title: (CONFIG.waking || {}).label || 'WA王決定戦',
+        onclick: () => switchView('wao'),
+      }, [
+        h('img', { src: 'assets/wao-banner.png', alt: (CONFIG.waking || {}).label || 'WA王決定戦',
+                   onerror: function () { this.remove(); } }),
+        live ? h('span', { class: 'go' }, '›') : h('span', { class: 'wao-lock' }, 'テスト'),
+      ]),
+      waoCountdown('is-slim'),
+    ]));
+  }
+
   // --- 本日の問題＋3難易度（2×2） ---
   const grid = h('div', { class: 'rank-grid' });
   const cards = {};
@@ -946,7 +962,13 @@ function waoLive() {
   return (!st || now >= st) && (!dl || now < dl);
 }
 // 公開前のオーナーだけの試し打ち。他の人はこれまで通り入れない。
-function waoPreview() { return isOwnerAccount() && !waoLive(); }
+// オーナーが公開前に中身を確認するためのモード。
+// 締切を過ぎたあとは、オーナーにも出さない（大会は終わっているため）。
+function waoPreview() {
+  if (!isOwnerAccount() || waoLive()) return false;
+  const dl = waoDeadline();
+  return !dl || new Date() < dl;
+}
 // 中に入れるか
 function waoOpen() { return waoLive() || waoPreview(); }
 function waoDateAt(ymd, plusDays = 0, hm = '00:00') {
@@ -2131,8 +2153,13 @@ async function renderArchive(app) {
       h('span', { class: 'rank-name' }, r.user_name || r.user_handle),
       h('span', { class: 'rank-val' }, `${r.correct}問`),
     ]))));
+  // 同じ正解数なら同順位なので、1位は複数人いることがある
+  const champs = top.filter(r => r.rank === 1);
+  const names = champs.map(c => c.user_name || c.user_handle).join('、');
   rankSlot.appendChild(h('p', { class: 'hint' },
-    `参加 ${rows.length}人 ／ 初代WA王は ${top[0].user_name || top[0].user_handle} さん（${top[0].correct}問正解）`));
+    champs.length > 1
+      ? `参加 ${rows.length}人 ／ 初代WA王は ${names} の${champs.length}人（${champs[0].correct}問正解・同順位）`
+      : `参加 ${rows.length}人 ／ 初代WA王は ${names} さん（${champs[0].correct}問正解）`));
 }
 
 /* ---------- 問題数を選ぶポップアップ ---------- */
