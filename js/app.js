@@ -2467,9 +2467,12 @@ async function renderOwnerWao(app) {
   app.appendChild(slot);
   if (!Store.isConfigured()) { slot.innerHTML = ''; return; }
 
-  let rows, stats;
-  try { [rows, stats] = await Promise.all([Store.waoRanking(), Store.waoAnswerStats()]); }
+  let rows, stats = {};
+  try { rows = await Store.waoRanking(); }
   catch (e) { slot.innerHTML = ''; slot.appendChild(errorBox(e)); return; }
+  // 解答記録（wao_answers）は外部から読めないよう閉じたので、ここでは取れないことがある。
+  // 取れなければ照合表示は出さない（確認は Supabase の SQL Editor で行う）。
+  try { stats = await Store.waoAnswerStats(); } catch { stats = null; }
   slot.innerHTML = '';
 
   slot.appendChild(h('p', { class: 'hint', style: 'margin-bottom:10px' },
@@ -2481,17 +2484,18 @@ async function renderOwnerWao(app) {
   }
 
   // 申告された点数と、1問ごとの解答記録が食い違っている人を洗い出す
-  const odd = rows.filter(r => !matchesRecord(r, stats[r.user_handle]));
+  const odd = stats ? rows.filter(r => !matchesRecord(r, stats[r.user_handle])) : [];
   slot.appendChild(h('p', { class: 'rank-cap' },
     `挑戦者 ${rows.length}人 / 完走 ${rows.filter(r => r.finished).length}人`));
   slot.appendChild(h('div', { class: 'wao-audit' + (odd.length ? ' is-bad' : '') },
-    odd.length
-      ? `⚠ ${odd.length}人の記録が、1問ごとの解答と食い違っています（下の赤い行）。`
-      : '✓ 全員の点数が、1問ごとの解答記録と一致しています。'));
+    !stats ? '解答記録は非公開にしたため、照合は Supabase の SQL Editor で行ってください。'
+      : odd.length
+        ? `⚠ ${odd.length}人の記録が、1問ごとの解答と食い違っています（下の赤い行）。`
+        : '✓ 全員の点数が、1問ごとの解答記録と一致しています。'));
 
   slot.appendChild(h('div', { class: 'rank-panel' }, rows.map((r, i) => {
-    const st = stats[r.user_handle];
-    const ok = matchesRecord(r, st);
+    const st = stats ? stats[r.user_handle] : null;
+    const ok = !stats || matchesRecord(r, st);
     return h('div', { class: 'rank-row' + (ok ? '' : ' is-suspect') }, [
       h('span', { class: 'rank-pos' }, String(r.rank)),
       avatarEl(r.user_handle, r.user_name, 'avatar-sm'),
@@ -2500,7 +2504,7 @@ async function renderOwnerWao(app) {
         h('div', { style: 'font-size:10px;color:var(--muted)' }, r.user_handle),
         h('div', { style: 'font-size:10px;color:var(--muted)' },
           `${r.answered}/${r.total}問 回答` + (r.finished ? '' : '・途中終了')),
-        h('div', { class: 'wao-check' + (ok ? '' : ' is-bad') },
+        !stats ? null : h('div', { class: 'wao-check' + (ok ? '' : ' is-bad') },
           ok ? `照合OK（解答記録 ${st ? st.correct : 0}問正解）`
              : `⚠ 申告 ${r.correct}問正解 / 解答記録は ${st ? st.correct : 0}問正解`
                + `（回答 申告${r.answered} / 記録${st ? st.answered : 0}）`),
