@@ -40,9 +40,14 @@ const Store = (() => {
   }
 
   // ---- 問題 ----
+  // ブラウザが読める列。correct_index と explanation は含めない（正解を渡さないため）。
+  // データベース側でも列単位で読み取りを止めてあります（supabase/migrate_plan_a.sql）。
+  const Q_COLS = 'id, rank, body, choices, link_url, scheduled_date, '
+               + 'created_by, created_by_name, updated_by, updated_by_name, created_at, updated_at';
+
   async function listQuestions(rank) {
     must();
-    return selectAll('questions', '*', q => {
+    return selectAll('questions', Q_COLS, q => {
       let x = q.order('updated_at', { ascending: false });
       if (rank) x = x.eq('rank', rank);
       return x;
@@ -51,7 +56,7 @@ const Store = (() => {
 
   async function getQuestion(id) {
     must();
-    const { data, error } = await db.from('questions').select('*').eq('id', id).single();
+    const { data, error } = await db.from('questions').select(Q_COLS).eq('id', id).single();
     if (error) throw error;
     return data;
   }
@@ -59,7 +64,7 @@ const Store = (() => {
   async function listMyQuestions(user) {
     must();
     const { data, error } = await db.from('questions')
-      .select('*').eq('created_by', Misskey.handleOf(user))
+      .select(Q_COLS).eq('created_by', Misskey.handleOf(user))
       .order('updated_at', { ascending: false });
     if (error) throw error;
     return data;
@@ -132,7 +137,7 @@ const Store = (() => {
   // 通常の難易度プール（本日の問題＝scheduled_date付きは除外）から n 問
   async function sampleQuestions(rank, n, seenIds = []) {
     must();
-    const data = await selectAll('questions', '*', q => {
+    const data = await selectAll('questions', Q_COLS, q => {
       let x = q.is('scheduled_date', null);
       if (rank) x = x.eq('rank', rank);
       return x;
@@ -144,7 +149,7 @@ const Store = (() => {
   // 本日の問題（scheduled_date が今日）から n 問
   async function sampleDaily(n, todayYmd, seenIds = []) {
     must();
-    const data = await selectAll('questions', '*', q => q.eq('scheduled_date', todayYmd));
+    const data = await selectAll('questions', Q_COLS, q => q.eq('scheduled_date', todayYmd));
     const counts = await answerCounts();
     return deckSelect(data, n, seenIds, counts);
   }
@@ -152,7 +157,7 @@ const Store = (() => {
   // これまでの「本日の問題」すべて（アーカイブ）から n 問
   async function sampleDailyArchive(n, seenIds = []) {
     must();
-    const data = await selectAll('questions', '*', q => q.not('scheduled_date', 'is', null));
+    const data = await selectAll('questions', Q_COLS, q => q.not('scheduled_date', 'is', null));
     const counts = await answerCounts();
     return deckSelect(data, n, seenIds, counts);
   }
@@ -169,7 +174,7 @@ const Store = (() => {
   async function countDaily(todayYmd) {
     must();
     const { count, error } = await db.from('questions')
-      .select('*', { count: 'exact', head: true }).eq('scheduled_date', todayYmd);
+      .select('id', { count: 'exact', head: true }).eq('scheduled_date', todayYmd);
     if (error) throw error;
     return count || 0;
   }
@@ -199,7 +204,7 @@ const Store = (() => {
       updated_by: handle,
       updated_by_name: user.name,
     };
-    const { data, error } = await db.from('questions').insert(row).select().single();
+    const { data, error } = await db.from('questions').insert(row).select(Q_COLS).single();
     if (error) throw error;
     await addHistory(data.id, 'create', user, '問題を作成');
     return data;
@@ -220,7 +225,7 @@ const Store = (() => {
       updated_by_name: user.name,
       updated_at: new Date().toISOString(),
     };
-    const { data, error } = await db.from('questions').update(row).eq('id', id).select().single();
+    const { data, error } = await db.from('questions').update(row).eq('id', id).select(Q_COLS).single();
     if (error) throw error;
     await addHistory(id, 'edit', user, '問題を修正');
     return data;
@@ -230,7 +235,7 @@ const Store = (() => {
     must();
     // .select() を付けると「実際に削除された行」が返る。
     // RLS の delete 許可が無いと 0 行（エラーなし）になるので検知できる。
-    const { data, error } = await db.from('questions').delete().eq('id', id).select();
+    const { data, error } = await db.from('questions').delete().eq('id', id).select('id');
     if (error) throw error;
     if (!data || data.length === 0) {
       throw new Error('削除できませんでした。DBの「削除の許可」設定が必要です（supabase/migrate_all.sql を実行してください）。');
@@ -276,7 +281,7 @@ const Store = (() => {
   async function listRecentAnswers(user, limit = 10) {
     must();
     const { data, error } = await db.from('answers')
-      .select('*, questions(body, choices, correct_index, rank, link_url, scheduled_date)')
+      .select('*, questions(body, choices, rank, link_url, scheduled_date)')
       .eq('user_handle', Misskey.handleOf(user))
       .order('created_at', { ascending: false }).limit(limit);
     if (error) throw error;
@@ -649,14 +654,14 @@ const Store = (() => {
   // 出題対象：cutoff の日より前に作られた問題を全部
   async function waoQuestions(cutoffYmd) {
     must();
-    return selectAll('questions', '*', q => q.lt('created_at', cutoffYmd));
+    return selectAll('questions', Q_COLS, q => q.lt('created_at', cutoffYmd));
   }
 
   // 出題対象が何問あるか（ルール表示用。中身は取らずに数だけ数える）
   async function waoQuestionCount(cutoffYmd) {
     must();
     const { count, error } = await db.from('questions')
-      .select('*', { count: 'exact', head: true }).lt('created_at', cutoffYmd);
+      .select('id', { count: 'exact', head: true }).lt('created_at', cutoffYmd);
     if (error) throw error;
     return count || 0;
   }
@@ -743,7 +748,7 @@ const Store = (() => {
   // WA王で出題対象だった問題から、ランダムに n 問。
   async function arenaSample(cutoffYmd, n) {
     must();
-    const all = await selectAll('questions', '*', q => q.lt('created_at', cutoffYmd));
+    const all = await selectAll('questions', Q_COLS, q => q.lt('created_at', cutoffYmd));
     for (let i = all.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));
       [all[i], all[j]] = [all[j], all[i]];
@@ -771,6 +776,35 @@ const Store = (() => {
       if (!cur || Number(r.seconds) < Number(cur.seconds)) best[r.user_handle] = r;
     });
     return Object.values(best).sort((a, b) => Number(a.seconds) - Number(b.seconds));
+  }
+
+  // ============================================================
+  //  採点（正解はブラウザに渡さず、データベース側で判定する）
+  // ============================================================
+  // 普段のクイズ用。正誤に加えて、正解と解説も返す。
+  async function grade(questionId, choiceText) {
+    must();
+    const { data, error } = await db.rpc('wq_grade', { p_id: questionId, p_choice: choiceText });
+    if (error) throw error;
+    const r = (data && data[0]) || {};
+    return { isCorrect: !!r.is_correct, correctChoice: r.correct_choice || '', explanation: r.explanation || '' };
+  }
+
+  // 大会・タイムマッチ用。正誤だけを返す（正解も解説も渡さない）。
+  async function gradeQuiet(questionId, choiceText) {
+    must();
+    const { data, error } = await db.rpc('wq_grade_quiet', { p_id: questionId, p_choice: choiceText });
+    if (error) throw error;
+    return !!data;
+  }
+
+  // 1問ぶんの正解と解説（自分が答えた問題の振り返り用）
+  async function reveal(questionId) {
+    must();
+    const { data, error } = await db.rpc('wq_reveal', { p_id: questionId });
+    if (error) throw error;
+    const r = (data && data[0]) || {};
+    return { correctChoice: r.correct_choice || '', explanation: r.explanation || '' };
   }
 
   // ---- 履歴 ----
@@ -808,5 +842,6 @@ const Store = (() => {
     listComments, addComment, updateComment, deleteComment, listHistory,
     waoEntry, waoQuestions, waoQuestionCount, waoStart, waoRecordAnswers, waoFinish, waoRanking, waoResetUser, waoAnswerStats,
     arenaSample, timeAttackSubmit, timeAttackRanking,
+    grade, gradeQuiet, reveal,
   };
 })();

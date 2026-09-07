@@ -666,11 +666,10 @@ function renderWaoQuiz() {
   ]));
 
   // 選択肢は毎回ランダムに並べ替え
-  const order = shuffleIdx(q.choices.length);
-  const dispCorrect = order.indexOf(q.correct_index);
+  const displayed = shuffleIdx(q.choices.length).map(i => q.choices[i]);
   const grid = h('div', { class: 'choice-grid' });
   order.map(i => q.choices[i]).forEach((c, i) => {
-    grid.appendChild(h('button', { class: 'gopt', onclick: () => answerWao(i, dispCorrect, q, grid) },
+    grid.appendChild(h('button', { class: 'gopt', onclick: () => answerWao(i, displayed, q, grid) },
       [h('span', { class: 'gopt-n' }, LETTERS[i] + '.'), h('span', { class: 'gopt-t' }, c)]));
   });
 
@@ -682,10 +681,15 @@ function renderWaoQuiz() {
   app.appendChild(h('p', { class: 'hint center' }, '※ 正解・不正解はその場では出ません。最後まで進んでください。'));
 }
 
-function answerWao(i, dispCorrect, q, grid) {
+async function answerWao(i, displayed, q, grid) {
   if (wao.answered) return;
   wao.answered = true;
-  const isRight = i === dispCorrect;
+  [...grid.children].forEach(btn => { btn.disabled = true; });
+  // 大会中は正解を教えないので、正誤だけを問い合わせる
+  let isRight;
+  try { isRight = await Store.gradeQuiet(q.id, displayed[i]); }
+  catch { wao.answered = false; [...grid.children].forEach(b => { b.disabled = false; });
+          return toast('採点できませんでした。もう一度押してください', 'error'); }
   if (isRight) wao.correct++;
   wao.answers.push({ question_id: q.id, is_correct: isRight });
   // 正誤は見せず、押したものだけ印を付けてすぐ次へ
@@ -1047,10 +1051,10 @@ function renderQuiz() {
       h('span', { class: 'seg' + (idx < quiz.i ? ' done' : idx === quiz.i ? ' cur' : ''), style: idx <= quiz.i ? `background:${rankColor(quiz.rank)}` : '' }))),
   ]));
 
-  // 選択肢は毎回ランダムに並べ替え
-  const order = shuffleIdx(q.choices.length);
-  const displayed = order.map(idx => q.choices[idx]);
-  quiz.cur = { dispCorrect: order.indexOf(q.correct_index) };
+  // 選択肢は毎回ランダムに並べ替え。
+  // ※ 正解がどれかはブラウザに渡ってきません（採点はデータベース側で行います）。
+  const displayed = shuffleIdx(q.choices.length).map(idx => q.choices[idx]);
+  quiz.cur = { displayed };
 
   const grid = h('div', { class: 'choice-grid' });
   displayed.forEach((c, i) => {
@@ -1068,13 +1072,28 @@ function renderQuiz() {
   app.appendChild(card);
 }
 
-function answerQuiz(i, grid, q) {
+async function answerQuiz(i, grid, q) {
   if (quiz.answered) return;
   quiz.answered = true;
-  const correct = quiz.cur.dispCorrect; // 表示上の正解位置
-  const isRight = i === correct;
+  // 押した瞬間に全部止めて、採点をデータベースに問い合わせる
+  [...grid.children].forEach(btn => { btn.disabled = true; });
+  grid.classList.add('is-grading');
+
+  let res;
+  try { res = await Store.grade(q.id, quiz.cur.displayed[i]); }
+  catch (e) {
+    grid.classList.remove('is-grading');
+    [...grid.children].forEach(btn => { btn.disabled = false; });
+    quiz.answered = false;
+    return toast('採点できませんでした。もう一度押してください', 'error');
+  }
+  grid.classList.remove('is-grading');
+
+  const correct = quiz.cur.displayed.indexOf(res.correctChoice); // 表示上の正解位置
+  const isRight = res.isCorrect;
   if (isRight) quiz.correct++;
   quiz.answers.push({ question_id: q.id, is_correct: isRight }); // 完走時にまとめて記録（途中離脱時は残りを不正解として記録）
+  q = Object.assign({}, q, { explanation: res.explanation });    // 解説はいま届いたものを使う
   const accent = rankColor(quiz.rank);
   const onAccentText = onAccent(quiz.rank);
   [...grid.children].forEach((btn, idx) => {
@@ -1390,17 +1409,21 @@ async function toggleAcc(row, body, q) {
   if (!open) { body.innerHTML = ''; return; }
   body.innerHTML = '';
   body.appendChild(h('p', { class: 'muted center' }, '読み込み中…'));
-  let full, comments;
+  // 正解と解説はデータベース側にしか無いので、別に取りに行く
+  let full, comments, ans;
   try {
-    [full, comments] = await Promise.all([Store.getQuestion(q.id), Store.listComments(q.id)]);
+    [full, comments, ans] = await Promise.all([
+      Store.getQuestion(q.id), Store.listComments(q.id), Store.reveal(q.id),
+    ]);
   } catch (e) { body.innerHTML = ''; body.appendChild(errorBox(e)); return; }
+  full = Object.assign({}, full, { explanation: ans.explanation });
 
   body.innerHTML = '';
-  // 問題 + 選択肢
+  // 問題 + 選択肢（正解は文字で照合する。番号はブラウザに渡ってこない）
   body.appendChild(h('div', { class: 'choices static' }, full.choices.map((c, i) =>
-    h('div', { class: 'choice static' + (i === full.correct_index ? ' correct' : '') },
+    h('div', { class: 'choice static' + (c === ans.correctChoice ? ' correct' : '') },
       [h('span', { class: 'choice-index' }, LETTERS[i]), h('span', {}, c),
-       i === full.correct_index ? h('span', { class: 'correct-tag' }, '正解') : null]))));
+       c === ans.correctChoice ? h('span', { class: 'correct-tag' }, '正解') : null]))));
   // 解答解説
   body.appendChild(h('h3', { class: 'section-title' }, '解答解説'));
   body.appendChild(h('p', { class: 'explain-body' }, full.explanation || '（解説はまだありません）'));
@@ -1419,7 +1442,8 @@ async function toggleAcc(row, body, q) {
       } catch (e) { delBtn.disabled = false; toast(e.message || '削除に失敗しました', 'error'); }
     });
     body.appendChild(h('div', { class: 'detail-actions' }, [
-      h('button', { class: 'btn btn-ink btn-sm', onclick: () => renderCreate($('#app'), full) }, '✎ 編集する'),
+      h('button', { class: 'btn btn-ink btn-sm',
+        onclick: () => renderCreate($('#app'), Object.assign({}, full, { _correct: ans.correctChoice })) }, '✎ 編集する'),
       h('button', { class: 'btn btn-sm', onclick: () => shareReviewQuestion(full) },
         [h('span', { html: ICONS.share('#231815') }), document.createTextNode('シェア')]),
       delBtn,
@@ -1548,12 +1572,22 @@ function renderCreate(app, editing = null) {
   const bodyIn = h('textarea', { class: 'input', rows: '3', placeholder: '問題文を入力…' }, editing ? editing.body : '');
 
   // 正解1・不正解3
-  const correctText = editing ? (editing.choices[editing.correct_index] || '') : '';
-  const wrongTexts = editing ? editing.choices.filter((_, i) => i !== editing.correct_index) : ['', '', ''];
+  // 正解は「番号」ではなく「文字」で受け取る（番号はブラウザに渡ってこないため）
+  const correctText = editing ? (editing._correct || '') : '';
+  const wrongTexts = editing ? editing.choices.filter(c => c !== correctText) : ['', '', ''];
   const correctIn = h('input', { class: 'input correct-in', type: 'text', placeholder: '正解の選択肢', value: correctText });
   const wrongIns = [0, 1, 2].map(i => h('input', { class: 'input', type: 'text', placeholder: `不正解 ${i + 1}`, value: wrongTexts[i] || '' }));
 
   const explainIn = h('textarea', { class: 'input', rows: '3', placeholder: '解答解説を入力（任意）…' }, editing ? (editing.explanation || '') : '');
+  if (editing && !editing._correct) {
+    // 詳細画面を経由せずに編集へ来た場合の保険。正解と解説を取り直す。
+    Store.reveal(editing.id).then(r => {
+      if (!correctIn.value) correctIn.value = r.correctChoice;
+      if (!explainIn.value) explainIn.value = r.explanation;
+      const rest = editing.choices.filter(c => c !== r.correctChoice);
+      wrongIns.forEach((w, i) => { if (!w.value) w.value = rest[i] || ''; });
+    }).catch(() => {});
+  }
   const linkIn = h('input', { class: 'input', type: 'url', placeholder: 'https://…（任意）', value: editing ? (editing.link_url || '') : '' });
 
   const submit = h('button', { class: 'btn btn-primary btn-block' }, isEdit ? '編集を保存' : '問題を登録');
@@ -1563,11 +1597,14 @@ function renderCreate(app, editing = null) {
     const isDaily = cat === 'daily';
     const correct = correctIn.value.trim();
     const wrongs = wrongIns.map(w => w.value.trim());
+    // 選択肢は保存時にシャッフルする。
+    // 先頭を必ず正解にしていると、正解の番号を隠しても中身から答えが分かってしまうため。
+    const mixed = shuffleIdx(4).map(i => [correct, ...wrongs][i]);
     const payload = {
       rank: isDaily ? 'beginner' : cat, // 本日の問題は内部的に beginner 固定
       body: bodyIn.value.trim(),
-      choices: [correct, ...wrongs],   // 保存時は先頭が正解
-      correctIndex: 0,
+      choices: mixed,
+      correctIndex: mixed.indexOf(correct),
       explanation: explainIn.value.trim(),
       linkUrl: linkIn.value.trim(),
       scheduledDate: isDaily ? dateIn.value : null,
@@ -2000,6 +2037,15 @@ function fullRankingList(ranked, scoreFn) {
 }
 
 
+/* 「正解：◯◯」の行。正解はデータベースに問い合わせてから差し込む。 */
+function revealLine(questionId, createdAt) {
+  const el = h('p', { class: 'rv-a' }, `正解：…　${fmtDay(createdAt)}`);
+  Store.reveal(questionId)
+    .then(r => { el.textContent = `正解：${r.correctChoice}　${fmtDay(createdAt)}`; })
+    .catch(() => { el.textContent = fmtDay(createdAt); });
+  return el;
+}
+
 /* ============================================================
  *  WA王決定戦アーカイブ
  *  大会が終わったあとも遊べる常設ページ。
@@ -2151,11 +2197,10 @@ function renderArenaQuiz() {
     }, 100);
   }
 
-  const order = shuffleIdx(q.choices.length);
-  const dispCorrect = order.indexOf(q.correct_index);
+  const displayed = shuffleIdx(q.choices.length).map(idx => q.choices[idx]);
   const grid = h('div', { class: 'choice-grid' });
-  order.map(idx => q.choices[idx]).forEach((c, i) => {
-    grid.appendChild(h('button', { class: 'gopt', onclick: () => answerArena(i, dispCorrect, grid) },
+  displayed.forEach((c, i) => {
+    grid.appendChild(h('button', { class: 'gopt', onclick: () => answerArena(i, displayed, q, grid) },
       [h('span', { class: 'gopt-n' }, LETTERS[i] + '.'), h('span', { class: 'gopt-t' }, c)]));
   });
 
@@ -2169,22 +2214,34 @@ function renderArenaQuiz() {
     h('button', { class: 'btn btn-ghost btn-sm', onclick: () => { arena = null; switchView('wao-archive'); } }, 'やめる')));
 }
 
-function answerArena(i, dispCorrect, grid) {
+async function answerArena(i, displayed, q, grid) {
   const a = arena;
   if (!a || a.answered) return;
   a.answered = true;
-  const right = i === dispCorrect;
+  [...grid.children].forEach(btn => { btn.disabled = true; });
+
+  // 採点はデータベース側。タイムマッチは正解を教えないので gradeQuiet を使う。
+  let right, dispCorrect = -1;
+  try {
+    if (a.mode === 'time') right = await Store.gradeQuiet(q.id, displayed[i]);
+    else {
+      const r = await Store.grade(q.id, displayed[i]);
+      right = r.isCorrect; dispCorrect = displayed.indexOf(r.correctChoice);
+    }
+  } catch {
+    a.answered = false; [...grid.children].forEach(b => { b.disabled = false; });
+    return toast('採点できませんでした。もう一度押してください', 'error');
+  }
   if (right) a.correct++;
 
   [...grid.children].forEach((btn, idx) => {
-    btn.disabled = true;
     // ランダムマッチは正解を教える。タイムマッチは速さ優先なので押した所だけ光らせる。
-    if (a.mode !== 'time' && idx === dispCorrect) btn.classList.add('is-correct-lite');
+    if (dispCorrect >= 0 && idx === dispCorrect) btn.classList.add('is-correct-lite');
     if (idx === i) btn.classList.add(right ? 'is-right' : 'is-wrong');
-    else if (a.mode === 'time' || idx !== dispCorrect) btn.classList.add('is-faded');
+    else if (dispCorrect < 0 || idx !== dispCorrect) btn.classList.add('is-faded');
   });
 
-  const wait = a.mode === 'time' ? 160 : 420;
+  const wait = a.mode === 'time' ? 120 : 420;
   setTimeout(() => {
     if (a.i >= a.list.length - 1) return finishArena();
     a.i++;
@@ -2409,7 +2466,7 @@ async function renderMyPage(app) {
       h('span', { class: 'rv-mark', html: a.is_correct ? ICONS.correctMark() : ICONS.wrongMark() }),
       h('div', { class: 'rv-body' }, [
         h('p', { class: 'rv-q' }, q ? q.body : '（削除された問題）'),
-        q ? h('p', { class: 'rv-a' }, `正解：${q.choices[q.correct_index]}　${fmtDay(a.created_at)}`) : null,
+        q ? revealLine(a.question_id, a.created_at) : null,
         btns,
         cSlot,
       ]),
