@@ -408,7 +408,6 @@ function openMenu() {
   items.push(menuItem('マイページ', () => (user ? switchView('mypage') : requireLogin('マイページはログインすると使えます'))));
   items.push(menuItem('新着コメント', () => (user ? switchView('new-comments') : requireLogin('ログインすると使えます')), newCommentCount));
   items.push(menuItem('ランキング', () => switchView('ranking')));
-  if (arcOn()) items.push(menuItem('WA王決定戦アーカイブ', () => switchView('wao-archive')));
   items.push(menuItem('作った問題', () => (user ? switchView('manage') : requireLogin('ログインすると使えます'))));
   items.push(menuItem('作問する', () => (user ? switchView('create') : requireLogin('作問はログインすると使えます'))));
 
