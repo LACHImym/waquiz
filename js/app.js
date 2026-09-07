@@ -2086,7 +2086,7 @@ async function renderArchive(app) {
 
   app.appendChild(h('h3', { class: 'section-title' }, 'もう一度、挑戦する'));
   app.appendChild(h('p', { class: 'hint', style: 'margin-top:-4px' },
-    'ここでの成績は、普段の総合ランキングやポイントには影響しません。'));
+    'ここで解いたぶんも、普段どおりポイントが入り、総合ランキングに反映されます。'));
 
   app.appendChild(h('div', { class: 'arc-modes' }, [
     h('button', { class: 'arc-mode c-cyan', onclick: () => arcPickCount('random') }, [
@@ -2172,7 +2172,7 @@ async function startArena(mode, count) {
     ]));
     return;
   }
-  arena = { mode, list, i: 0, correct: 0, answered: false, startAt: Date.now(), done: false };
+  arena = { mode, list, i: 0, correct: 0, answers: [], answered: false, startAt: Date.now(), done: false };
   renderArenaQuiz();
 }
 
@@ -2233,6 +2233,7 @@ async function answerArena(i, displayed, q, grid) {
     return toast('採点できませんでした。もう一度押してください', 'error');
   }
   if (right) a.correct++;
+  a.answers.push({ question_id: q.id, is_correct: right });   // ポイント計算のため記録する
 
   [...grid.children].forEach((btn, idx) => {
     // ランダムマッチは正解を教える。タイムマッチは速さ優先なので押した所だけ光らせる。
@@ -2258,6 +2259,12 @@ async function finishArena() {
   const raw = (Date.now() - a.startAt) / 1000;
   const finalSec = raw + wrong * arcPenalty();
 
+  // アーカイブで遊んだぶんも、普段どおりポイントに入れる
+  // （総合ランキングは「WA検定でどれだけ遊んだか」の総合点なので）
+  if (user && Store.isConfigured()) {
+    try { await Store.recordAnswersBatch(a.answers, user); } catch (e) { console.warn('arena answers failed', e); }
+  }
+
   currentView = 'arena-result';
   renderHeader({ title: a.mode === 'time' ? 'タイムマッチ 結果' : 'ランダムマッチ 結果' });
   const app = $('#app'); app.innerHTML = '';
@@ -2282,6 +2289,12 @@ async function finishArena() {
     }
   } else {
     await renderRandomResult(app, correct, total);
+  }
+
+  if (user) {
+    const P = CONFIG.points || {};
+    const got = total * (P.solve || 0) + correct * (P.correct || 0);
+    app.appendChild(h('p', { class: 'arc-earn' }, `＋${got}pt 獲得（総合ランキングに反映されます）`));
   }
 
   app.appendChild(h('div', { class: 'arc-again' }, [

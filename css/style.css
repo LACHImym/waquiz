@@ -711,3 +711,10 @@ textarea.input { resize: vertical; min-height: 92px; }
 
 /* 採点をデータベースに問い合わせている間 */
 .choice-grid.is-grading { opacity: .6; }
+
+/* アーカイブの結果：獲得ポイント */
+.arc-earn {
+  background: var(--yellow); color: var(--ink); border-radius: var(--radius);
+  font-family: var(--disp); font-weight: 900; font-size: 13px;
+  padding: 10px 14px; margin: 14px 0 0; text-align: center;
+}
