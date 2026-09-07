@@ -195,6 +195,6 @@ RLS が全テーブル `select using (true)`＝キーを知っていれば誰で
 WA運営が OAuth 2.0 + PKCE の SSO と、イベント・コラム・配信・番組表・通知・
 AERU投稿のAPIを公開。SDK は URL から直接読み込む形式。
 
-WA検定にとっての意味は別紙（下の「WA API の使いどころ」）に整理。
+WA検定にとっての意味は `docs/WA_API.md` に整理。
 **ただし SSO のトークンは Supabase の RLS からは検証できない**（JWTではない）。
 本人確認に使うには、やはりサーバー役（Edge Function）が要る。

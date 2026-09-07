@@ -1,0 +1,9 @@
+{
+  "name": "WA検定",
+  "description": "オンラインコミュニティWAの4択クイズです。メンバーが問題を作り、みんなで解きます。年に数回、全問に挑む「WA王決定戦」を開催します。",
+  "app_url": "https://lachimym.github.io/waquiz/",
+  "redirect_uris": ["https://lachimym.github.io/waquiz/"],
+  "allowed_origins": ["https://lachimym.github.io"],
+  "client_type": "public",
+  "scopes": ["profile:read"]
+}
