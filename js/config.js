@@ -65,7 +65,7 @@ window.QUIZ_CONFIG = {
     // タイムマッチ：不正解1問につき加算される秒数
     timePenaltySec: 10,
     // テーマソング（YouTubeの限定公開URL）。空にすると欄ごと非表示になります。
-    themeSongUrl: '',
+    themeSongUrl: 'https://youtu.be/H3deBh_mBzI',
     themeSongTitle: 'WA王決定戦 テーマソング',
   },
 
