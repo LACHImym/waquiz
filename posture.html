@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>Silhouette — 姿勢とシルエットの記録</title>
+  <meta name="description" content="体重ではなく、姿勢とシルエットを記録するアプリ。写真は保存せず、数値だけを端末に残します。">
+  <meta name="robots" content="noindex">
+  <link rel="icon" type="image/png" href="assets/favicon.png">
+  <link rel="apple-touch-icon" href="assets/favicon.png">
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/posture.css?v=20260907-a">
+</head>
+<body>
+  <header id="header" class="header"></header>
+  <main id="app" class="app"></main>
+  <div id="toasts" class="toasts"></div>
+
+  <footer class="site-foot">
+    記録はこの端末の中だけに保存されます。医療機器ではありません。
+  </footer>
+
+  <!-- 設定 → ログイン → 計算 → 保存 → 解析 → 3D → 画面 の順 -->
+  <script src="js/config.js?v=20260907-a"></script>
+  <script src="js/misskey.js?v=20260907-a"></script>
+  <script src="js/posture-metrics.js?v=20260907-a"></script>
+  <script src="js/posture-db.js?v=20260907-a"></script>
+  <script src="js/posture-scan.js?v=20260907-a"></script>
+  <script src="js/posture-3d.js?v=20260907-a"></script>
+  <script src="js/posture-app.js?v=20260907-a"></script>
+</body>
+</html>
