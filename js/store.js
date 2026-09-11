@@ -455,16 +455,21 @@ const Store = (() => {
     // クイズ：その問題を「はじめて解いたとき」の1回だけ数える。
     // 2回目以降は何度解いても入らない（＝未挑戦の問題がある限り上限なし）。
     if (frozen) {
-      const first = {};
+      // 「はじめて解いたとき」と「はじめて正解したとき」を別々に探す。
+      // 正解ボーナスは、何回目の挑戦であっても “初めて当てた1回” に入る。
+      const firstTry = {}, firstHit = {};
       ansD.forEach(a2 => {
         const k = key2(a2.user_handle, a2.question_id);
-        const cur = first[k];
-        if (!cur || String(a2.created_at) < String(cur.created_at)) first[k] = a2;
+        if (!firstTry[k] || String(a2.created_at) < String(firstTry[k].created_at)) firstTry[k] = a2;
+        if (a2.is_correct && (!firstHit[k] || String(a2.created_at) < String(firstHit[k].created_at))) firstHit[k] = a2;
       });
-      Object.values(first).forEach(a2 => {
+      Object.values(firstTry).forEach(a2 => {
         if (!after(a2.created_at)) return;   // 締め日より前の初挑戦は凍結ぶんに含まれている
         add(a2.user_handle, a2.user_name, 'solve', P.solve);
-        if (a2.is_correct) add(a2.user_handle, a2.user_name, 'correct', P.correct);
+      });
+      Object.values(firstHit).forEach(a2 => {
+        if (!after(a2.created_at)) return;   // 締め日より前の初正解も凍結ぶんに含まれている
+        add(a2.user_handle, a2.user_name, 'correct', P.correct);
       });
     } else {
       // 締め前（凍結テーブルがまだ無い）は、これまでどおり全件を数える
