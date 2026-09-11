@@ -261,7 +261,12 @@ const Store = (() => {
       user_name: user.name, is_correct: it.is_correct, source,
     }));
     const { error } = await db.from('answers').insert(rows);
-    if (error) console.warn('answers batch failed', error);
+    if (!error) return;
+    // source 列がまだ無いDBでも記録が消えないように、列を外してもう一度試す
+    console.warn('answers batch failed, retrying without source', error);
+    const plain = rows.map(({ source, ...rest }) => rest);
+    const retry = await db.from('answers').insert(plain);
+    if (retry.error) console.warn('answers batch failed', retry.error);
   }
 
   async function recordResult(rank, correct, total, user) {

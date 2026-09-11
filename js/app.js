@@ -2107,7 +2107,9 @@ async function renderArchive(app) {
 
   app.appendChild(h('h3', { class: 'section-title' }, 'もう一度、挑戦する'));
   const capNote = h('p', { class: 'hint', style: 'margin-top:-4px' },
-    `ここで解いたぶんも、普段どおりポイントが入ります（1日 ${ARC().dailyPointCap}問ぶんまで）。`);
+    ARC().dailyPointCap
+      ? `ここで解いたぶんも、普段どおりポイントが入ります（1日 ${ARC().dailyPointCap}問ぶんまで）。`
+      : 'ここで解いたぶんも、普段どおりポイントが入り、総合ランキングに反映されます。');
   app.appendChild(capNote);
   if (user && Store.isConfigured() && ARC().dailyPointCap) {
     Store.arenaTodayCount(user).then(n => {
