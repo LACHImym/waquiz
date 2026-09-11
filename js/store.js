@@ -889,6 +889,20 @@ const Store = (() => {
     return count || 0;
   }
 
+  // 自分がこれまでに「解いた問題」と「正解した問題」。
+  // ポイントが入るのは初挑戦・初正解の1回だけなので、その判定に使う。
+  async function myAnswerState(user) {
+    const empty = { solved: new Set(), correct: new Set() };
+    if (!user || !db) return empty;
+    const rows = await selectAll('answers', 'question_id, is_correct',
+      q => q.eq('user_handle', Misskey.handleOf(user)));
+    rows.forEach(r => {
+      empty.solved.add(r.question_id);
+      if (r.is_correct) empty.correct.add(r.question_id);
+    });
+    return empty;
+  }
+
   // ---- 履歴 ----
   async function addHistory(questionId, action, user, detail) {
     const row = {
@@ -924,6 +938,6 @@ const Store = (() => {
     listComments, addComment, updateComment, deleteComment, listHistory,
     waoEntry, waoQuestions, waoQuestionCount, waoStart, waoRecordAnswers, waoFinish, waoRanking, waoResetUser, waoAnswerStats,
     arenaSample, timeAttackSubmit, timeAttackRanking, arenaTodayCount,
-    grade, gradeQuiet, reveal,
+    grade, gradeQuiet, reveal, myAnswerState,
   };
 })();

@@ -71,7 +71,7 @@ window.QUIZ_CONFIG = {
     // 「リアクションする」ことなので、アーカイブの周回でそこが霞まないようにしている。
     // 目安：50問＝約80pt（普段の1日の3倍ほど）。251問だと約400pt＝15倍になり、
     //       ログインや作問の重みが消えてしまう。
-    dailyPointCap: 50,
+    dailyPointCap: 0,
     // テーマソング（YouTubeの限定公開URL）。空にすると欄ごと非表示になります。
     themeSongUrl: 'https://youtu.be/H3deBh_mBzI',
     themeSongTitle: 'WA王決定戦 テーマソング',

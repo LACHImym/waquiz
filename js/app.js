@@ -1057,7 +1057,9 @@ async function startQuiz(rankKey) {
   // この一周で出した問題を記録（次回は未出題から出る）
   try { localStorage.setItem(cycleKey, JSON.stringify(res.seen)); } catch {}
 
-  quiz = { rank: rankKey, list, i: 0, correct: 0, answered: false, answers: [] };
+  quiz = { rank: rankKey, list, i: 0, correct: 0, answered: false, answers: [], state: null };
+  // ポイントが入るかの判定用（失敗しても出題は続ける）
+  if (user) Store.myAnswerState(user).then(st => { quiz.state = st; }).catch(() => {});
   renderQuiz();
 }
 
@@ -1114,6 +1116,7 @@ async function answerQuiz(i, grid, q) {
   const isRight = res.isCorrect;
   if (isRight) quiz.correct++;
   quiz.answers.push({ question_id: q.id, is_correct: isRight }); // 完走時にまとめて記録（途中離脱時は残りを不正解として記録）
+  if (user) popPoints(grid.children[i], pointsForAnswer(quiz.state, q.id, isRight));
   q = Object.assign({}, q, { explanation: res.explanation });    // 解説はいま届いたものを使う
   const accent = rankColor(quiz.rank);
   const onAccentText = onAccent(quiz.rank);
@@ -1195,6 +1198,7 @@ function reactionButton(questionId, kind, small = false) {
     // 押した瞬間に反映（楽観的更新）
     const wentOn = !on;
     on = wentOn; count += wentOn ? 1 : -1; label.textContent = count; paint();
+    if (wentOn) popPoints(btn, CONFIG.points.goodGiven, 'リアクション');
     try {
       const serverOn = await Store.toggleGood(questionId, user, kind);
       if (serverOn !== on) { on = serverOn; paint(); } // サーバーとズレたら合わせる
@@ -1516,6 +1520,7 @@ function commentsBlock(qid, comments, formFirst = false) {
       send.disabled = true;
       try {
         const c = await Store.addComment(qid, b, user);
+        popPoints(post, CONFIG.points.comment, 'コメント');
         const empty = listEl.querySelector('.comment-empty');
         if (empty) empty.remove();
         // 古い順に並んでいるので、書いたコメントは一番下に足す
@@ -1637,7 +1642,11 @@ function renderCreate(app, editing = null) {
     submit.disabled = true;
     try {
       if (isEdit) { await Store.updateQuestion(editing.id, payload, user); toast('編集を保存しました', 'success'); }
-      else { await Store.createQuestion(payload, user); toast('問題を登録しました！', 'success'); }
+      else {
+        await Store.createQuestion(payload, user);
+        popPoints(submit, CONFIG.points.create, '作問');
+        toast('問題を登録しました！', 'success');
+      }
       updateFooterPool();
       manageFilter = isDaily ? '' : payload.rank;
       renderCreateDone({ ...payload, isDaily }, isEdit);
@@ -2067,6 +2076,45 @@ function revealLine(questionId, createdAt) {
   return el;
 }
 
+
+/* ============================================================
+ *  ポイント獲得の吹き出し
+ *  押した場所から「＋1pt」がふわっと浮かんで消える。
+ *  ※ 実際の加算はサーバー側の集計で決まるので、ここはあくまで
+ *    「いま入りましたよ」という手応えを返すための表示です。
+ * ============================================================ */
+// その解答で実際に入るポイントを数え、履歴を進める。
+// 初挑戦なら solve、初正解なら correct。どちらも1問につき1回だけ。
+function pointsForAnswer(state, questionId, isRight) {
+  if (!state) return 0;
+  const P = CONFIG.points;
+  let pt = 0;
+  if (!state.solved.has(questionId)) { pt += P.solve || 0; state.solved.add(questionId); }
+  if (isRight && !state.correct.has(questionId)) { pt += P.correct || 0; state.correct.add(questionId); }
+  return pt;
+}
+
+function popPoints(target, pt, label) {
+  if (!pt) return;
+  // 押された場所を基準にする（要素が無ければ画面中央）
+  let x = window.innerWidth / 2, y = window.innerHeight / 2;
+  const el = target && target.getBoundingClientRect ? target : null;
+  if (el) {
+    const r = el.getBoundingClientRect();
+    if (r.width || r.height) { x = r.left + r.width / 2; y = r.top; }
+  }
+  const bubble = h('div', { class: 'pt-pop' }, [
+    h('b', {}, '＋' + pt + 'pt'),
+    label ? h('i', {}, label) : null,
+  ]);
+  bubble.style.left = Math.round(x) + 'px';
+  bubble.style.top = Math.round(y) + 'px';
+  document.body.appendChild(bubble);
+  // アニメーションが終わったら自分で片付ける
+  bubble.addEventListener('animationend', () => bubble.remove());
+  setTimeout(() => bubble.remove(), 2000);   // 念のための保険
+}
+
 /* ============================================================
  *  WA王決定戦アーカイブ
  *  大会が終わったあとも遊べる常設ページ。
@@ -2209,7 +2257,10 @@ async function startArena(mode, count) {
     ]));
     return;
   }
-  arena = { mode, list, i: 0, correct: 0, answers: [], answered: false, startAt: Date.now(), done: false };
+  arena = { mode, list, i: 0, correct: 0, answers: [], answered: false,
+            startAt: Date.now(), done: false, state: null, earned: 0 };
+  if (user) { try { arena.state = await Store.myAnswerState(user); } catch {} }
+  arena.startAt = Date.now();   // 履歴の読み込み時間をタイムに含めない
   renderArenaQuiz();
 }
 
@@ -2271,6 +2322,11 @@ async function answerArena(i, displayed, q, grid) {
   }
   if (right) a.correct++;
   a.answers.push({ question_id: q.id, is_correct: right });   // ポイント計算のため記録する
+  if (user) {
+    const pt = pointsForAnswer(a.state, q.id, right);
+    a.earned += pt;
+    popPoints(grid.children[i], pt);
+  }
 
   [...grid.children].forEach((btn, idx) => {
     // ランダムマッチは正解を教える。タイムマッチは速さ優先なので押した所だけ光らせる。
@@ -2341,13 +2397,10 @@ async function finishArena() {
   }
 
   if (user) {
-    const P = CONFIG.points || {};
-    // ポイントに数えられたのは先頭 counted 問ぶんだけ
-    const countedRight = a.answers.slice(0, counted).filter(x => x.is_correct).length;
-    const got = counted * (P.solve || 0) + countedRight * (P.correct || 0);
+    const got = a.earned;
     app.appendChild(h('p', { class: 'arc-earn' + (got ? '' : ' is-capped') },
       got ? `＋${got}pt 獲得（総合ランキングに反映されます）`
-          : '本日ぶんのポイントは上限に達しています'));
+          : 'すべて挑戦ずみの問題だったので、ポイントは増えません'));
     if (capReached) {
       app.appendChild(h('p', { class: 'hint center' },
         `ポイントは1日 ${ARC().dailyPointCap}問ぶんまでです（今回は ${counted}問ぶんが加算されました）。`
