@@ -349,11 +349,18 @@ const Store = (() => {
   }
 
   // 連続N日目のログインで得られる点数（基本＋ボーナス＋5の倍数）
+  // Date から 'YYYY-MM-DD'（端末のローカル日付＝日本時間）
+  function ymdOf(d) {
+    const p2 = n => String(n).padStart(2, '0');
+    return d.getFullYear() + '-' + p2(d.getMonth() + 1) + '-' + p2(d.getDate());
+  }
+
   function loginPointsForDay(day) {
     const P = CONFIG.points;
     let pts = P.login || 0;
     if (P.loginBonus && P.loginBonus[day]) pts += P.loginBonus[day];
     if (day >= 5 && day % 5 === 0) pts += (P.loginEvery5 || 0);
+    if (day >= 30 && day % 30 === 0) pts += (P.loginEvery30 || 0);
     return pts;
   }
 
@@ -405,16 +412,23 @@ const Store = (() => {
   async function totalRanking() {
     must();
     const P = CONFIG.points;
-    const [qsD, ansD, cmsD, lgsD, gdsD, waoD] = await Promise.all([
-      selectAll('questions', 'id, created_by, created_by_name'),
-      selectAll('answers', 'user_handle, user_name, is_correct'),
-      selectAll('comments', 'author, author_name, question_id'),
+    const [qsD, ansD, cmsD, lgsD, gdsD, waoD, legD] = await Promise.all([
+      selectAll('questions', 'id, created_by, created_by_name, created_at'),
+      selectAll('answers', 'user_handle, user_name, question_id, is_correct, created_at'),
+      selectAll('comments', 'author, author_name, question_id, created_at'),
       selectAll('logins', 'user_handle, user_name, login_date'),
-      selectAll('goods', 'user_handle, question_id', q => q.eq('kind', 'funny')),
+      selectAll('goods', 'user_handle, question_id, kind, created_at'),
       // WA王決定戦の完走ボーナス用。テーブルが未作成でも他の集計は止めない。
       selectAll('wao_entries', 'user_handle, user_name, finished').catch(() => []),
+      // 締め日までの持ち点。まだ作っていなければ null（従来どおり全期間を計算する）
+      selectAll('legacy_points', 'user_handle, user_name, points').catch(() => null),
     ]);
-    const qs = { data: qsD }, ans = { data: ansD }, cms = { data: cmsD }, lgs = { data: lgsD }, gds = { data: gdsD };
+
+    // 締め日。凍結データが揃っているときだけ「締め日より後」を新ルールで数える。
+    const cut = CONFIG.pointsFrozenAt ? new Date(CONFIG.pointsFrozenAt) : null;
+    const frozen = !!(cut && legD && legD.length);
+    const after = ts => !frozen || (ts && new Date(ts) >= cut);
+    const key2 = (a1, b1) => String(a1) + '|' + String(b1);
 
     const M = {};
     const get = (handle, name) => {
@@ -423,50 +437,93 @@ const Store = (() => {
       return m;
     };
     const add = (handle, name, key, pts) => {
+      if (!handle || !pts) return;
       const m = get(handle, name);
       m.points += pts; m.breakdown[key] = (m.breakdown[key] || 0) + pts;
     };
 
-    // 問題→作成者ハンドルの対応表（コメント/👍の「受け取り」集計用）
+    // 締め日までのぶんを、まず土台として置く
+    if (frozen) legD.forEach(r => add(r.user_handle, r.user_name, 'legacy', r.points));
+
+    // 問題→作成者ハンドルの対応表（コメント/リアクションの「受け取り」集計用）
     const qAuthor = {};
-    qs.data.forEach(q => {
+    qsD.forEach(q => {
       qAuthor[q.id] = q.created_by;
-      add(q.created_by, q.created_by_name, 'create', P.create);
+      if (after(q.created_at)) add(q.created_by, q.created_by_name, 'create', P.create);
     });
-    ans.data.forEach(a => {
-      add(a.user_handle, a.user_name, 'solve', P.solve);
-      if (a.is_correct) add(a.user_handle, a.user_name, 'correct', P.correct);
-    });
-    cms.data.forEach(c => {
+
+    // クイズ：その問題を「はじめて解いたとき」の1回だけ数える。
+    // 2回目以降は何度解いても入らない（＝未挑戦の問題がある限り上限なし）。
+    if (frozen) {
+      const first = {};
+      ansD.forEach(a2 => {
+        const k = key2(a2.user_handle, a2.question_id);
+        const cur = first[k];
+        if (!cur || String(a2.created_at) < String(cur.created_at)) first[k] = a2;
+      });
+      Object.values(first).forEach(a2 => {
+        if (!after(a2.created_at)) return;   // 締め日より前の初挑戦は凍結ぶんに含まれている
+        add(a2.user_handle, a2.user_name, 'solve', P.solve);
+        if (a2.is_correct) add(a2.user_handle, a2.user_name, 'correct', P.correct);
+      });
+    } else {
+      // 締め前（凍結テーブルがまだ無い）は、これまでどおり全件を数える
+      ansD.forEach(a2 => {
+        add(a2.user_handle, a2.user_name, 'solve', P.solve);
+        if (a2.is_correct) add(a2.user_handle, a2.user_name, 'correct', P.correct);
+      });
+    }
+
+    cmsD.forEach(c => {
+      if (!after(c.created_at)) return;
       add(c.author, c.author_name, 'comment', P.comment);
       const author = qAuthor[c.question_id];
-      if (author && author !== c.author) add(author, null, 'commentReceived', P.commentReceived); // 自問への他者コメント
+      if (author && author !== c.author) add(author, null, 'commentReceived', P.commentReceived);
     });
+
     // ログインは連続日数に応じて配点（各ユーザーの日付列からストリークを再現）
     const byUser = {};
-    lgs.data.forEach(l => {
+    lgsD.forEach(l => {
       const u = byUser[l.user_handle] || (byUser[l.user_handle] = { name: l.user_name, dates: [] });
       u.dates.push(l.login_date);
       if (l.user_name) u.name = l.user_name;
     });
+    const cutYmd = cut ? ymdOf(cut) : null;
     Object.entries(byUser).forEach(([handle, u]) => {
       const dates = [...new Set(u.dates)].sort();
       let day = 0, prev = null, sum = 0;
-      for (const d of dates) { day = (prev && shiftYmd(prev, 1) === d) ? day + 1 : 1; sum += loginPointsForDay(day); prev = d; }
+      for (const d of dates) {
+        day = (prev && shiftYmd(prev, 1) === d) ? day + 1 : 1;
+        // 連続日数は全期間から数えるが、加点するのは締め日より後の日だけ
+        if (!frozen || d >= cutYmd) sum += loginPointsForDay(day);
+        prev = d;
+      }
       add(handle, u.name, 'login', sum);
       const m = get(handle, u.name);
       m.days = dates.length;                     // 累計ログイン日数
-      m.lastLogin = dates[dates.length - 1];     // 最終ログイン日（いちばん新しい日）
+      m.lastLogin = dates[dates.length - 1];     // 最終ログイン日
     });
-    gds.data.forEach(g => {
+
+    // リアクション：種類は問わない（♥も🤣も、どの絵文字でも）。
+    // 1つの問題につき1人1つまで数える（同じ問題に複数付けても1回ぶん）。
+    const seenReact = {};
+    gdsD.forEach(g => {
+      if (!after(g.created_at)) return;
+      if (!frozen && g.kind !== 'funny') return;   // 締め前はこれまでどおり🤣のみ
+      const k = key2(g.user_handle, g.question_id);
+      if (seenReact[k]) return;
+      seenReact[k] = 1;
       add(g.user_handle, null, 'goodGiven', P.goodGiven);
       const author = qAuthor[g.question_id];
       if (author && author !== g.user_handle) add(author, null, 'goodReceived', P.goodReceived);
     });
-    // WA王決定戦：最後まで解いた人にイベントボーナス
-    (waoD || []).forEach(e => {
-      if (e.finished) add(e.user_handle, e.user_name, 'decisionBattle', P.decisionBattle);
-    });
+
+    // WA王決定戦の完走ボーナス（締め日より前のイベントなので凍結ぶんに含まれる）
+    if (!frozen) {
+      (waoD || []).forEach(e => {
+        if (e.finished) add(e.user_handle, e.user_name, 'decisionBattle', P.decisionBattle);
+      });
+    }
 
     return Object.values(M).sort((x, y) => y.points - x.points);
   }
