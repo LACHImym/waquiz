@@ -66,7 +66,7 @@ window.QUIZ_CONFIG = {
     timePenaltySec: 60,
     // 1日にポイントが入る問題数の上限（翌日0時にリセット）。
     // 0 にすると上限なし。数字を入れるとその問題数までになる。
-    dailyPointCap: 0,
+    dailyPointCap: 251,
     // テーマソング（YouTubeの限定公開URL）。空にすると欄ごと非表示になります。
     themeSongUrl: 'https://youtu.be/H3deBh_mBzI',
     themeSongTitle: 'WA王決定戦 テーマソング',
