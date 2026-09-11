@@ -419,7 +419,7 @@ function openMenu() {
       items.push(ownerLink('👑 全問題の閲覧', 'owner'));
       items.push(ownerLink('👑 総合ランキング', 'owner-total'));
       items.push(ownerLink('👑 正答数ランキング', 'owner-correct'));
-      items.push(ownerLink('👑 面白クイズランキング', 'owner-funny'));
+      items.push(ownerLink('👑 リアクションランキング', 'owner-funny'));
       items.push(ownerLink('👑 WA王決定戦の結果', 'owner-wao'));
     }
     items.push(h('button', { class: 'link-btn menu-logout', onclick: () => { flushAbandon(); flushWaoAbandon(); Misskey.logout(); location.reload(); } }, 'ログアウト'));
@@ -1165,51 +1165,110 @@ function nextQuiz() {
 }
 
 // ♥（いいね）と 🤣（うけるね）の2つのリアクションを並べたバー
-function reactionBar(questionId, small = false) {
-  return h('div', { class: 'react-row' + (small ? ' rv-btns' : '') }, [
-    reactionButton(questionId, 'heart', small),
-    reactionButton(questionId, 'funny', small),
-  ]);
+/* ============================================================
+ *  リアクション
+ *  1つの投稿につき1人1つ。押すと絵文字が選べる。
+ *  同じものをもう一度押すと外れる。
+ * ============================================================ */
+function reactionEmojis() { return CONFIG.reactions || ['❤️', '🤣', '👏']; }
+
+// 絵文字を選ぶ小さなパネル
+function openEmojiPicker(anchor, onPick) {
+  const pop = h('div', { class: 'emoji-pop' }, reactionEmojis().map(e =>
+    h('button', { class: 'emoji-opt', title: e, onclick: ev => { ev.stopPropagation(); close(); onPick(e); } }, e)));
+  document.body.appendChild(pop);
+  const r = anchor.getBoundingClientRect();
+  // 画面からはみ出さない位置に置く
+  const w = pop.offsetWidth || 240;
+  pop.style.left = Math.round(Math.min(Math.max(8, r.left), window.innerWidth - w - 8)) + 'px';
+  pop.style.top = Math.round(r.top - pop.offsetHeight - 8) + 'px';
+  if (r.top - pop.offsetHeight - 8 < 8) pop.style.top = Math.round(r.bottom + 8) + 'px';
+  function close() { pop.remove(); document.removeEventListener('click', close, true); }
+  setTimeout(() => document.addEventListener('click', close, true), 0);
 }
 
-// リアクションボタン（押すと即座に数が増える）。kind: 'heart'（♥）/ 'funny'（🤣うけるね）
-function reactionButton(questionId, kind, small = false) {
-  const isHeart = kind === 'heart';
-  const name = isHeart ? 'いいね' : 'うけるね';
-  const label = h('span', { class: 'react-count' }, '…');
-  const ico = h('span', { class: 'react-ico', html: isHeart ? ICONS.heart(false) : ICONS.laugh(false) });
-  const btn = h('button', {
-    class: `react-btn ${isHeart ? 'r-heart' : 'r-laugh'}`, title: name, onclick: onClick,
-  }, [ico, label]);
+// 問題へのリアクション
+function reactionBar(questionId, small = false) {
+  const row = h('div', { class: 'react-row' + (small ? ' rv-btns' : '') });
+  const addBtn = h('button', { class: 'react-add', title: 'リアクションする' }, '＋');
+  let mine = null, counts = {}, busy = false;
 
-  let count = 0, on = false, busy = false;
   const paint = () => {
-    btn.classList.toggle('is-on', on);
-    ico.innerHTML = isHeart ? ICONS.heart(on) : ICONS.laugh(on);
+    row.innerHTML = '';
+    Object.entries(counts).sort((x, y) => y[1] - x[1]).forEach(([e, n]) => {
+      if (!n) return;
+      row.appendChild(h('button', {
+        class: 'react-chip' + (mine === e ? ' is-on' : ''),
+        onclick: () => pick(e),
+      }, [h('span', { class: 'ce' }, e), h('span', { class: 'cn' }, String(n))]));
+    });
+    row.appendChild(addBtn);
   };
-  if (Store.isConfigured()) {
-    Store.goodCount(questionId, kind).then(c => { count = c; label.textContent = c; }).catch(() => { label.textContent = '0'; });
-    Store.hasGood(questionId, user, kind).then(v => { on = v; paint(); }).catch(() => {});
-  } else { label.textContent = ''; }
+  addBtn.addEventListener('click', () => {
+    if (!user) return requireLogin('リアクションはログインすると押せます');
+    openEmojiPicker(addBtn, pick);
+  });
 
-  async function onClick() {
-    if (!user) return requireLogin(`${name}はログインすると押せます`);
+  async function pick(emoji) {
+    if (!user) return requireLogin('リアクションはログインすると押せます');
     if (busy) return; busy = true;
-    // 押した瞬間に反映（楽観的更新）
-    const wentOn = !on;
-    on = wentOn; count += wentOn ? 1 : -1; label.textContent = count; paint();
-    if (wentOn) popPoints(btn, CONFIG.points.goodGiven, 'リアクション');
-    try {
-      const serverOn = await Store.toggleGood(questionId, user, kind);
-      if (serverOn !== on) { on = serverOn; paint(); } // サーバーとズレたら合わせる
-    } catch (e) {
-      // 失敗：見た目を元に戻して原因を案内
-      on = !wentOn; count += wentOn ? -1 : 1; label.textContent = count; paint();
-      toast(`${name}を保存できませんでした。DBの設定（supabase/migrate_all.sql）を実行してください。`, 'error');
-    }
+    const before = mine;
+    // 押した瞬間に反映する（あとでサーバーの結果に合わせる）
+    if (before) counts[before] = Math.max(0, (counts[before] || 1) - 1);
+    if (before === emoji) mine = null;
+    else { mine = emoji; counts[emoji] = (counts[emoji] || 0) + 1; }
+    paint();
+    if (mine) popPoints(row, CONFIG.points.goodGiven, 'リアクション');
+    try { await Store.setReaction(questionId, user, emoji); }
+    catch (e) { toast('リアクションを保存できませんでした', 'error'); }
     busy = false;
   }
-  return btn;
+
+  paint();
+  if (Store.isConfigured()) {
+    Store.reactionsOf(questionId).then(r => { counts = r.counts; mine = r.mine; paint(); }).catch(() => {});
+  }
+  return row;
+}
+
+// コメントへのリアクション
+function commentReactionBar(commentId, initial) {
+  const row = h('div', { class: 'react-row is-cmt' });
+  const addBtn = h('button', { class: 'react-add', title: 'リアクションする' }, '＋');
+  let counts = (initial && initial.counts) || {}, mine = (initial && initial.mine) || null, busy = false;
+
+  const paint = () => {
+    row.innerHTML = '';
+    Object.entries(counts).sort((x, y) => y[1] - x[1]).forEach(([e, n]) => {
+      if (!n) return;
+      row.appendChild(h('button', {
+        class: 'react-chip' + (mine === e ? ' is-on' : ''),
+        onclick: () => pick(e),
+      }, [h('span', { class: 'ce' }, e), h('span', { class: 'cn' }, String(n))]));
+    });
+    row.appendChild(addBtn);
+  };
+  addBtn.addEventListener('click', () => {
+    if (!user) return requireLogin('リアクションはログインすると押せます');
+    openEmojiPicker(addBtn, pick);
+  });
+
+  async function pick(emoji) {
+    if (!user) return requireLogin('リアクションはログインすると押せます');
+    if (busy) return; busy = true;
+    const before = mine;
+    if (before) counts[before] = Math.max(0, (counts[before] || 1) - 1);
+    if (before === emoji) mine = null;
+    else { mine = emoji; counts[emoji] = (counts[emoji] || 0) + 1; }
+    paint();
+    if (mine) popPoints(row, CONFIG.points.cmtReactGiven, 'リアクション');
+    try { await Store.setCommentReaction(commentId, user, emoji); }
+    catch (e) { toast('リアクションを保存できませんでした（DBの設定を実行してください）', 'error'); }
+    busy = false;
+  }
+
+  paint();
+  return row;
 }
 
 /* ---------- 結果（アニメ円グラフ） ---------- */
@@ -1499,8 +1558,22 @@ function dateLine(q) {
  * formFirst: true なら記入欄を一覧の上に置く（クイズ直後など）。
  * 戻り値の要素には openForm() が生えていて、外のボタンからも開ける。 */
 function commentsBlock(qid, comments, formFirst = false) {
-  const listEl = h('div', { class: 'comment-list' },
-    comments.length ? comments.map(renderComment) : [h('p', { class: 'comment-empty muted' }, 'まだありません。')]);
+  const listEl = h('div', { class: 'comment-list' });
+  if (comments.length) {
+    // 先に並べてから、リアクションの数をまとめて取りに行く
+    const nodes = {};
+    comments.forEach(c => { nodes[c.id] = renderComment(c); listEl.appendChild(nodes[c.id]); });
+    if (Store.isConfigured()) {
+      Store.commentReactions(comments.map(c => c.id)).then(m => {
+        comments.forEach(c => {
+          const bar = nodes[c.id] && nodes[c.id].querySelector('.react-row.is-cmt');
+          if (bar && m[c.id]) bar.replaceWith(commentReactionBar(c.id, m[c.id]));
+        });
+      }).catch(() => {});
+    }
+  } else {
+    listEl.appendChild(h('p', { class: 'comment-empty muted' }, 'まだありません。'));
+  }
 
   const formSlot = h('div', { class: 'comment-form-slot' });
   const openBtn = h('button', { class: 'btn btn-primary btn-sm comment-open' }, 'コメントする');
@@ -1544,7 +1617,7 @@ function commentsBlock(qid, comments, formFirst = false) {
   wrap.openForm = openForm;
   return wrap;
 }
-function renderComment(c) {
+function renderComment(c, react) {
   return h('div', { class: 'comment' }, [
     avatarEl(c.author, c.author_name),
     h('div', { class: 'comment-main' }, [
@@ -1553,9 +1626,11 @@ function renderComment(c) {
         h('span', { class: 'comment-date' }, fmtDate(c.created_at)),
       ]),
       h('p', { class: 'comment-body' }, linkify(c.body)),
+      commentReactionBar(c.id, react),
     ]),
   ]);
 }
+
 
 /* ---------- 作問フォーム（解答解説つき） ---------- */
 function renderCreate(app, editing = null) {
@@ -1984,11 +2059,10 @@ async function renderRanking(app) {
 
 /* ---------- 問題のランキング ---------- */
 async function renderQuestionRanking(slot) {
-  let hearts, funny, hard;
+  let hearts, hard;
   try {
-    [hearts, funny, hard] = await Promise.all([
-      Store.heartRanking(5).catch(() => []),
-      Store.funnyRanking(5).catch(() => []),
+    [hearts, hard] = await Promise.all([
+      Store.allReactionRanking(5).catch(() => []),
       Store.hardRanking(5).catch(() => []),
     ]);
   } catch (e) { slot.innerHTML = ''; slot.appendChild(errorBox(e)); return; }
@@ -2009,10 +2083,10 @@ async function renderQuestionRanking(slot) {
       ]))));
   };
 
-  block('いいねランキング', '♥ が多い問題 上位5', hearts,
-    'まだ「いいね」が付いた問題がありません。', x => String(x.count));
-  block('面白クイズランキング', 'うけるねが多い問題 上位5', funny,
-    'まだ「うけるね」が付いた問題がありません。', x => String(x.count));
+  block('リアクションランキング', '種類を問わず、リアクションが多い問題 上位5', hearts,
+    'まだリアクションが付いた問題がありません。',
+    x => (Object.entries(x.kinds || {}).sort((p1, p2) => p2[1] - p1[1])
+            .slice(0, 3).map(([e, n]) => e + n).join(' ') || String(x.count)));
   block('難問ランキング', '正答率が低い問題 上位5（3回以上解かれた問題が対象）', hard,
     'まだ集計できる問題がありません。', x => `${Math.round(x.rate * 100)}%`);
 }
@@ -2741,10 +2815,10 @@ async function renderOwnerRanking(app, kind) {
       slot.appendChild(h('p', { class: 'hint', style: 'margin-bottom:10px' }, '正解数の合計（全員）。'));
       slot.appendChild(rankListFull(ranks, r => `${r.correct}問正解`));
     } else {
-      const funny = await Store.funnyRanking(50);
+      const funny = await Store.allReactionRanking(50);
       slot.innerHTML = '';
-      slot.appendChild(h('p', { class: 'rank-cap' }, '「うけるね」が多く押された問題（全員）。'));
-      if (!funny.length) slot.appendChild(h('p', { class: 'muted' }, 'まだ「うけるね」が付いた問題がありません。'));
+      slot.appendChild(h('p', { class: 'rank-cap' }, 'リアクションが多く押された問題（種類を問わず・全員）。'));
+      if (!funny.length) slot.appendChild(h('p', { class: 'muted' }, 'まだリアクションが付いた問題がありません。'));
       else slot.appendChild(h('div', { class: 'rank-panel' }, funny.map((x, i) => h('div', { class: 'rank-row' }, [
         h('span', { class: 'rank-pos' }, String(i + 1)),
         h('div', { class: 'rank-name', style: 'white-space:normal' }, [

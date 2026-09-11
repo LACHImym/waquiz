@@ -308,6 +308,72 @@ const Store = (() => {
   }
 
   // 複数問題のリアクション数をまとめて取得（一覧表示用）。kind: 'funny'（🤣）/ 'heart'（♥）
+  // 昔の kind（'funny' / 'heart'）を絵文字として表示するための読み替え。
+  // データベースの値は変えていません（締め日の集計と食い違わないようにするため）。
+  const KIND_ALIAS = { funny: '🤣', heart: '❤️' };
+  const kindEmoji = k => KIND_ALIAS[k] || k;
+
+  // 問題ごとの、絵文字別の数と自分が押したもの
+  async function reactionsOf(questionId) {
+    if (!db) return { counts: {}, mine: null };
+    let rows;
+    try { rows = await selectAll('goods', 'user_handle, kind', q => q.eq('question_id', questionId)); }
+    catch { return { counts: {}, mine: null }; }
+    const me = Misskey.getUser() ? Misskey.handleOf(Misskey.getUser()) : null;
+    const counts = {}; let mine = null;
+    rows.forEach(r => {
+      const e = kindEmoji(r.kind);
+      counts[e] = (counts[e] || 0) + 1;
+      if (me && r.user_handle === me) mine = e;
+    });
+    return { counts, mine };
+  }
+
+  // リアクションを付け替える。同じものをもう一度押したら外す。
+  // 1つの問題につき1人1つなので、古いものは消してから入れる。
+  async function setReaction(questionId, user, emoji) {
+    must();
+    const handle = Misskey.handleOf(user);
+    const del = await db.from('goods').delete()
+      .eq('question_id', questionId).eq('user_handle', handle).select('kind');
+    if (del.error) throw del.error;
+    const had = (del.data || []).map(r => kindEmoji(r.kind));
+    if (had.includes(emoji)) return null;          // 同じものを押した＝解除
+    const { error } = await db.from('goods')
+      .insert({ question_id: questionId, user_handle: handle, kind: emoji });
+    if (error) throw error;
+    return emoji;
+  }
+
+  // ---- コメントへのリアクション ----
+  async function commentReactions(commentIds) {
+    if (!db || !commentIds || !commentIds.length) return {};
+    let rows;
+    try { rows = await selectAll('comment_reactions', 'comment_id, user_handle, kind',
+      q => q.in('comment_id', commentIds)); } catch { return {}; }
+    const me = Misskey.getUser() ? Misskey.handleOf(Misskey.getUser()) : null;
+    const m = {};
+    rows.forEach(r => {
+      const o = m[r.comment_id] || (m[r.comment_id] = { counts: {}, mine: null });
+      o.counts[r.kind] = (o.counts[r.kind] || 0) + 1;
+      if (me && r.user_handle === me) o.mine = r.kind;
+    });
+    return m;
+  }
+
+  async function setCommentReaction(commentId, user, emoji) {
+    must();
+    const handle = Misskey.handleOf(user);
+    const del = await db.from('comment_reactions').delete()
+      .eq('comment_id', commentId).eq('user_handle', handle).select('kind');
+    if (del.error) throw del.error;
+    if ((del.data || []).some(r => r.kind === emoji)) return null;   // 同じものを押した＝解除
+    const { error } = await db.from('comment_reactions')
+      .insert({ comment_id: commentId, user_handle: handle, user_name: user.name, kind: emoji });
+    if (error) throw error;
+    return emoji;
+  }
+
   async function goodCountsByQuestions(ids, kind = 'funny') {
     if (!db || !ids || !ids.length) return {};
     let data;
@@ -382,6 +448,28 @@ const Store = (() => {
       .slice(0, limit);
   }
   // 面白クイズランキング（🤣が多い問題 上位 n）
+  // 種類を問わない、リアクションの多い問題ランキング
+  async function allReactionRanking(limit = 5) {
+    must();
+    const [gds, qs] = await Promise.all([
+      selectAll('goods', 'question_id, kind'),
+      selectAll('questions', 'id, body, rank, scheduled_date, created_by_name, created_by'),
+    ]);
+    const counts = {}, kinds = {};
+    gds.forEach(g => {
+      counts[g.question_id] = (counts[g.question_id] || 0) + 1;
+      const k = kinds[g.question_id] || (kinds[g.question_id] = {});
+      const e = kindEmoji(g.kind);
+      k[e] = (k[e] || 0) + 1;
+    });
+    const qmap = {}; qs.forEach(q => { qmap[q.id] = q; });
+    return Object.entries(counts)
+      .map(([id, c]) => ({ q: qmap[id], count: c, kinds: kinds[id] }))
+      .filter(x => x.q && x.count > 0)
+      .sort((a, b) => b.count - a.count)
+      .slice(0, limit);
+  }
+
   const funnyRanking = (limit = 5) => reactionRanking('funny', limit);
   // いいねランキング（♥が多い問題 上位 n）
   const heartRanking = (limit = 5) => reactionRanking('heart', limit);
@@ -412,12 +500,13 @@ const Store = (() => {
   async function totalRanking() {
     must();
     const P = CONFIG.points;
-    const [qsD, ansD, cmsD, lgsD, gdsD, waoD, legD] = await Promise.all([
+    const [qsD, ansD, cmsD, lgsD, gdsD, crD, waoD, legD] = await Promise.all([
       selectAll('questions', 'id, created_by, created_by_name, created_at'),
       selectAll('answers', 'user_handle, user_name, question_id, is_correct, created_at'),
-      selectAll('comments', 'author, author_name, question_id, created_at'),
+      selectAll('comments', 'id, author, author_name, question_id, created_at'),
       selectAll('logins', 'user_handle, user_name, login_date'),
       selectAll('goods', 'user_handle, question_id, kind, created_at'),
+      selectAll('comment_reactions', 'comment_id, user_handle, created_at').catch(() => []),
       // WA王決定戦の完走ボーナス用。テーブルが未作成でも他の集計は止めない。
       selectAll('wao_entries', 'user_handle, user_name, finished').catch(() => []),
       // 締め日までの持ち点。まだ作っていなければ null（従来どおり全期間を計算する）
@@ -521,6 +610,16 @@ const Store = (() => {
       add(g.user_handle, null, 'goodGiven', P.goodGiven);
       const author = qAuthor[g.question_id];
       if (author && author !== g.user_handle) add(author, null, 'goodReceived', P.goodReceived);
+    });
+
+    // コメントへのリアクション（押した人と、書いた人の両方に入る）
+    const cmtAuthor = {};
+    cmsD.forEach(c => { cmtAuthor[c.id] = { handle: c.author, name: c.author_name }; });
+    (crD || []).forEach(r => {
+      if (!after(r.created_at)) return;
+      add(r.user_handle, null, 'cmtReactGiven', P.cmtReactGiven);
+      const a3 = cmtAuthor[r.comment_id];
+      if (a3 && a3.handle !== r.user_handle) add(a3.handle, a3.name, 'cmtReactReceived', P.cmtReactReceived);
     });
 
     // WA王決定戦の完走ボーナス（締め日より前のイベントなので凍結ぶんに含まれる）
@@ -931,7 +1030,8 @@ const Store = (() => {
     sampleDaily, sampleDailyArchive, countDaily, newestByRank,
     createQuestion, updateQuestion, deleteQuestion,
     recordAnswer, recordAnswersBatch, recordResult, listMyResults, listRecentAnswers, ranking, totalRanking,
-    funnyRanking, heartRanking, hardRanking,
+    funnyRanking, heartRanking, hardRanking, allReactionRanking,
+    reactionsOf, setReaction, commentReactions, setCommentReaction,
     goodCount, hasGood, toggleGood, goodCountsByQuestions,
     commentsOnMyQuestions, myComments,
     recordLogin, getStreak, loginPointsForDay, saveProfile, saveProfileRow, allProfiles,
