@@ -58,21 +58,45 @@
 
 ---
 
-## 3. ★ 最優先：未実行のSQLが4本ある
+## 3. Supabase のマイグレーション状況（2026-09-13 時点）
 
-**ユーザーが Supabase の SQL Editor で実行したかどうか、こちらからは確認できません**
-（このコンテナはネットワーク制限で supabase.co に接続できない）。
-**引き継いだら、まず「実行しましたか」と確認してください。**
+**実行状況はユーザーに確認すること**（このコンテナは supabase.co に接続できない）。
+下のSQLを流すと、どれが済んでいるか一覧で出る。
 
-| # | ファイル | 実行しないとどうなるか |
-|---|---|---|
-| 1 | `supabase/migrate_plan_a.sql` | **クイズの採点が動かない**（最優先） |
-| 2 | `supabase/migrate_arena_cap.sql` | アーカイブのポイントが入らない |
-| 3 | `supabase/migrate_time_attack.sql` | タイムマッチの記録が保存されない |
-| 4 | `supabase/migrate_lock_reads.sql` | 外部から解答記録が読めたまま |
+```sql
+select 'Plan A：採点の関数' as "項目",
+       case when exists (select 1 from pg_proc where proname = 'wq_grade')
+            then '済' else '未' end as "状態"
+union all select 'Plan A：正解の列を非公開に',
+       case when has_column_privilege('anon','questions','correct_index','SELECT')
+            then '未' else '済' end
+union all select 'ポイントの凍結（legacy_points）',
+       case when to_regclass('public.legacy_points') is null then '未' else '済' end
+union all select 'コメントのリアクション',
+       case when to_regclass('public.comment_reactions') is null then '未' else '済' end
+union all select 'アーカイブの種別（answers.source）',
+       case when exists (select 1 from information_schema.columns
+                         where table_name='answers' and column_name='source') then '済' else '未' end
+union all select 'タイムマッチ（time_attack）',
+       case when to_regclass('public.time_attack') is null then '未' else '済' end
+union all select '読み取り制限：wao_answers',
+       case when exists (select 1 from pg_policies
+                         where tablename='wao_answers' and policyname='read wao_answers')
+            then '未' else '済' end
+union all select '読み取り制限：history',
+       case when exists (select 1 from pg_policies
+                         where tablename='history' and policyname='read history')
+            then '未' else '済' end
+union all select 'WA王の記録ロック',
+       case when exists (select 1 from pg_policies
+                         where tablename='wao_entries' and policyname='delete wao_entries')
+            then '未' else '済' end;
+```
 
-**1 は特に危険です。** アプリ側だけ先に更新済みなので、SQLが未実行だと問題が解けません。
-ユーザーは「SQLをここに貼って」と言うことが多いので、**ファイルへのリンクではなく本文をチャットに貼る**こと。
+2026-09-13 時点で、**ポイントの凍結**と**WA王の記録ロック**の2つが未実行。他は済み。
+該当ファイルは `supabase/migrate_freeze_points.sql` と `supabase/migrate_wao_lock.sql`。
+
+**ユーザーはファイルへのリンクではなく、SQL本文をチャットに貼ることを好む。**
 
 ---
 
@@ -89,8 +113,16 @@
 
 ### 設定の現在値（`js/config.js`）
 - `waking.enabled: true` だが期間終了済み → 大会の入口は出ない
-- `waoArchive.timePenaltySec: 60`, `dailyPointCap: 251`
+- `waoArchive.timePenaltySec: 60`, `dailyPointCap: 0`（上限なし）
 - `waoArchive.themeSongUrl: 'https://youtu.be/H3deBh_mBzI'`
+- `pointsFrozenAt: '2026-09-12T00:00:00+09:00'`（ここより後だけ新ルールで計算）
+- `reactions: ['❤️','🤣','👏','🤔','💡','😮','🔥','🙏']`（並びも種類も自由に変えられる）
+
+### ポイントの考え方（2026-09-11 に作り直した）
+アプリの狙いは **定期ログイン / たまに作問 / リアクション**。
+これが霞まないよう、クイズの加点を「はじめて解いたとき」「はじめて正解したとき」の
+各1回だけにした。2回目以降は0なので、周回しても増えない。
+詳しい経緯と数字は `docs/DEVLOG.md` の「配点の全体設計をやり直した」を参照。
 
 ### 次の大会を開くとき
 `config.js` の `waking` に新しい日付を入れるだけ。
@@ -166,6 +198,9 @@ Supabase Edge Function を立て、**WA SSO のトークンを `/me` で検証**
 3. **点数の自己申告** … WA王の正解数はブラウザが数えた値。照合で検出はできるが防げない
 4. **他人の挑戦枠を潰せる** … 他人名義のエントリーを作れる
 5. **問題の答えは時間をかければ集められる** … 一括ダウンロードは塞いだが、1問ずつなら可能
+6. **リアクションの絵文字が検証されていない** … kind は任意の文字列として保存される。
+   長い文字列や絵文字でないものも入りうる。いまは自前のパネルからしか押せないので
+   実害は無いが、直接APIを叩けば何でも入る
 
 1〜5はすべて **サーバー役（Edge Function）を持てば解決する**。
 
@@ -175,7 +210,7 @@ Supabase Edge Function を立て、**WA SSO のトークンを `/me` で検証**
 
 | ファイル | 中身 |
 |---|---|
-| `docs/DEVLOG.md` | **なぜそうなっているか**。判断の理由、2つの事故の経緯 |
+| `docs/DEVLOG.md` | **なぜそうなっているか**。判断の理由、事故の経緯、配点設計の計算過程 |
 | `docs/WA_API.md` | WA Member App API の使いどころと移行の段取り |
 | `docs/BUILD_NOTES.md` | 初期の設計メモ（古い） |
 | `supabase/schema.sql` | テーブル定義とRLSの初期設定 |
