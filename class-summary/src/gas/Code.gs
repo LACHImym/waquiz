@@ -28,9 +28,14 @@ var CS_SETTINGS = {
 // ---------- スプレッドシートの読み取り ----------
 
 function csOpenSpreadsheet_() {
-  return CS_SETTINGS.SPREADSHEET_ID
-    ? SpreadsheetApp.openById(CS_SETTINGS.SPREADSHEET_ID)
-    : SpreadsheetApp.getActiveSpreadsheet();
+  var id = CS_SETTINGS.SPREADSHEET_ID || PropertiesService.getScriptProperties().getProperty('SPREADSHEET_ID');
+  if (id) return SpreadsheetApp.openById(String(id).trim());
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  if (!ss) {
+    throw new Error('成績表スプレッドシートが見つかりません。成績表を開いて「拡張機能 → Apps Script」から作ったプロジェクトに貼るか、' +
+      '「プロジェクトの設定 → スクリプト プロパティ」に SPREADSHEET_ID（成績表 URL の /d/ と /edit の間の文字列）を追加してください。');
+  }
+  return ss;
 }
 
 /** フォーム回答らしきシートを { name, headers, rows } の配列にする */
@@ -319,5 +324,5 @@ function createConfigSheets() {
     t.getRange(1, 1, trows.length, 4).setValues(trows);
     t.setFrozenRows(1);
   }
-  Logger.log('設定シートを用意しました');
+  Logger.log('設定シートを用意しました → ' + ss.getName() + '（' + ss.getUrl() + '）');
 }
