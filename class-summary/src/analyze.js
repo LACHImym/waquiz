@@ -214,23 +214,60 @@ function csRoundsFromTables(tables, config) {
     rounds.push({ sheet: tb.name || '', date: firstTs, n: n, comments: comments, questions: questions, works: works, workKeys: workIdx.map(function (w) { return w.key; }), extras: extras });
   });
   rounds.sort(function (a, b) { return a.date - b.date; });
+  var cfgRounds = config.rounds || {};
+  var dated = Object.keys(cfgRounds).map(function (k) { return { no: parseInt(k, 10), date: csParseDate(cfgRounds[k].date) }; })
+    .filter(function (x) { return x.no && x.date; });
+  var usedNo = {};
   rounds.forEach(function (r, i) {
-    r.no = i + 1;
-    var c = (config.rounds || {})[r.no] || {};
+    var no = null;
+    if (dated.length) {
+      // 授業日の当日〜6日後に始まった回答シートを、その授業の回とみなす
+      var best = null;
+      dated.forEach(function (d) {
+        var diff = (csDateOnly(r.date) - csDateOnly(d.date)) / 86400000;
+        if (diff >= 0 && diff <= 6 && !usedNo[d.no] && (best === null || diff < best.diff)) best = { no: d.no, diff: diff };
+      });
+      if (best) no = best.no;
+    }
+    if (!no) { no = i + 1; while (usedNo[no]) no++; }
+    usedNo[no] = true;
+    r.no = no;
+    var c = cfgRounds[no] || {};
     r.title = c.title || '';
     r.workLabels = c.works || {};
     r.notes = c.notes || [];
+    r.classDate = csParseDate(c.date) || csDateOnly(r.date);
   });
+  rounds.sort(function (a, b) { return a.no - b.no; });
   return rounds;
+}
+
+function csDateOnly(d) {
+  d = csParseDate(d);
+  return d ? new Date(d.getFullYear(), d.getMonth(), d.getDate()) : null;
+}
+
+/** 授業日から何日後に公開するか（既定 7 日） */
+function csOpenDate(classDate, delayDays) {
+  var d = csDateOnly(classDate);
+  if (!d) return null;
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate() + (delayDays === undefined ? 7 : delayDays));
+}
+
+function csIsOpen(classDate, today, delayDays) {
+  var o = csOpenDate(classDate, delayDays);
+  if (!o) return false;
+  return csDateOnly(today || new Date()) >= o;
 }
 
 function csParseDate(v) {
   if (v instanceof Date) return isNaN(v) ? null : v;
   if (!v) return null;
   var s = String(v).trim();
-  var m = s.match(/^(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})(?:\s+(\d{1,2}):(\d{2})(?::(\d{2}))?)?/);
-  if (!m) return null;
-  return new Date(+m[1], +m[2] - 1, +m[3], +(m[4] || 0), +(m[5] || 0), +(m[6] || 0));
+  var m = s.match(/^(\d{4})[\/\-.年](\d{1,2})[\/\-.月](\d{1,2})日?(?:[\sT]+(\d{1,2}):(\d{2})(?::(\d{2}))?)?/);
+  if (m) return new Date(+m[1], +m[2] - 1, +m[3], +(m[4] || 0), +(m[5] || 0), +(m[6] || 0));
+  var d = new Date(s);
+  return isNaN(d) ? null : d;
 }
 
 // ---------- 解析本体 ----------
@@ -271,7 +308,7 @@ function csAnalyze(rounds, config) {
     });
     allComments = allComments.concat(r.comments);
     return {
-      no: r.no, title: r.title, date: r.date, n: r.n, sheet: r.sheet,
+      no: r.no, title: r.title, date: r.date, classDate: r.classDate, n: r.n, sheet: r.sheet,
       comments: { count: r.comments.length, types: typeRes, top: top, quotes: csPickQuotes(r.comments, topWords, 3, 20, 120), quotesByType: quotesByType },
       works: works,
       questions: r.questions,
@@ -296,10 +333,17 @@ function csAnalyze(rounds, config) {
   };
 }
 
+/** JSON から読み戻したまとめの日付を Date に戻す */
+function csReviveSummary(sum) {
+  sum.generatedAt = csParseDate(sum.generatedAt) || new Date();
+  (sum.rounds || []).forEach(function (r) { r.date = csParseDate(r.date); r.classDate = csParseDate(r.classDate); });
+  return sum;
+}
+
 if (typeof module !== 'undefined') {
   module.exports = {
     CS_DEFAULT_TYPES: CS_DEFAULT_TYPES, csScrubText: csScrubText, csTerms: csTerms, csTopTerms: csTopTerms,
     csDistribution: csDistribution, csClassifyTypes: csClassifyTypes, csPickQuotes: csPickQuotes,
-    csRoundsFromTables: csRoundsFromTables, csPickQuotesByCategory: csPickQuotesByCategory, csAnalyze: csAnalyze, csParseDate: csParseDate
+    csRoundsFromTables: csRoundsFromTables, csPickQuotesByCategory: csPickQuotesByCategory, csDateOnly: csDateOnly, csOpenDate: csOpenDate, csIsOpen: csIsOpen, csReviveSummary: csReviveSummary, csAnalyze: csAnalyze, csParseDate: csParseDate
   };
 }

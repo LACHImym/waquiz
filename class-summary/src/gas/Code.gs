@@ -1,16 +1,19 @@
 /**
  * 授業感想・ワークまとめ：Apps Script 本体
  *
- * ページ構成
+ * 動き方
+ *   毎週月曜 6 時台  weeklySnapshot   … その時点のフォーム回答で集計し直し、結果（スナップショット）を Drive に保存
+ *   毎日   6 時台   dailyPublish     … スナップショットから「今日」の公開判定でメインページを描き直し、WordPress に流し込む
+ *   閲覧時           doGet            … スナップショットから各回・全体のページを描く（授業日から 7 日後まで非公開）
+ *
+ * ページ
  *   ?（なし）        メインページ：科目の概要と全回のリンク一覧
  *   ?round=3         第3回の感想・ワークまとめ
  *   ?page=overall    全回を通した傾向
  *
  * 閲覧制限
- *   デプロイ時に「アクセスできるユーザー：g.neec.ac.jp のユーザーのみ」を選ぶと、
- *   そのドメインの Google アカウントでログインした人だけが開けます（学校のアカウントから
- *   デプロイした場合に選べます）。CS_SETTINGS.ALLOWED_DOMAIN を入れると、コード側でも
- *   メールアドレスのドメインを確認します。
+ *   学校アカウント（@g.neec.ac.jp）からデプロイし、アクセス範囲を「g.neec.ac.jp のユーザーのみ」に。
+ *   CS_SETTINGS.ALLOWED_DOMAIN でコード側でも確認します。
  *
  * 学生の氏名・学籍番号・メールは読み取り時点で捨てます（csReadTables_ 参照）。
  */
@@ -18,7 +21,8 @@
 var CS_SETTINGS = {
   ALLOWED_DOMAIN: 'g.neec.ac.jp', // 空文字にするとコード側の確認をしない
   SPREADSHEET_ID: '',             // 空なら、このスクリプトが紐づくスプレッドシート
-  CACHE_SECONDS: 6 * 60 * 60      // 生成した HTML をこの秒数だけ使い回す（更新関数を実行すると消える）
+  DELAY_DAYS: 7,                  // 授業日から何日後に公開するか
+  SNAPSHOT_NAME: ''               // 空なら「まとめ_snapshot_<科目名>.json」
 };
 
 // ---------- スプレッドシートの読み取り ----------
@@ -57,8 +61,8 @@ function csReadTables_(ss) {
 /**
  * 設定シートを読む。
  *  「まとめ_回設定」
- *     A列に「科目名」「学期」「概要：見出し」の行（B列に値）。
- *     見出し行「回」以降：A:回 B:タイトル C:授業概要URL D:work1 E:work2 F:work3 G:work4 H:観察（改行区切り）
+ *     上部：A列「科目名」「学期」「全回数」「概要：見出し」（B列に値）
+ *     見出し行「回」以降：A:回 B:授業日 C:タイトル D:授業概要URL E:work1 F:work2 G:work3 H:work4 I:観察（改行区切り）
  *  「まとめ_分類辞書」 A:回 B:work C:カテゴリ D:キーワード（| 区切り）
  *  「まとめ_タイプ辞書」A:キー B:表示名 C:説明 D:キーワード（| 区切り）
  */
@@ -75,9 +79,10 @@ function csReadConfig_(ss) {
       var no = parseInt(a, 10);
       if (!no) return;
       var works = {};
-      ['work1', 'work2', 'work3', 'work4'].forEach(function (k, i) { if (r[3 + i]) works[k] = String(r[3 + i]); });
-      var notes = String(r[7] || '').split(/\n/).map(function (x) { return x.trim(); }).filter(Boolean);
-      cfg.rounds[no] = { title: String(r[1] || ''), url: String(r[2] || ''), works: works, notes: notes };
+      ['work1', 'work2', 'work3', 'work4'].forEach(function (k, i) { if (r[4 + i]) works[k] = String(r[4 + i]); });
+      var notes = String(r[8] || '').split(/\n/).map(function (x) { return x.trim(); }).filter(Boolean);
+      var date = r[1] instanceof Date ? Utilities.formatDate(r[1], 'Asia/Tokyo', 'yyyy/M/d') : String(r[1] || '');
+      cfg.rounds[no] = { date: date, title: String(r[2] || ''), url: String(r[3] || ''), works: works, notes: notes };
     });
   }
   var s2 = ss.getSheetByName('まとめ_分類辞書');
@@ -102,25 +107,64 @@ function csReadConfig_(ss) {
   return cfg;
 }
 
-// ---------- 生成 ----------
-
-function csBuild_() {
-  var ss = csOpenSpreadsheet_();
-  var cfg = csReadConfig_(ss);
-  var tables = csReadTables_(ss);
-  var rounds = csRoundsFromTables(tables, cfg);
-  var summary = csAnalyze(rounds, cfg);
-  var meta = {
+function csMeta_(ss, cfg) {
+  return {
     course: cfg.meta.course || ss.getName(),
     term: cfg.meta.term || '',
     roundTotal: cfg.meta.roundTotal || 15,
     overview: cfg.meta.overview || [],
-    rounds: cfg.rounds
+    rounds: cfg.rounds,
+    delayDays: CS_SETTINGS.DELAY_DAYS
   };
+}
+
+// ---------- スナップショット（週 1 回の集計結果） ----------
+
+function csSnapshotName_(meta) {
+  return CS_SETTINGS.SNAPSHOT_NAME || ('まとめ_snapshot_' + meta.course + '.json');
+}
+
+/** 今あるフォーム回答で集計し直し、Drive に保存する（毎週月曜に実行） */
+function weeklySnapshot() {
+  var ss = csOpenSpreadsheet_();
+  var cfg = csReadConfig_(ss);
+  var meta = csMeta_(ss, cfg);
+  var tables = csReadTables_(ss);
+  var summary = csAnalyze(csRoundsFromTables(tables, cfg), cfg);
+  var payload = JSON.stringify({ summary: summary, meta: meta });
+  var name = csSnapshotName_(meta);
+  var files = DriveApp.getFilesByName(name);
+  if (files.hasNext()) files.next().setContent(payload);
+  else DriveApp.createFile(name, payload, MimeType.PLAIN_TEXT);
+  CacheService.getScriptCache().remove('cs:snapshot');
+  Logger.log('スナップショット保存: ' + name + '（' + summary.roundCount + '回 / ' + summary.totalResponses + '件）');
   return { summary: summary, meta: meta };
 }
 
-/** ウェブアプリの URL。スクリプト プロパティ WEBAPP_URL があればそれを優先 */
+/** 保存済みのスナップショットを読む。無ければその場で作る */
+function csLoadSnapshot_() {
+  var cache = CacheService.getScriptCache();
+  var hit = cache.get('cs:snapshot');
+  var text = hit;
+  if (!text) {
+    var ss = csOpenSpreadsheet_();
+    var cfg = csReadConfig_(ss);
+    var name = csSnapshotName_(csMeta_(ss, cfg));
+    var files = DriveApp.getFilesByName(name);
+    if (!files.hasNext()) return weeklySnapshot();
+    text = files.next().getBlob().getDataAsString();
+    if (text.length < 95000) cache.put('cs:snapshot', text, 3600);
+  }
+  var obj = JSON.parse(text);
+  // 設定（タイトル・授業日・URL）は毎回シートから読み直す：公開判定に使うので最新にしておく
+  var ss2 = csOpenSpreadsheet_();
+  obj.meta = csMeta_(ss2, csReadConfig_(ss2));
+  obj.summary = csReviveSummary(obj.summary);
+  return obj;
+}
+
+// ---------- ウェブアプリ ----------
+
 function csWebAppUrl_() {
   var u = PropertiesService.getScriptProperties().getProperty('WEBAPP_URL');
   if (u) return u.replace(/\/$/, '');
@@ -129,37 +173,8 @@ function csWebAppUrl_() {
 
 function csLinks_() {
   var base = csWebAppUrl_();
-  return {
-    index: base,
-    overall: base + '?page=overall',
-    round: function (no) { return base + '?round=' + no; }
-  };
+  return { index: base, overall: base + '?page=overall', round: function (no) { return base + '?round=' + no; } };
 }
-
-function csPageHtml_(key) {
-  var cache = CacheService.getScriptCache();
-  var hit = CS_SETTINGS.CACHE_SECONDS ? cache.get('cs:' + key) : null;
-  if (hit) return hit;
-  var b = csBuild_();
-  var links = csLinks_();
-  var html;
-  if (key === 'overall') html = csRenderOverallPage(b.summary, b.meta, links);
-  else if (/^round:/.test(key)) html = csRenderRoundPage(b.summary, parseInt(key.slice(6), 10), b.meta, links);
-  else html = csRenderIndex(b.summary, b.meta, links);
-  if (CS_SETTINGS.CACHE_SECONDS && html.length < 90000) cache.put('cs:' + key, html, CS_SETTINGS.CACHE_SECONDS);
-  return html;
-}
-
-/** キャッシュを捨てる（定期実行やシート更新後に呼ぶ） */
-function refreshPages() {
-  var keys = ['index', 'overall'];
-  for (var i = 1; i <= 30; i++) keys.push('round:' + i);
-  CacheService.getScriptCache().removeAll(keys.map(function (k) { return 'cs:' + k; }));
-  csPageHtml_('index'); // 温めておく
-  Logger.log('キャッシュを更新しました');
-}
-
-// ---------- ウェブアプリ ----------
 
 function csAllowed_() {
   if (!CS_SETTINGS.ALLOWED_DOMAIN) return { ok: true };
@@ -174,16 +189,21 @@ function doGet(e) {
   var gate = csAllowed_();
   var title, html;
   if (!gate.ok) {
-    html = csRenderDocument('<div class="cs-root" style="max-width:640px;margin:48px auto;padding:0 20px;font-family:sans-serif;line-height:1.8">' +
-      '<h2 style="font-size:20px">このページは学校のアカウント専用です</h2>' +
+    html = '<div style="max-width:560px;margin:48px auto;padding:0 22px;font-family:Inter,\'Noto Sans JP\',sans-serif;line-height:1.8;color:#2a3142">' +
+      '<h2 style="font-size:20px;font-weight:600">このページは学校のアカウント専用です</h2>' +
       '<p>@' + csEsc(CS_SETTINGS.ALLOWED_DOMAIN) + ' の Google アカウントでログインしてから開いてください。' +
       (gate.email ? '<br>いまのアカウント：' + csEsc(gate.email) : '') + '</p>' +
-      '<p><a href="https://accounts.google.com/AccountChooser">アカウントを切り替える</a></p></div>', '閲覧制限');
+      '<p><a href="https://accounts.google.com/AccountChooser" style="color:#0d9488">アカウントを切り替える</a></p></div>';
     title = '閲覧制限';
-  } else if (p.page === 'overall') { html = csPageHtml_('overall'); title = '全体の傾向'; }
-  else if (p.round) { html = csPageHtml_('round:' + parseInt(p.round, 10)); title = '第' + parseInt(p.round, 10) + '回'; }
-  else { html = csPageHtml_('index'); title = 'まとめ'; }
-  return HtmlService.createHtmlOutput(/^<!doctype/i.test(html) ? html : csRenderDocument(html, title))
+  } else {
+    var snap = csLoadSnapshot_();
+    var links = csLinks_();
+    var opts = { today: new Date(), delayDays: CS_SETTINGS.DELAY_DAYS };
+    if (p.page === 'overall') { html = csRenderOverallPage(snap.summary, snap.meta, links); title = snap.meta.course + ' 全体の傾向'; }
+    else if (p.round) { var no = parseInt(p.round, 10); html = csRenderRoundPage(snap.summary, no, snap.meta, links, opts); title = snap.meta.course + ' 第' + no + '回'; }
+    else { html = csRenderIndex(snap.summary, snap.meta, links, opts); title = snap.meta.course + ' ' + snap.meta.term; }
+  }
+  return HtmlService.createHtmlOutput(csRenderDocument(html, title))
     .setTitle(title)
     .addMetaTag('viewport', 'width=device-width, initial-scale=1')
     .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
@@ -193,18 +213,16 @@ function doGet(e) {
 
 /**
  * メインページ（概要とリンク一覧）を WordPress の固定ページ本文に書き込む。
- * 各回のリンク先はウェブアプリ（閲覧制限つき）になる。
  * スクリプト プロパティ：WP_URL / WP_USER / WP_APP_PASSWORD / WP_PAGE_ID / WEBAPP_URL
  */
-function publishToWordPress() {
+function dailyPublish() {
   var props = PropertiesService.getScriptProperties();
   var url = props.getProperty('WP_URL'), user = props.getProperty('WP_USER');
   var pass = props.getProperty('WP_APP_PASSWORD'), pageId = props.getProperty('WP_PAGE_ID');
   if (!url || !user || !pass || !pageId) throw new Error('スクリプト プロパティ WP_URL / WP_USER / WP_APP_PASSWORD / WP_PAGE_ID を設定してください');
   if (!csWebAppUrl_()) throw new Error('スクリプト プロパティ WEBAPP_URL（ウェブアプリの URL）を設定してください');
-  refreshPages();
-  var b = csBuild_();
-  var fragment = csRenderIndex(b.summary, b.meta, csLinks_());
+  var snap = csLoadSnapshot_();
+  var fragment = csRenderIndex(snap.summary, snap.meta, csLinks_(), { today: new Date(), delayDays: CS_SETTINGS.DELAY_DAYS });
   var endpoint = url.replace(/\/$/, '') + '/wp-json/wp/v2/pages/' + pageId;
   var res = UrlFetchApp.fetch(endpoint, {
     method: 'post',
@@ -215,23 +233,30 @@ function publishToWordPress() {
   });
   var code = res.getResponseCode();
   if (code < 200 || code >= 300) throw new Error('WordPress 更新に失敗: HTTP ' + code + ' ' + res.getContentText().slice(0, 300));
-  Logger.log('更新完了: ' + endpoint + ' （' + b.summary.roundCount + '回 / ' + b.summary.totalResponses + '件）');
+  Logger.log('WordPress 更新完了: ' + endpoint);
+}
+
+/** 週次集計 → メインページ更新 を続けて行う（手動で今すぐ反映したいとき用） */
+function updateNow() {
+  weeklySnapshot();
+  if (PropertiesService.getScriptProperties().getProperty('WP_PAGE_ID')) dailyPublish();
 }
 
 /** 確認用：全ページを Drive のフォルダに HTML として保存する */
 function saveHtmlToDrive() {
-  var b = csBuild_();
+  var snap = csLoadSnapshot_();
   var links = { index: 'index.html', overall: 'overall.html', round: function (no) { return 'round-' + no + '.html'; } };
-  var folderName = b.meta.course + '_まとめ';
+  var opts = { today: new Date(), delayDays: CS_SETTINGS.DELAY_DAYS };
+  var folderName = snap.meta.course + '_まとめ';
   var it = DriveApp.getFoldersByName(folderName);
   var folder = it.hasNext() ? it.next() : DriveApp.createFolder(folderName);
   var put = function (name, html) {
     var f = folder.getFilesByName(name);
     if (f.hasNext()) f.next().setContent(html); else folder.createFile(name, html, MimeType.HTML);
   };
-  put('index.html', csRenderDocument(csRenderIndex(b.summary, b.meta, links), b.meta.course));
-  put('overall.html', csRenderDocument(csRenderOverallPage(b.summary, b.meta, links), '全体の傾向'));
-  b.summary.rounds.forEach(function (r) { put('round-' + r.no + '.html', csRenderDocument(csRenderRoundPage(b.summary, r.no, b.meta, links), '第' + r.no + '回')); });
+  put('index.html', csRenderDocument(csRenderIndex(snap.summary, snap.meta, links, opts), snap.meta.course));
+  put('overall.html', csRenderDocument(csRenderOverallPage(snap.summary, snap.meta, links), '全体の傾向'));
+  snap.summary.rounds.forEach(function (r) { put('round-' + r.no + '.html', csRenderDocument(csRenderRoundPage(snap.summary, r.no, snap.meta, links, opts), '第' + r.no + '回')); });
   Logger.log('保存: ' + folder.getUrl());
 }
 
@@ -241,24 +266,15 @@ function csHasTrigger_(fn) {
   return ScriptApp.getProjectTriggers().some(function (t) { return t.getHandlerFunction() === fn; });
 }
 
-/** 毎週月曜 6 時台：キャッシュ更新 ＋ WordPress のメインページ更新 */
-function installWeeklyTrigger() {
-  if (csHasTrigger_('scheduledUpdate')) { Logger.log('すでに登録済みです'); return; }
-  ScriptApp.newTrigger('scheduledUpdate').timeBased().onWeekDay(ScriptApp.WeekDay.MONDAY).atHour(6).create();
-  Logger.log('毎週月曜 6 時台に更新するトリガーを登録しました');
-}
-
-/** 毎日 6 時台（授業期間中向け） */
-function installDailyTrigger() {
-  if (csHasTrigger_('scheduledUpdate')) { Logger.log('すでに登録済みです'); return; }
-  ScriptApp.newTrigger('scheduledUpdate').timeBased().everyDays(1).atHour(6).create();
-  Logger.log('毎日 6 時台に更新するトリガーを登録しました');
-}
-
-function scheduledUpdate() {
-  var props = PropertiesService.getScriptProperties();
-  if (props.getProperty('WP_PAGE_ID')) publishToWordPress();
-  else refreshPages();
+/** 毎週月曜 6 時台に集計、毎日 6 時台にメインページの公開判定を更新 */
+function installTriggers() {
+  if (!csHasTrigger_('weeklySnapshot')) {
+    ScriptApp.newTrigger('weeklySnapshot').timeBased().onWeekDay(ScriptApp.WeekDay.MONDAY).atHour(6).create();
+  }
+  if (!csHasTrigger_('dailyPublish') && PropertiesService.getScriptProperties().getProperty('WP_PAGE_ID')) {
+    ScriptApp.newTrigger('dailyPublish').timeBased().everyDays(1).atHour(7).create();
+  }
+  Logger.log('トリガー登録: 月曜 6 時台に集計、毎日 7 時台にメインページ更新');
 }
 
 function removeTriggers() {
@@ -273,17 +289,19 @@ function createConfigSheets() {
   if (!ss.getSheetByName('まとめ_回設定')) {
     var s = ss.insertSheet('まとめ_回設定');
     var rows = [
-      ['科目名', 'デザイン史', '', '', '', '', '', ''],
-      ['学期', '2026年度 前期', '', '', '', '', '', ''],
-      ['全回数', 15, '', '', '', '', '', ''],
-      ['概要：科目の目的', '', '', '', '', '', '', ''],
-      ['概要：科目の概要', '', '', '', '', '', '', ''],
-      ['回', 'タイトル', '授業概要URL', 'work1の設問', 'work2の設問', 'work3の設問', 'work4の設問', '観察（1行に1つ、改行で区切る）']
+      ['科目名', 'デザイン史', '', '', '', '', '', '', ''],
+      ['学期', '2026年度 前期', '', '', '', '', '', '', ''],
+      ['全回数', 15, '', '', '', '', '', '', ''],
+      ['概要：科目の目的', '', '', '', '', '', '', '', ''],
+      ['概要：科目の概要', '', '', '', '', '', '', '', ''],
+      ['回', '授業日', 'タイトル', '授業概要URL', 'work1の設問', 'work2の設問', 'work3の設問', 'work4の設問', '観察（1行に1つ、改行で区切る）']
     ];
-    for (var i = 1; i <= 15; i++) rows.push([i, '', '', '', '', '', '', '']);
-    s.getRange(1, 1, rows.length, 8).setValues(rows);
+    for (var i = 1; i <= 15; i++) rows.push([i, '', '', '', '', '', '', '', '']);
+    s.getRange(1, 1, rows.length, 9).setValues(rows);
+    s.getRange(7, 2, 15, 1).setNumberFormat('yyyy/m/d');
     s.setFrozenRows(6);
-    s.setColumnWidth(2, 260); s.setColumnWidth(3, 300); s.setColumnWidth(8, 360);
+    s.setColumnWidth(2, 100); s.setColumnWidth(3, 240); s.setColumnWidth(4, 300); s.setColumnWidth(9, 360);
+    s.getRange('B6').setNote('授業を行った日。休講や長期休みで空いた週はそのまま日付が飛ぶだけでよい。授業日の ' + CS_SETTINGS.DELAY_DAYS + ' 日後にメインページのリンクが開く。');
   }
   if (!ss.getSheetByName('まとめ_分類辞書')) {
     var d = ss.insertSheet('まとめ_分類辞書');

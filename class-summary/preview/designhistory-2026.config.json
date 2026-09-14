@@ -12,7 +12,8 @@
         "label": "科目の概要",
         "text": "本講義は、デザインの勉強を始める学生を対象とし、「デザインの歴史的変遷」「基本的なデザイン用語の理解」、さらに「隣接学問領域との差異からデザイン領域特性の理解」を目指します。社会の変化、技術の変化に伴う「デザインの社会的な役割、表現技法の変化」を考察することで、劇的に移りゆく現代に新しいデザインを創造する上で必要となる基礎的な知識と思考方法を、歴史を通じて身につけます。"
       }
-    ]
+    ],
+    "delayDays": 7
   },
   "rounds": {
     "1": {
@@ -23,7 +24,8 @@
         "work3": "デザイン史の知識",
         "work4": "なぜデザイン史を学ぶのか"
       },
-      "url": "https://lachiart.com/designhistory/hi01/"
+      "url": "https://lachiart.com/designhistory/hi01/",
+      "date": "2026/4/15"
     },
     "2": {
       "title": "デザインとはなに",
@@ -33,7 +35,8 @@
         "work3": "昔のデザインと関係していそうなものは？",
         "work4": "以上3つから、デザインの始まりを想像して"
       },
-      "url": "https://lachiart.com/designhistory/hi02/"
+      "url": "https://lachiart.com/designhistory/hi02/",
+      "date": "2026/4/22"
     },
     "3": {
       "title": "良いデザインは何を",
@@ -42,7 +45,8 @@
         "work2": "良いデザインが宿る箇所",
         "work3": "良いデザインはどこに反映される"
       },
-      "url": "https://lachiart.com/designhistory/hi03/"
+      "url": "https://lachiart.com/designhistory/hi03/",
+      "date": "2026/5/13"
     },
     "4": {
       "title": "アーツ＆クラフツ運動",
@@ -52,7 +56,8 @@
         "work3": "AI未来予想図",
         "work4": "AIがない時代を想像"
       },
-      "url": "https://lachiart.com/designhistory/hi04/"
+      "url": "https://lachiart.com/designhistory/hi04/",
+      "date": "2026/5/20"
     },
     "5": {
       "title": "ドイツ工作連盟、バウハウス",
@@ -62,7 +67,8 @@
         "work3": "工芸と工業の違い",
         "work4": "工業化の特徴"
       },
-      "url": "https://lachiart.com/designhistory/hi05"
+      "url": "https://lachiart.com/designhistory/hi05",
+      "date": "2026/5/27"
     },
     "6": {
       "title": "アメリカデザイン史概要",
@@ -72,7 +78,8 @@
         "work3": "同じは個性を消す？",
         "work4": "同じ規格の良さ"
       },
-      "url": "https://lachiart.com/designhistory/hi06/"
+      "url": "https://lachiart.com/designhistory/hi06/",
+      "date": "2026/6/3"
     },
     "7": {
       "title": "シカゴ派、機能主義、フォードシステム",
@@ -82,23 +89,28 @@
         "work3": "壊れてないけど捨てたもの",
         "work4": "あなたの未来像は"
       },
-      "url": "https://lachiart.com/designhistory/hi07/"
+      "url": "https://lachiart.com/designhistory/hi07/",
+      "date": "2026/6/10"
     },
     "8": {
       "title": "国際様式、MoMA、ニュー・バウハウス",
-      "url": "https://lachiart.com/designhistory/hi08/"
+      "url": "https://lachiart.com/designhistory/hi08/",
+      "date": "2026/6/17"
     },
     "9": {
       "title": "日本デザイン史概要",
-      "url": "https://lachiart.com/designhistory/hi09/"
+      "url": "https://lachiart.com/designhistory/hi09/",
+      "date": "2026/6/24"
     },
     "10": {
       "title": "戦後デザイン、大正ロマン",
-      "url": "https://lachiart.com/designhistory/hi10/"
+      "url": "https://lachiart.com/designhistory/hi10/",
+      "date": "2026/7/1"
     },
     "11": {
       "title": "昭和初期のデザイン、民藝運動",
-      "url": "https://lachiart.com/designhistory/hi011/"
+      "url": "https://lachiart.com/designhistory/hi011/",
+      "date": "2026/7/8"
     },
     "12": {
       "title": "戦後の国際デザイン運動",
@@ -113,15 +125,18 @@
         "「見た目のかわいさ」。ミッドセンチュリーモダンの色は、それだけで記憶に残る",
         "「複雑な気持ち」と書けた層が、第13回の主役になる"
       ],
-      "url": "https://lachiart.com/designhistory/hi012/"
+      "url": "https://lachiart.com/designhistory/hi012/",
+      "date": "2026/7/15"
     },
     "13": {
       "title": "ポストモダンデザイン",
-      "url": "https://lachiart.com/designhistory/hi13/"
+      "url": "https://lachiart.com/designhistory/hi13/",
+      "date": "2026/7/22"
     },
     "14": {
       "title": "デジタル時代のデザイン",
-      "url": "https://lachiart.com/designhistory/hi14/"
+      "url": "https://lachiart.com/designhistory/hi14/",
+      "date": "2026/7/29"
     },
     "15": {
       "title": "グローバルデザインとローカルデザイン",
