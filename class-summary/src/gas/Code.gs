@@ -19,7 +19,7 @@
  */
 
 var CS_SETTINGS = {
-  ALLOWED_DOMAIN: 'g.neec.ac.jp', // 空文字にするとコード側の確認をしない
+  ALLOWED_DOMAIN: 'g.neec.ac.jp', // 学校のドメイン。スクリプト プロパティ ACCESS を public にすると確認しない
   SPREADSHEET_ID: '',             // 空なら、このスクリプトが紐づくスプレッドシート
   DELAY_DAYS: 7,                  // 授業日から何日後に公開するか
   SNAPSHOT_NAME: ''               // 空なら「まとめ_snapshot_<科目名>.json」
@@ -181,10 +181,22 @@ function csLinks_() {
   return { index: base, overall: base + '?page=overall', round: function (no) { return base + '?round=' + no; } };
 }
 
+/** 公開範囲。スクリプト プロパティ ACCESS が public なら誰でも、それ以外は学校アカウントのみ */
+function csAccessMode_() {
+  var v = PropertiesService.getScriptProperties().getProperty('ACCESS');
+  return (v && v.trim().toLowerCase() === 'public') ? 'public' : 'school';
+}
+
+/**
+ * 学校アカウントかどうかの確認。
+ * 本当の鍵は「デプロイ時のアクセス設定（g.neec.ac.jp のユーザーのみ）」で、ここは念のための確認。
+ * Google がメールアドレスを教えてくれない場合（匿名アクセスなど）はデプロイ設定に任せて通す。
+ */
 function csAllowed_() {
-  if (!CS_SETTINGS.ALLOWED_DOMAIN) return { ok: true };
+  if (csAccessMode_() === 'public' || !CS_SETTINGS.ALLOWED_DOMAIN) return { ok: true };
   var email = '';
   try { email = Session.getActiveUser().getEmail() || ''; } catch (e) { email = ''; }
+  if (!email) return { ok: true };
   var ok = email.toLowerCase().slice(-(CS_SETTINGS.ALLOWED_DOMAIN.length + 1)) === '@' + CS_SETTINGS.ALLOWED_DOMAIN.toLowerCase();
   return { ok: ok, email: email };
 }
@@ -206,7 +218,10 @@ function doGet(e) {
     var opts = { today: new Date(), delayDays: CS_SETTINGS.DELAY_DAYS };
     if (p.page === 'overall') { html = csRenderOverallPage(snap.summary, snap.meta, links); title = snap.meta.course + ' 全体の傾向'; }
     else if (p.round) { var no = parseInt(p.round, 10); html = csRenderRoundPage(snap.summary, no, snap.meta, links, opts); title = snap.meta.course + ' 第' + no + '回'; }
-    else { html = csRenderIndex(snap.summary, snap.meta, links, opts); title = snap.meta.course + ' ' + snap.meta.term; }
+    else {
+      if (csAccessMode_() === 'school') snap.meta.loginNote = '各回のページは、学校の Google アカウント（@' + CS_SETTINGS.ALLOWED_DOMAIN + '）でログインすると開きます。開かないときは、先に accounts.google.com で学校アカウントにログインしてから戻ってください。';
+      html = csRenderIndex(snap.summary, snap.meta, links, opts); title = snap.meta.course + ' ' + snap.meta.term;
+    }
   }
   return HtmlService.createHtmlOutput(csRenderDocument(html, title))
     .setTitle(title)
@@ -227,6 +242,7 @@ function dailyPublish() {
   if (!url || !user || !pass || !pageId) throw new Error('スクリプト プロパティ WP_URL / WP_USER / WP_APP_PASSWORD / WP_PAGE_ID を設定してください');
   if (!csWebAppUrl_()) throw new Error('スクリプト プロパティ WEBAPP_URL（ウェブアプリの URL）を設定してください');
   var snap = csLoadSnapshot_();
+  if (csAccessMode_() === 'school') snap.meta.loginNote = '各回のページは、学校の Google アカウント（@' + CS_SETTINGS.ALLOWED_DOMAIN + '）でログインすると開きます。開かないときは、先に accounts.google.com で学校アカウントにログインしてから戻ってください。';
   var fragment = csRenderIndex(snap.summary, snap.meta, csLinks_(), { today: new Date(), delayDays: CS_SETTINGS.DELAY_DAYS });
   var endpoint = url.replace(/\/$/, '') + '/wp-json/wp/v2/pages/' + pageId;
   var res = UrlFetchApp.fetch(endpoint, {

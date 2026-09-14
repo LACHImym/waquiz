@@ -159,6 +159,7 @@ function csRenderIndex(sum, meta, links, opts) {
     html += '</section>';
   }
 
+  if (meta.loginNote) html += '<p class="cs-notice">' + csEsc(meta.loginNote) + '</p>';
   html += '<section class="cs-index"><p class="cs-label">全' + total + '回　授業の 1 週間後に開きます</p><ol class="cs-index-list">';
   for (var no = 1; no <= total; no++) {
     var cfg = (meta.rounds || {})[no] || {};
@@ -245,6 +246,7 @@ function csRenderOverallPage(sum, meta, links) {
 /** 単体 HTML ファイルにする（ウェブアプリ・Drive 保存・手元確認用） */
 function csRenderDocument(fragment, title) {
   return '<!doctype html><html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">' +
+    '<base target="_top">' +  // Apps Script の枠（iframe）の中でリンクを開かず、ページ全体で開く。ログイン画面が拒否されるのを防ぐ
     '<title>' + csEsc(title) + '</title>' +
     '<style>body{margin:0;background:#e6e9ef;font-family:Inter,"Noto Sans JP",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}</style>' +
     '</head><body>' + fragment + '</body></html>';
@@ -270,6 +272,7 @@ function csCss() {
     '@media (min-width:560px){.cs-row{grid-template-columns:34px 1fr auto;grid-template-areas:"badge main links"}.cs-row-links{justify-content:flex-end}}',
     '.cs-pill{display:inline-flex;align-items:center;justify-content:center;gap:4px;min-height:34px;padding:6px 14px;border-radius:999px;background:var(--panel);box-shadow:var(--raise-sm);font-size:12px;font-weight:600;color:var(--ink);text-decoration:none;white-space:nowrap;transition:box-shadow .1s}.cs-pill:active{box-shadow:var(--inset-sm)}',
     '.cs-pill.is-primary{background:var(--teal);color:#fff;box-shadow:0 6px 14px -2px rgba(45,212,191,.4)}.cs-pill.is-off{box-shadow:var(--inset-sm);background:var(--bg);color:var(--mute);font-weight:500}',
+    '.cs-notice{margin-top:16px;background:var(--mint);color:var(--teal-deep);border-radius:14px;padding:10px 14px;font-size:12.5px;font-weight:500;line-height:1.6}',
     '.cs-cta{display:flex;align-items:center;justify-content:center;margin-top:18px;min-height:46px;padding:12px 18px;border-radius:18px;background:var(--panel);box-shadow:var(--inset);font-size:13px;font-weight:600;color:var(--teal-deep);text-decoration:none}',
     '.cs-pager{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:6px 0 4px}.cs-pager-nav{margin-left:auto;display:flex;gap:8px}.cs-round{margin-top:4px}',
     '.cs-notes ol{list-style:none;display:grid;gap:8px;margin-top:8px;counter-reset:n}.cs-notes li{display:grid;grid-template-columns:26px 1fr;column-gap:10px;align-items:start;font-size:13px;line-height:1.6;counter-increment:n}.cs-notes li::before{content:counter(n);width:26px;height:26px;border-radius:50%;background:var(--ink);color:var(--panel);font-size:11px;font-weight:700;display:inline-flex;align-items:center;justify-content:center;margin-top:1px}',
