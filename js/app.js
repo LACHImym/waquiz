@@ -1232,8 +1232,8 @@ function reactionBar(questionId, small = false) {
 }
 
 // コメントへのリアクション
-function commentReactionBar(commentId, initial) {
-  const row = h('div', { class: 'react-row is-cmt' });
+function commentReactionBar(commentId, initial, readOnly = false) {
+  const row = h('div', { class: 'react-row is-cmt' + (readOnly ? ' is-readonly' : '') });
   const addBtn = h('button', { class: 'react-add', title: 'リアクションする' }, '＋');
   let counts = (initial && initial.counts) || {}, mine = (initial && initial.mine) || null, busy = false;
 
@@ -1243,10 +1243,11 @@ function commentReactionBar(commentId, initial) {
       if (!n) return;
       row.appendChild(h('button', {
         class: 'react-chip' + (mine === e ? ' is-on' : ''),
-        onclick: () => pick(e),
+        disabled: readOnly ? 'disabled' : undefined,
+        onclick: readOnly ? undefined : () => pick(e),
       }, [h('span', { class: 'ce' }, e), h('span', { class: 'cn' }, String(n))]));
     });
-    row.appendChild(addBtn);
+    if (!readOnly) row.appendChild(addBtn);
   };
   addBtn.addEventListener('click', () => {
     if (!user) return requireLogin('リアクションはログインすると押せます');
@@ -1927,7 +1928,16 @@ async function renderNewComments(app) {
     slot.appendChild(moreWrap);
 
     const showMore = () => {
-      list.slice(shown, shown + NC_PAGE).forEach(c => listEl.appendChild(ncItem(c, seenBefore)));
+      const batch = list.slice(shown, shown + NC_PAGE);
+      const nodes = {};
+      batch.forEach(c => { nodes[c.id] = ncItem(c, seenBefore); listEl.appendChild(nodes[c.id]); });
+      // 出したぶんのリアクションを、1回の問い合わせでまとめて取る
+      Store.commentReactions(batch.map(c => c.id)).then(m => {
+        batch.forEach(c => {
+          const bar = nodes[c.id] && nodes[c.id].querySelector('.react-row.is-cmt');
+          if (bar && m[c.id]) bar.replaceWith(commentReactionBar(c.id, m[c.id], ncTab !== 'in'));
+        });
+      }).catch(() => {});
       shown = Math.min(shown + NC_PAGE, list.length);
       moreWrap.innerHTML = '';
       if (shown < list.length) {
@@ -1963,6 +1973,8 @@ function ncItem(c, seenBefore) {
           h('span', { class: 'comment-date' }, fmtDate(c.created_at)),
         ]),
         bodyEl,
+        // 受信＝相手のコメントなので押せる。送信＝自分のコメントなので見るだけ。
+        commentReactionBar(c.id, null, ncTab !== 'in'),
       ]),
     ]),
     actions, slot,

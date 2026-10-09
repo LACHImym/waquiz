@@ -787,3 +787,5 @@ textarea.input { resize: vertical; min-height: 92px; }
   font-size: 20px; line-height: 1; border-radius: 6px;
 }
 .emoji-opt:hover { background: var(--bg); }
+/* 自分が書いたコメント側は、数だけ見せて押せないようにする */
+.react-row.is-cmt.is-readonly .react-chip { cursor: default; opacity: .85; }
