@@ -223,8 +223,11 @@ async function boot() {
   updateFooterPool();
   loginBonus();
   refreshNewComments();
-  // タブを閉じる／ページを離れるときも、途中離脱として記録（ベストエフォート）
-  window.addEventListener('pagehide', () => { flushAbandon(); flushWaoAbandon(); });
+  // ページ退避は終了ではない。回答済みだけ再送し、復帰後も続けられる。
+  window.addEventListener('pagehide', () => {
+    saveQuizAnswers(quiz).catch(() => {});
+    if (wao && !wao._done) Store.waoRecordAnswers(user, wao.answers).catch(() => {});
+  });
   // 未ログインなら、まずログイン画面へ（ゲスト入場を選んだ人は除く）
   if (!user && !sessionStorage.getItem('ocq_guest')) switchView('login');
   else switchView('home');
@@ -444,20 +447,22 @@ function closeMenu() {
 /* ---------- 画面切替 ---------- */
 // 途中離脱の記録：2問だけ解いて抜けたら、残り3問は「不正解」として記録する。
 // （解いたぶんだけ選んで正答率を水増しする裏ワザ対策。抜けても得しない）
+async function saveQuizAnswers(q) {
+  if (!q || !q.player || !Store.isConfigured()) return;
+  await Store.recordQuizAnswers(q.answers, q.player);
+}
+
 async function flushAbandon() {
   const q = quiz;
-  if (!q || q._done) return;
-  const answeredN = q.answers.length;
-  // 1問も解かずに抜けた場合、または完走済みは記録しない
-  if (answeredN === 0 || answeredN >= q.list.length) return;
+  if (!q || q._done || !q.answers.length || q.answers.length >= q.list.length) return;
   q._done = true;
-  if (!user || !Store.isConfigured()) return;
-  const rest = q.list.slice(answeredN).map(x => ({ question_id: x.id, is_correct: false }));
-  const all = q.answers.concat(rest); // 解いたぶん＝実際の正誤、残り＝不正解
+  q.answers.push(...q.list.slice(q.answers.length).map(x => ({
+    id: crypto.randomUUID(), question_id: x.id, is_correct: false,
+  })));
   try {
-    await Store.recordAnswersBatch(all, user);
-    await Store.recordResult(q.rank, q.correct, q.list.length, user);
-  } catch {}
+    await saveQuizAnswers(q);
+    await Store.recordResult(q.rank, q.correct, q.list.length, q.player);
+  } catch { toast('解答を保存できませんでした。通信状態を確認してください', 'error'); }
 }
 
 function switchView(view) {
@@ -665,7 +670,7 @@ function renderWaoQuiz() {
   // 選択肢は毎回ランダムに並べ替え
   const displayed = shuffleIdx(q.choices.length).map(i => q.choices[i]);
   const grid = h('div', { class: 'choice-grid' });
-  order.map(i => q.choices[i]).forEach((c, i) => {
+  displayed.forEach((c, i) => {
     grid.appendChild(h('button', { class: 'gopt', onclick: () => answerWao(i, displayed, q, grid) },
       [h('span', { class: 'gopt-n' }, LETTERS[i] + '.'), h('span', { class: 'gopt-t' }, c)]));
   });
@@ -679,6 +684,7 @@ function renderWaoQuiz() {
 }
 
 async function answerWao(i, displayed, q, grid) {
+  const session = wao;
   if (wao.answered) return;
   wao.answered = true;
   [...grid.children].forEach(btn => { btn.disabled = true; });
@@ -687,8 +693,12 @@ async function answerWao(i, displayed, q, grid) {
   try { isRight = await Store.gradeQuiet(q.id, displayed[i]); }
   catch { wao.answered = false; [...grid.children].forEach(b => { b.disabled = false; });
           return toast('採点できませんでした。もう一度押してください', 'error'); }
+  if (wao !== session || session._done || currentView !== 'wao-quiz') return;
   if (isRight) wao.correct++;
   wao.answers.push({ question_id: q.id, is_correct: isRight });
+  try { await Store.waoRecordAnswers(user, session.answers); }
+  catch { toast('解答を保存できませんでした。次の解答・終了時に再送します', 'error'); }
+  if (wao !== session || session._done || currentView !== 'wao-quiz') return;
   // 正誤は見せず、押したものだけ印を付けてすぐ次へ
   [...grid.children].forEach((btn, idx) => {
     btn.disabled = true;
@@ -696,6 +706,7 @@ async function answerWao(i, displayed, q, grid) {
     else btn.classList.add('is-faded');
   });
   setTimeout(() => {
+    if (wao !== session || session._done || currentView !== 'wao-quiz') return;
     if (wao.i >= wao.list.length - 1) return finishWao();
     wao.i++;
     renderWaoQuiz();
@@ -715,7 +726,13 @@ async function finishWao() {
   try {
     await Store.waoRecordAnswers(user, answers);
     await Store.waoFinish(user, correct, answers.length);
-  } catch (e) { console.warn('wao finish failed', e); }
+  } catch (e) {
+    wao._done = false;
+    app.innerHTML = '';
+    app.appendChild(errorBox(e));
+    app.appendChild(h('button', { class: 'btn', onclick: finishWao }, '記録を再送する'));
+    return;
+  }
 
   app.innerHTML = '';
   app.appendChild(h('div', { class: 'wao-hero' },
@@ -886,14 +903,19 @@ function renderHome(app) {
     dCard.disabled = true;
     Store.countDaily(todayYMD()).then(cnt => {
       dCard.disabled = false;
-      if (cnt <= CONFIG.daily.minStock) {
+      if (cnt === 0) {
         dCard.classList.add('daily-empty');
-        dDesc.textContent = '問題が揃っていません';
-        dCard.onclick = () => toast('本日の問題はまだ準備中です（4問以上で公開）', 'info');
+        dDesc.textContent = '出題できる問題がありません';
+        dCard.onclick = () => toast('出題できる問題がありません。入門編などから挑戦できます', 'info');
       } else {
+        dDesc.textContent = `日付をまたいだ最新${cnt}問`;
         dCard.onclick = () => startQuiz('daily');
       }
-    }).catch(() => { dCard.disabled = false; });
+    }).catch(() => {
+      dCard.disabled = false;
+      dDesc.textContent = '問題数を取得できませんでした';
+      dCard.onclick = () => startQuiz('daily');
+    });
   }
 
   // 3難易度（星つき）
@@ -1036,7 +1058,7 @@ async function startQuiz(rankKey) {
   const n = CONFIG.questionsPerQuiz;
   let res;
   try {
-    res = rankKey === 'daily'   ? await Store.sampleDaily(n, todayYMD(), seenIds)
+    res = rankKey === 'daily'   ? await Store.sampleDaily(n, todayYMD())
         : rankKey === 'archive' ? await Store.sampleDailyArchive(n, seenIds)          // これまでの本日の問題
         : rankKey === 'stock'   ? await Store.sampleQuestions(undefined, n, seenIds)  // 難易度を問わずストックから
         : await Store.sampleQuestions(rankKey, n, seenIds);
@@ -1057,9 +1079,10 @@ async function startQuiz(rankKey) {
   // この一周で出した問題を記録（次回は未出題から出る）
   try { localStorage.setItem(cycleKey, JSON.stringify(res.seen)); } catch {}
 
-  quiz = { rank: rankKey, list, i: 0, correct: 0, answered: false, answers: [], state: null };
+  quiz = { rank: rankKey, list, i: 0, correct: 0, answered: false, answers: [], state: null, player: user };
   // ポイントが入るかの判定用（失敗しても出題は続ける）
-  if (user) Store.myAnswerState(user).then(st => { quiz.state = st; }).catch(() => {});
+  const session = quiz;
+  if (user) Store.myAnswerState(user).then(st => { session.state = st; }).catch(() => {});
   renderQuiz();
 }
 
@@ -1096,6 +1119,7 @@ function renderQuiz() {
 }
 
 async function answerQuiz(i, grid, q) {
+  const session = quiz;
   if (quiz.answered) return;
   quiz.answered = true;
   // 押した瞬間に全部止めて、採点をデータベースに問い合わせる
@@ -1111,11 +1135,15 @@ async function answerQuiz(i, grid, q) {
     return toast('採点できませんでした。もう一度押してください', 'error');
   }
   grid.classList.remove('is-grading');
+  if (quiz !== session || session._done || currentView !== 'quiz') return;
 
   const correct = quiz.cur.displayed.indexOf(res.correctChoice); // 表示上の正解位置
   const isRight = res.isCorrect;
   if (isRight) quiz.correct++;
-  quiz.answers.push({ question_id: q.id, is_correct: isRight }); // 完走時にまとめて記録（途中離脱時は残りを不正解として記録）
+  quiz.answers.push({ id: crypto.randomUUID(), question_id: q.id, is_correct: isRight });
+  try { await saveQuizAnswers(session); }
+  catch { toast('解答を保存できませんでした。次の解答・結果表示時に再送します', 'error'); }
+  if (quiz !== session || session._done || currentView !== 'quiz') return;
   if (user) popPoints(grid.children[i], pointsForAnswer(quiz.state, q.id, isRight));
   q = Object.assign({}, q, { explanation: res.explanation });    // 解説はいま届いたものを使う
   const accent = rankColor(quiz.rank);
@@ -1274,6 +1302,7 @@ function commentReactionBar(commentId, initial, readOnly = false) {
 
 /* ---------- 結果（アニメ円グラフ） ---------- */
 function showResult() {
+  const session = quiz;
   quiz._done = true; // 完走済み。途中離脱記録が二重に走らないようにする
   const total = quiz.list.length;
   const pct = Math.round((quiz.correct / total) * 100);
@@ -1324,9 +1353,9 @@ function showResult() {
   if (user && Store.isConfigured()) {
     (async () => {
       try {
-        await Store.recordAnswersBatch(quiz.answers, user);
-        await Store.recordResult(quiz.rank, quiz.correct, total, user);
-      } catch {}
+        await saveQuizAnswers(session);
+        await Store.recordResult(session.rank, session.correct, total, session.player);
+      } catch { toast('解答を保存できませんでした。通信状態を確認してください', 'error'); }
       let list;
       try { list = await Store.totalRanking(); } catch { return; }
       const myHandle = Misskey.handleOf(user);

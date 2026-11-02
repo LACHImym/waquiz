@@ -33,8 +33,8 @@ window.QUIZ_CONFIG = {
     { key: 'mania',        label: '上級編', color: 'cyan',    stars: 3, desc: 'ようこそ沼へ', guide: '特定のメンバーに関するもの' },
   ],
 
-  // 本日の問題（その日限りのお題）。ストックがこの数「以下」だとグレーアウト。
-  daily: { label: '本日の問題', color: 'navy', desc: 'タイムリーな話題', guide: '一過性の話題', minStock: 3 },
+  // 本日の問題（出題済みの問題から日付をまたいだ最新5問。1問から挑戦可能）。
+  daily: { label: '本日の問題', color: 'navy', desc: '日付をまたいだ最新5問', guide: '一過性の話題' },
 
   // WA王決定戦（1週間限定イベント）
   // enabled: false の間は、トップのバナーがグレーアウトして中に入れません。

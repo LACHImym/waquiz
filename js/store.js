@@ -146,18 +146,30 @@ const Store = (() => {
     return deckSelect(data, n, seenIds, counts);
   }
 
-  // 本日の問題（scheduled_date が今日）から n 問
-  async function sampleDaily(n, todayYmd, seenIds = []) {
+  // 出題済みの「本日の問題」を日付をまたいで最新5問。
+  // 同じ出題日は作成日時・IDで順序を固定。予約問題と通常問題は除く。
+  async function latestDaily(n, todayYmd) {
     must();
-    const data = await selectAll('questions', Q_COLS, q => q.eq('scheduled_date', todayYmd));
-    const counts = await answerCounts();
-    return deckSelect(data, n, seenIds, counts);
+    const limit = Math.max(0, Math.min(5, n));
+    if (!limit) return [];
+    const { data, error } = await db.from('questions').select(Q_COLS)
+      .not('scheduled_date', 'is', null).lte('scheduled_date', todayYmd)
+      .order('scheduled_date', { ascending: false })
+      .order('created_at', { ascending: false }).order('id', { ascending: false })
+      .limit(limit);
+    if (error) throw error;
+    return data || [];
+  }
+
+  async function sampleDaily(n, todayYmd) {
+    const list = await latestDaily(n, todayYmd);
+    return { list, seen: list.map(q => q.id) };
   }
 
   // これまでの「本日の問題」すべて（アーカイブ）から n 問
   async function sampleDailyArchive(n, seenIds = []) {
     must();
-    const data = await selectAll('questions', Q_COLS, q => q.not('scheduled_date', 'is', null));
+    const data = await selectAll('questions', Q_COLS, q => q.not('scheduled_date', 'is', null).lte('scheduled_date', new Date().toLocaleDateString('sv-SE', { timeZone: 'Asia/Tokyo' })));
     const counts = await answerCounts();
     return deckSelect(data, n, seenIds, counts);
   }
@@ -172,11 +184,7 @@ const Store = (() => {
   }
 
   async function countDaily(todayYmd) {
-    must();
-    const { count, error } = await db.from('questions')
-      .select('id', { count: 'exact', head: true }).eq('scheduled_date', todayYmd);
-    if (error) throw error;
-    return count || 0;
+    return (await latestDaily(5, todayYmd)).length;
   }
 
   // ランク別の問題数（通常プールのみ・出題プール表示用）
@@ -267,6 +275,16 @@ const Store = (() => {
     const plain = rows.map(({ source, ...rest }) => rest);
     const retry = await db.from('answers').insert(plain);
     if (retry.error) console.warn('answers batch failed', retry.error);
+  }
+
+  // 固定UUIDで再送しても同じ解答を二重登録しない。既存の主キーを利用する。
+  async function recordQuizAnswers(items, user) {
+    if (!user || !db || !items.length) return;
+    const rows = items.map(it => ({ id: it.id, question_id: it.question_id,
+      is_correct: it.is_correct, user_handle: Misskey.handleOf(user), user_name: user.name }));
+    if (rows.some(r => !r.id)) throw new Error('解答の保存IDがありません');
+    const { error } = await db.from('answers').upsert(rows, { onConflict: 'id', ignoreDuplicates: true });
+    if (error) throw error;
   }
 
   async function recordResult(rank, correct, total, user) {
@@ -853,7 +871,7 @@ const Store = (() => {
     }));
     const { error } = await db.from('wao_answers')
       .upsert(rows, { onConflict: 'user_handle,question_id' });
-    if (error) console.warn('wao answers failed', error);
+    if (error) throw error;
   }
 
   async function waoFinish(user, correct, answered) {
@@ -1029,7 +1047,7 @@ const Store = (() => {
     listQuestions, listMyQuestions, getQuestion, randomQuestion, sampleQuestions, countByRank,
     sampleDaily, sampleDailyArchive, countDaily, newestByRank,
     createQuestion, updateQuestion, deleteQuestion,
-    recordAnswer, recordAnswersBatch, recordResult, listMyResults, listRecentAnswers, ranking, totalRanking,
+    recordAnswer, recordAnswersBatch, recordQuizAnswers, recordResult, listMyResults, listRecentAnswers, ranking, totalRanking,
     funnyRanking, heartRanking, hardRanking, allReactionRanking,
     reactionsOf, setReaction, commentReactions, setCommentReaction,
     goodCount, hasGood, toggleGood, goodCountsByQuestions,
